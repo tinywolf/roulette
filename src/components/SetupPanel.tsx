@@ -66,7 +66,7 @@ export function SetupPanel({
           id="names-input"
           value={rawInput}
           onChange={(event) => onRawInputChange(event.target.value)}
-          placeholder={"민지, 준호, 7\n서연*2, 12*3\n또는 1~45"}
+          placeholder={"민지, 준호, 7\n서연*2, 12*3\n1~5, 민지*2"}
           rows={7}
           aria-describedby={
             errors.length > 0 ? "input-errors input-help" : "input-help"
@@ -90,7 +90,10 @@ export function SetupPanel({
               반복: <code>민지*2, 7*3</code>
             </li>
             <li>
-              숫자 범위: <code>1~45</code> (단독 입력)
+              숫자 범위: <code>1~45</code>
+            </li>
+            <li>
+              함께 입력: <code>1~5, 민지*2, 7</code>
             </li>
           </ul>
         </div>

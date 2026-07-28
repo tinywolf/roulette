@@ -110,14 +110,15 @@ describe("App setup", () => {
 
     expect(input).toHaveAttribute(
       "placeholder",
-      "민지, 준호, 7\n서연*2, 12*3\n또는 1~45",
+      "민지, 준호, 7\n서연*2, 12*3\n1~5, 민지*2",
     );
     const inputGuide = screen.getByText("입력 예시").parentElement;
     expect(inputGuide).toHaveTextContent(
       "목록: 민지, 준호, 7 (콤마 또는 줄바꿈)",
     );
     expect(inputGuide).toHaveTextContent("반복: 민지*2, 7*3");
-    expect(inputGuide).toHaveTextContent("숫자 범위: 1~45 (단독 입력)");
+    expect(inputGuide).toHaveTextContent("숫자 범위: 1~45");
+    expect(inputGuide).toHaveTextContent("함께 입력: 1~5, 민지*2, 7");
 
     fireEvent.change(input, { target: { value: "민지*2, 준호*3" } });
 
@@ -158,15 +159,19 @@ describe("App setup", () => {
     expect(screen.getByLabelText(/남은 공 45개/)).toBeInTheDocument();
   });
 
-  it("숫자 범위와 일반 이름을 섞으면 시작을 차단한다", () => {
+  it("숫자 범위와 일반·반복 값을 함께 확장해 시작한다", () => {
     render(<App />);
     const input = screen.getByLabelText("공 이름");
     const startButton = screen.getByRole("button", { name: /추첨 시작/ });
 
-    fireEvent.change(input, { target: { value: "1~3,민지" } });
+    fireEvent.change(input, { target: { value: "1~3,민지*2,7" } });
 
-    expect(startButton).toBeDisabled();
-    expect(screen.getByText(/숫자 두 개만 ~로 연결/)).toBeInTheDocument();
+    expect(screen.getByText("6 / 45")).toBeInTheDocument();
+    expect(startButton).toBeEnabled();
+
+    fireEvent.click(startButton);
+
+    expect(screen.getByText("0 / 6")).toBeInTheDocument();
   });
 
   it("일부 추첨 개수를 검증하고 목표 개수로 세션을 시작한다", () => {

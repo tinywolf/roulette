@@ -98,14 +98,35 @@ describe("parseNames", () => {
     expect(parseNames("  01 ~ 03  ").names).toEqual(["1", "2", "3"]);
   });
 
-  it("숫자 범위를 일반 이름이나 다른 구분자와 섞지 못하게 한다", () => {
-    expect(parseNames("1~3,민지").errors).toContain(
-      "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.",
-    );
+  it("숫자 범위를 일반 값과 반복식에 조합해 입력 순서대로 확장한다", () => {
+    const result = parseNames("1~3, 민지*2\n7");
+
+    expect(result.errors).toEqual([]);
+    expect(result.names).toEqual(["1", "2", "3", "민지", "민지", "7"]);
+  });
+
+  it("여러 숫자 범위와 한 값짜리 범위를 함께 허용한다", () => {
+    expect(parseNames("01~02, 7~7, 준호").names).toEqual([
+      "1",
+      "2",
+      "7",
+      "준호",
+    ]);
+  });
+
+  it("숫자 범위 자체에는 반복식을 적용하지 않는다", () => {
+    for (const input of ["1~3*2", "1~3*1"]) {
+      expect(parseNames(input).errors).toContain(
+        "숫자 범위에는 * 반복을 사용할 수 없습니다. 범위와 반복 항목을 콤마나 줄바꿈으로 구분해 주세요.",
+      );
+    }
+  });
+
+  it("잘못된 숫자 범위 형식을 거부한다", () => {
     expect(parseNames("민지~준호").errors).toContain(
       "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.",
     );
-    expect(parseNames("1~3*2").errors).toContain(
+    expect(parseNames("1~3~5,민지").errors).toContain(
       "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.",
     );
   });
@@ -115,7 +136,11 @@ describe("parseNames", () => {
       "시작 숫자는 끝 숫자보다 클 수 없습니다.",
     );
     expect(parseNames("1~1").errors[0]).toContain("2개 이상");
+    expect(parseNames("1~1,민지").errors).toEqual([]);
     expect(parseNames("1~46").errors[0]).toContain("최대 45개");
+    expect(parseNames("1~40,민지*6").errors).toContain(
+      "이름은 최대 45개까지 입력할 수 있습니다.",
+    );
   });
 });
 

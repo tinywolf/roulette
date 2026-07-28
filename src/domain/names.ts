@@ -10,18 +10,25 @@ const RANGE_FORMAT_ERROR =
   "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.";
 const REPEAT_FORMAT_ERROR =
   "반복 입력은 민지*2처럼 값 뒤에 *와 1~45 사이 정수를 입력해 주세요.";
+const RANGE_REPEAT_ERROR =
+  "숫자 범위에는 * 반복을 사용할 수 없습니다. 범위와 반복 항목을 콤마나 줄바꿈으로 구분해 주세요.";
 
-function parseNumericRange(raw: string): ParseNamesResult | null {
-  if (!raw.includes("~")) {
+type ExpandedEntry = {
+  names: string[];
+  error: string | null;
+};
+
+function parseNumericRangeEntry(entry: string): ExpandedEntry | null {
+  if (!entry.includes("~")) {
     return null;
   }
 
-  const match = NUMERIC_RANGE_PATTERN.exec(raw.trim());
+  const match = NUMERIC_RANGE_PATTERN.exec(entry);
 
   if (!match) {
     return {
       names: [],
-      errors: [RANGE_FORMAT_ERROR],
+      error: RANGE_FORMAT_ERROR,
     };
   }
 
@@ -31,30 +38,23 @@ function parseNumericRange(raw: string): ParseNamesResult | null {
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) {
     return {
       names: [],
-      errors: ["숫자 범위에는 안전하게 처리할 수 있는 정수를 입력해 주세요."],
+      error: "숫자 범위에는 안전하게 처리할 수 있는 정수를 입력해 주세요.",
     };
   }
 
   if (start > end) {
     return {
       names: [],
-      errors: ["숫자 범위의 시작 숫자는 끝 숫자보다 클 수 없습니다."],
+      error: "숫자 범위의 시작 숫자는 끝 숫자보다 클 수 없습니다.",
     };
   }
 
   const rangeLength = end - start + 1;
 
-  if (rangeLength < MIN_BALLS) {
-    return {
-      names: [],
-      errors: [`숫자 범위에는 ${MIN_BALLS}개 이상의 숫자가 필요합니다.`],
-    };
-  }
-
   if (rangeLength > MAX_BALLS) {
     return {
       names: [],
-      errors: [`숫자 범위는 최대 ${MAX_BALLS}개까지 입력할 수 있습니다.`],
+      error: `숫자 범위는 최대 ${MAX_BALLS}개까지 입력할 수 있습니다.`,
     };
   }
 
@@ -62,49 +62,57 @@ function parseNumericRange(raw: string): ParseNamesResult | null {
     names: Array.from({ length: rangeLength }, (_, index) =>
       String(start + index),
     ),
-    errors: [],
+    error: null,
   };
 }
 
-function expandRepeatedEntry(entry: string): {
-  names: string[];
-  error: string | null;
-} {
-  if (!entry.includes("*")) {
-    return { names: [entry], error: null };
+function expandEntry(entry: string): ExpandedEntry {
+  let value = entry;
+  let repeatCount = 1;
+  let hasRepeat = false;
+
+  if (entry.includes("*")) {
+    hasRepeat = true;
+    const match = REPEAT_PATTERN.exec(entry);
+    value = match?.[1].trim() ?? "";
+    repeatCount = match ? Number(match[2]) : Number.NaN;
+
+    if (
+      !match ||
+      !value ||
+      value.includes("*") ||
+      !Number.isSafeInteger(repeatCount) ||
+      repeatCount < 1 ||
+      repeatCount > MAX_BALLS
+    ) {
+      return {
+        names: [],
+        error: REPEAT_FORMAT_ERROR,
+      };
+    }
   }
 
-  const match = REPEAT_PATTERN.exec(entry);
-  const name = match?.[1].trim() ?? "";
-  const repeatCount = match ? Number(match[2]) : Number.NaN;
+  const numericRange = parseNumericRangeEntry(value);
+  const baseNames = numericRange?.names ?? [value];
 
-  if (
-    !match ||
-    !name ||
-    name.includes("*") ||
-    !Number.isSafeInteger(repeatCount) ||
-    repeatCount < 1 ||
-    repeatCount > MAX_BALLS
-  ) {
+  if (numericRange?.error) {
+    return numericRange;
+  }
+
+  if (numericRange && hasRepeat) {
     return {
       names: [],
-      error: REPEAT_FORMAT_ERROR,
+      error: RANGE_REPEAT_ERROR,
     };
   }
 
   return {
-    names: Array.from({ length: repeatCount }, () => name),
+    names: Array.from({ length: repeatCount }, () => baseNames).flat(),
     error: null,
   };
 }
 
 export function parseNames(raw: string): ParseNamesResult {
-  const numericRange = parseNumericRange(raw);
-
-  if (numericRange) {
-    return numericRange;
-  }
-
   const entries = raw
     .split(/[\n,]/)
     .map((name) => name.trim())
@@ -112,7 +120,7 @@ export function parseNames(raw: string): ParseNamesResult {
 
   const errors: string[] = [];
   const names = entries.flatMap((entry) => {
-    const expanded = expandRepeatedEntry(entry);
+    const expanded = expandEntry(entry);
 
     if (expanded.error && !errors.includes(expanded.error)) {
       errors.push(expanded.error);
