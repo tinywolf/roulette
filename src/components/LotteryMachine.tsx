@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Ball } from "../domain/types";
 import {
   advanceBallMotionNode,
+  advanceSettlingBallMotionNodes,
   createBallMotionNode,
   projectBallMotionNode,
   scaleBallMotionNode,
@@ -12,6 +13,7 @@ import {
 type LotteryMachineProps = {
   balls: Ball[];
   isMixing: boolean;
+  isSettling: boolean;
   visualBall: Ball | null;
   onError: (message: string) => void;
 };
@@ -124,6 +126,7 @@ function drawMotionTrail(
 export function LotteryMachine({
   balls,
   isMixing,
+  isSettling,
   visualBall,
   onError,
 }: LotteryMachineProps) {
@@ -348,17 +351,26 @@ export function LotteryMachine({
         );
         const nodeList = [...nodes.values()];
 
-        nodeList.forEach((node, index) => {
-          advanceBallMotionNode(
-            node,
-            index,
-            now,
+        if (isSettling) {
+          advanceSettlingBallMotionNodes(
+            nodeList,
             delta,
-            isMixing,
             chamberRadius,
             ballRadius,
           );
-        });
+        } else {
+          nodeList.forEach((node, index) => {
+            advanceBallMotionNode(
+              node,
+              index,
+              now,
+              delta,
+              isMixing,
+              chamberRadius,
+              ballRadius,
+            );
+          });
+        }
 
         const projectedNodes = nodeList
           .map((node) => ({
@@ -413,7 +425,7 @@ export function LotteryMachine({
       resizeObserver.disconnect();
       window.cancelAnimationFrame(frame);
     };
-  }, [balls, isMixing, onError, visualBall]);
+  }, [balls, isMixing, isSettling, onError, visualBall]);
 
   return (
     <div className="machine-frame" ref={containerRef}>

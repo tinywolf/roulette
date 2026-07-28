@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceBallMotionNode,
+  advanceSettlingBallMotionNodes,
   createBallMotionNode,
   projectBallMotionNode,
   scaleBallMotionNode,
@@ -34,7 +35,7 @@ describe("lotteryMotion", () => {
     );
   });
 
-  it("앞쪽 공을 뒤쪽 공보다 크고 선명하게 투영한다", () => {
+  it("깊이와 관계없이 같은 크기로 투영하되 앞쪽 공을 더 선명하게 표시한다", () => {
     const back = projectBallMotionNode(
       createNode({ x: 20, y: 10, z: -80 }),
       100,
@@ -50,7 +51,7 @@ describe("lotteryMotion", () => {
       12,
     );
 
-    expect(front.radius).toBeGreaterThan(back.radius);
+    expect(front.radius).toBe(back.radius);
     expect(front.opacity).toBeGreaterThan(back.opacity);
     expect(front.x).toBeGreaterThan(back.x);
   });
@@ -73,7 +74,7 @@ describe("lotteryMotion", () => {
 
     expect(front.x).toBe(back.x);
     expect(front.y).toBe(back.y);
-    expect(front.radius).not.toBe(back.radius);
+    expect(front.radius).toBe(back.radius);
   });
 
   it("공을 구형 경계 안으로 되돌리고 바깥쪽 속도를 반사한다", () => {
@@ -93,6 +94,127 @@ describe("lotteryMotion", () => {
 
     expect(node.z).not.toBe(previous.z);
     expect(node.vz).not.toBe(previous.vz);
+  });
+
+  it("바깥쪽 공을 중앙 영역으로 유입시킨 뒤 다시 바깥으로 보낸다", () => {
+    const node = createNode({
+      x: 92,
+      y: 12,
+      z: 8,
+      vx: 0,
+      vy: 130,
+      vz: 25,
+    });
+    let minimumPlanarDistance = Number.POSITIVE_INFINITY;
+    let maximumPlanarDistance = 0;
+
+    for (let frame = 0; frame < 480; frame += 1) {
+      advanceBallMotionNode(
+        node,
+        4,
+        frame * (1_000 / 60),
+        1 / 60,
+        true,
+        120,
+        10,
+      );
+      const planarDistance = Math.hypot(node.x, node.y);
+      minimumPlanarDistance = Math.min(minimumPlanarDistance, planarDistance);
+      maximumPlanarDistance = Math.max(maximumPlanarDistance, planarDistance);
+    }
+
+    expect(minimumPlanarDistance).toBeLessThan(24);
+    expect(maximumPlanarDistance).toBeGreaterThan(72);
+  });
+
+  it("여러 공이 서로 다른 시점에 중앙을 통과해 고리 궤도에 고착되지 않는다", () => {
+    const nodes = Array.from({ length: 45 }, (_, index) =>
+      createBallMotionNode(`ball-${index + 1}`, index, 45, 120),
+    );
+    const centralVisitors = new Set<string>();
+    let mixedDepthFrameCount = 0;
+
+    for (let frame = 0; frame < 360; frame += 1) {
+      let centralCount = 0;
+      let outerCount = 0;
+
+      nodes.forEach((node, index) => {
+        advanceBallMotionNode(
+          node,
+          index,
+          frame * (1_000 / 60),
+          1 / 60,
+          true,
+          120,
+          10,
+        );
+
+        const planarDistance = Math.hypot(node.x, node.y);
+
+        if (planarDistance < 30) {
+          centralVisitors.add(node.id);
+          centralCount += 1;
+        } else if (planarDistance > 72) {
+          outerCount += 1;
+        }
+      });
+
+      if (centralCount > 0 && outerCount > 0) {
+        mixedDepthFrameCount += 1;
+      }
+    }
+
+    expect(centralVisitors.size).toBeGreaterThan(15);
+    expect(mixedDepthFrameCount).toBeGreaterThan(120);
+  });
+
+  it("완료 후 공을 중력으로 구형 바닥에 떨어뜨려 정지시킨다", () => {
+    const node = createNode({
+      y: -72,
+      vx: 18,
+      vy: -24,
+      vz: 12,
+    });
+
+    for (let frame = 0; frame < 360; frame += 1) {
+      advanceSettlingBallMotionNodes([node], 1 / 60, 100, 10);
+    }
+
+    expect(node.y).toBeGreaterThan(72);
+    expect(Math.hypot(node.x, node.y, node.z)).toBeLessThanOrEqual(80.51);
+    expect(Math.hypot(node.vx, node.vy, node.vz)).toBeLessThan(1);
+  });
+
+  it("완료 후 44개 공의 겹침을 해소하며 아래쪽에 쌓는다", () => {
+    const nodes = Array.from({ length: 44 }, (_, index) =>
+      createBallMotionNode(`ball-${index + 1}`, index, 44, 120),
+    );
+
+    for (let frame = 0; frame < 600; frame += 1) {
+      advanceSettlingBallMotionNodes(nodes, 1 / 60, 120, 10);
+    }
+
+    const averageY =
+      nodes.reduce((sum, node) => sum + node.y, 0) / nodes.length;
+    let minimumDistance = Number.POSITIVE_INFINITY;
+
+    nodes.forEach((node, firstIndex) => {
+      expect(Math.hypot(node.x, node.y, node.z)).toBeLessThanOrEqual(100.51);
+
+      nodes.slice(firstIndex + 1).forEach((other) => {
+        minimumDistance = Math.min(
+          minimumDistance,
+          Math.hypot(
+            node.x - other.x,
+            node.y - other.y,
+            node.z - other.z,
+          ),
+        );
+      });
+    });
+
+    expect(averageY).toBeGreaterThan(42);
+    expect(minimumDistance).toBeGreaterThan(19);
   });
 
   it("리사이즈 시 3축 위치와 속도를 같은 비율로 조정한다", () => {

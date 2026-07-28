@@ -23,6 +23,49 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function constrainNodeToChamber(
+  node: BallMotionNode,
+  boundary: number,
+  restitution: number,
+  friction = 1,
+): void {
+  const distance = Math.hypot(node.x, node.y, node.z);
+
+  if (distance <= boundary) {
+    return;
+  }
+
+  const normalX = node.x / distance;
+  const normalY = node.y / distance;
+  const normalZ = node.z / distance;
+  node.x = normalX * boundary;
+  node.y = normalY * boundary;
+  node.z = normalZ * boundary;
+
+  const outwardVelocity =
+    node.vx * normalX + node.vy * normalY + node.vz * normalZ;
+
+  if (outwardVelocity > 0) {
+    node.vx -= (1 + restitution) * outwardVelocity * normalX;
+    node.vy -= (1 + restitution) * outwardVelocity * normalY;
+    node.vz -= (1 + restitution) * outwardVelocity * normalZ;
+  }
+
+  if (friction < 1) {
+    const radialVelocity =
+      node.vx * normalX + node.vy * normalY + node.vz * normalZ;
+    node.vx =
+      radialVelocity * normalX +
+      (node.vx - radialVelocity * normalX) * friction;
+    node.vy =
+      radialVelocity * normalY +
+      (node.vy - radialVelocity * normalY) * friction;
+    node.vz =
+      radialVelocity * normalZ +
+      (node.vz - radialVelocity * normalZ) * friction;
+  }
+}
+
 export function createBallMotionNode(
   id: string,
   index: number,
@@ -72,34 +115,56 @@ export function advanceBallMotionNode(
 ): void {
   const time = now / 1_000;
   const energy = isMixing ? 1 : 0.08;
-  const rotation = isMixing ? 2.45 : 0.42;
+  const crossingPhase = time * 1.55 + index * GOLDEN_ANGLE;
+  const crossingWave = Math.sin(crossingPhase);
+  const crossingPulse = (1 - Math.abs(crossingWave)) ** 2;
+  const rotation = isMixing
+    ? 1.15 + (1 - crossingPulse) * 1.75
+    : 0.42;
   const axisWave = Math.sin(time * 0.83);
   const crossWave = Math.cos(time * 0.61);
-  const turbulence = chamberRadius * (isMixing ? 1.55 : 0.08);
+  const turbulence = chamberRadius * (isMixing ? 1.2 : 0.08);
+  const transitPull = isMixing ? 4.4 + crossingPulse * 6.2 : 0.12;
+  const transitAngle = index * GOLDEN_ANGLE * 0.73 + time * 0.16;
+  const transitElevation =
+    Math.sin(index * 1.21 + time * 0.11) * 0.58;
+  const transitPlanarScale = Math.sqrt(1 - transitElevation ** 2);
+  const targetRadius = isMixing ? chamberRadius * 0.58 * crossingWave : 0;
+  const targetX = Math.cos(transitAngle) * transitPlanarScale * targetRadius;
+  const targetY = Math.sin(transitAngle) * transitPlanarScale * targetRadius;
+  const targetZ = transitElevation * targetRadius;
+  const transitJet =
+    chamberRadius * (isMixing ? Math.cos(crossingPhase) * 2.25 : 0);
 
   const accelerationX =
     (-node.y * rotation + node.z * (1.05 + axisWave * 0.55)) * energy +
-    Math.sin(time * 3.35 + index * 1.73) * turbulence;
+    Math.sin(time * 3.35 + index * 1.73) * turbulence -
+    (node.x - targetX) * transitPull +
+    Math.cos(transitAngle) * transitPlanarScale * transitJet;
   const accelerationY =
     (node.x * rotation - node.z * (1.45 + crossWave * 0.5)) * energy +
-    Math.cos(time * 2.75 + index * 1.31) * turbulence;
+    Math.cos(time * 2.75 + index * 1.31) * turbulence -
+    (node.y - targetY) * transitPull +
+    Math.sin(transitAngle) * transitPlanarScale * transitJet;
   const accelerationZ =
     (node.y * (1.45 + crossWave * 0.5) -
       node.x * (1.05 + axisWave * 0.55)) *
       energy +
-    Math.sin(time * 3.9 + index * 1.17) * turbulence;
+    Math.sin(time * 3.9 + index * 1.17) * turbulence -
+    (node.z - targetZ) * transitPull +
+    transitElevation * transitJet;
 
   node.vx += accelerationX * delta;
   node.vy += accelerationY * delta;
   node.vz += accelerationZ * delta;
 
-  const damping = Math.pow(isMixing ? 0.994 : 0.94, delta * 60);
+  const damping = Math.pow(isMixing ? 0.991 : 0.94, delta * 60);
   node.vx *= damping;
   node.vy *= damping;
   node.vz *= damping;
 
   const speed = Math.hypot(node.vx, node.vy, node.vz);
-  const maximumSpeed = isMixing ? 320 : 48;
+  const maximumSpeed = isMixing ? 340 : 48;
 
   if (speed > maximumSpeed) {
     const speedScale = maximumSpeed / speed;
@@ -112,27 +177,109 @@ export function advanceBallMotionNode(
   node.y += node.vy * delta;
   node.z += node.vz * delta;
 
-  const distance = Math.hypot(node.x, node.y, node.z);
   const boundary = Math.max(
     chamberRadius * 0.2,
     chamberRadius - physicalRadius * 1.35 - 6,
   );
 
-  if (distance > boundary) {
-    const normalX = node.x / distance;
-    const normalY = node.y / distance;
-    const normalZ = node.z / distance;
-    node.x = normalX * boundary;
-    node.y = normalY * boundary;
-    node.z = normalZ * boundary;
+  constrainNodeToChamber(node, boundary, 0.78);
+}
 
-    const outwardVelocity =
-      node.vx * normalX + node.vy * normalY + node.vz * normalZ;
+export function advanceSettlingBallMotionNodes(
+  nodes: BallMotionNode[],
+  delta: number,
+  chamberRadius: number,
+  physicalRadius: number,
+): void {
+  const boundedDelta = Math.min(0.034, Math.max(0, delta));
+  const boundary = Math.max(
+    chamberRadius * 0.2,
+    chamberRadius - physicalRadius * 1.35 - 6,
+  );
+  const gravity = chamberRadius * 3.8;
+  const drag = Math.pow(0.988, boundedDelta * 60);
 
-    if (outwardVelocity > 0) {
-      node.vx -= 1.78 * outwardVelocity * normalX;
-      node.vy -= 1.78 * outwardVelocity * normalY;
-      node.vz -= 1.78 * outwardVelocity * normalZ;
+  for (const node of nodes) {
+    node.vy += gravity * boundedDelta;
+    node.vx *= drag;
+    node.vy *= drag;
+    node.vz *= drag;
+    node.x += node.vx * boundedDelta;
+    node.y += node.vy * boundedDelta;
+    node.z += node.vz * boundedDelta;
+    constrainNodeToChamber(node, boundary, 0.16, 0.82);
+  }
+
+  const minimumDistance = physicalRadius * 2;
+
+  for (let iteration = 0; iteration < 3; iteration += 1) {
+    for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
+      const first = nodes[firstIndex];
+
+      for (
+        let secondIndex = firstIndex + 1;
+        secondIndex < nodes.length;
+        secondIndex += 1
+      ) {
+        const second = nodes[secondIndex];
+        let differenceX = second.x - first.x;
+        let differenceY = second.y - first.y;
+        let differenceZ = second.z - first.z;
+        let distance = Math.hypot(differenceX, differenceY, differenceZ);
+
+        if (distance >= minimumDistance) {
+          continue;
+        }
+
+        if (distance < 0.001) {
+          const separationAngle = (firstIndex + secondIndex) * GOLDEN_ANGLE;
+          differenceX = Math.cos(separationAngle);
+          differenceY = 0.35;
+          differenceZ = Math.sin(separationAngle);
+          distance = Math.hypot(differenceX, differenceY, differenceZ);
+        }
+
+        const normalX = differenceX / distance;
+        const normalY = differenceY / distance;
+        const normalZ = differenceZ / distance;
+        const correction = (minimumDistance - distance) / 2;
+
+        first.x -= normalX * correction;
+        first.y -= normalY * correction;
+        first.z -= normalZ * correction;
+        second.x += normalX * correction;
+        second.y += normalY * correction;
+        second.z += normalZ * correction;
+
+        const relativeVelocity =
+          (second.vx - first.vx) * normalX +
+          (second.vy - first.vy) * normalY +
+          (second.vz - first.vz) * normalZ;
+
+        if (relativeVelocity < 0) {
+          const impulse = (-(1 + 0.12) * relativeVelocity) / 2;
+          first.vx -= impulse * normalX;
+          first.vy -= impulse * normalY;
+          first.vz -= impulse * normalZ;
+          second.vx += impulse * normalX;
+          second.vy += impulse * normalY;
+          second.vz += impulse * normalZ;
+        }
+      }
+    }
+
+    for (const node of nodes) {
+      constrainNodeToChamber(node, boundary, 0.12, 0.78);
+    }
+  }
+
+  const sleepThreshold = gravity * boundedDelta * 1.35 + 1;
+
+  for (const node of nodes) {
+    if (Math.hypot(node.vx, node.vy, node.vz) < sleepThreshold) {
+      node.vx = 0;
+      node.vy = 0;
+      node.vz = 0;
     }
   }
 }
@@ -151,8 +298,8 @@ export function projectBallMotionNode(
   return {
     x: centerX + node.x * perspective,
     y: centerY + node.y * perspective,
-    radius: baseRadius * (0.72 + normalizedDepth * 0.56),
-    opacity: 0.52 + normalizedDepth * 0.48,
+    radius: baseRadius,
+    opacity: 0.68 + normalizedDepth * 0.32,
     depth,
     perspective,
   };

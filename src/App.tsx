@@ -371,6 +371,9 @@ function App() {
                     ? session.phase === "running"
                     : session.phase === "mixing"
                 }
+                isSettling={
+                  session.phase === "completed" && remainingBalls.length > 0
+                }
                 visualBall={
                   session.balls.find(
                     (ball) => ball.id === visualResult?.ballId,

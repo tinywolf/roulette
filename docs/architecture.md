@@ -1,6 +1,6 @@
 ---
 revision: d90764e
-updated_at: 2026-07-28T15:06:22+09:00
+updated_at: 2026-07-28T15:24:30+09:00
 ---
 
 # Architecture
@@ -61,7 +61,7 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 │   ├── components/
 │   │   ├── DrawControls.tsx  # 수동/자동 상태별 제어
 │   │   ├── LotteryMachine.tsx# Canvas 2D 연출
-│   │   ├── lotteryMotion.ts  # 3축 운동·구형 경계·원근 투영
+│   │   ├── lotteryMotion.ts  # 3축 혼합·중앙 횡단·중력 정착·깊이 투영
 │   │   ├── ResultList.tsx    # 누적 결과와 복사
 │   │   ├── SetupPanel.tsx    # 입력·검증·개수·모드 설정
 │   │   └── SoundToggle.tsx   # 효과음 토글
@@ -96,8 +96,8 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 | `domain/drawEngine.ts` | 수동·자동 상태 전이와 비복원 결과 | `DrawSession`, 현재 시각 | 새 `DrawSession` | `random.ts`, `types.ts` |
 | `services/nameStorage.ts` | 입력 원문 저장·복원·삭제 | 원문, Storage 어댑터 | 값과 경고를 포함한 결과 | `localStorage` |
 | `services/soundController.ts` | 음소거 상태와 효과음 재생 | 사운드 이벤트 | Web Audio 출력 | AudioContext |
-| `components/lotteryMotion.ts` | 3축 초기 배치·구형 경계·회전 난류·원근 투영 | 공 인덱스, 시각, 구 반지름 | 운동 노드, 투영 좌표 | 없음 |
-| `components/LotteryMachine.tsx` | 깊이 정렬·공 겹침·잔상·기계·배출 시각화 | 남은 공, 혼합 상태, 배출 공 | Canvas 프레임 | `lotteryMotion.ts`, Canvas 2D |
+| `components/lotteryMotion.ts` | 3축 초기 배치·구형 경계·회전 난류·중앙 횡단·중력 적층·깊이 투영 | 공 목록, 상태, 시각, 구 반지름 | 운동 노드, 투영 좌표 | 없음 |
+| `components/LotteryMachine.tsx` | 동일 크기 공·혼합/정착 전환·깊이 정렬·잔상·기계·배출 시각화 | 남은 공, 혼합·정착 상태, 배출 공 | Canvas 프레임 | `lotteryMotion.ts`, Canvas 2D |
 | `App.tsx` | 사용자 이벤트·타이머·가시성·서비스 통합 | 입력·클릭·브라우저 이벤트 | 화면 상태와 알림 | 모든 하위 모듈 |
 
 ### 의존성 방향
@@ -162,9 +162,11 @@ flowchart TD
 
 ### Canvas 투영
 
-`lotteryMotion`의 공 노드는 Canvas 중심 기준 상대 `x`, `y`, `z` 좌표와 `vx`, `vy`, `vz` 속도를 가진다. 혼합 상태에서는 복수 회전축과 시간 기반 난류를 적용하고 구형 경계 법선으로 바깥쪽 속도를 반사한다. 공 간 충돌 해소는 하지 않는다.
+`lotteryMotion`의 공 노드는 Canvas 중심 기준 상대 `x`, `y`, `z` 좌표와 `vx`, `vy`, `vz` 속도를 가진다. 혼합 상태에서는 복수 회전축과 시간 기반 난류를 적용하고 구형 경계 법선으로 바깥쪽 속도를 반사한다. 공마다 위상이 다른 횡단 목표점이 구의 양쪽을 왕복하며, 중앙 근처에서는 회전보다 목표점 추종과 횡단 제트가 강해져 공이 중심을 통과한다. 공 간 충돌 해소는 하지 않는다.
 
-`LotteryMachine`은 `z`를 원근 배율·반지름·투명도로 변환한 뒤 깊이가 낮은 공부터 그린다. 따라서 3D 공간에서 앞뒤가 다른 공은 2D 좌표가 겹쳐도 자연스럽게 중첩된다. 이 운동 상태는 `DrawSession`과 분리되어 결과 선택이나 자동 일정에 영향을 주지 않는다.
+`LotteryMachine`은 `z`를 좌표 원근 배율과 투명도로 변환하되 모든 공의 반지름과 이름 글자 크기는 동일하게 유지하고, 깊이가 낮은 공부터 그린다. 따라서 3D 공간에서 앞뒤가 다른 공은 2D 좌표가 겹쳐도 자연스럽게 중첩된다. 이 운동 상태는 `DrawSession`과 분리되어 결과 선택이나 자동 일정에 영향을 주지 않는다.
+
+일부 추첨 완료 시 `App`은 남은 공이 있는 경우에만 `isSettling`을 전달한다. `LotteryMachine`은 혼합 운동 대신 아래 방향 중력과 구형 벽 반발을 적용하고, 3회 반복하는 공 간 위치 보정·저반발 충돌·마찰로 남은 공을 바닥에 쌓는다. 전체 추첨 완료처럼 남은 공이 없으면 정착 계산을 수행하지 않는다.
 
 ## 정확성과 실패 격리
 
