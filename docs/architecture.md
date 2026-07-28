@@ -1,13 +1,13 @@
 ---
-revision: unversioned
-updated_at: 2026-07-28T14:37:08+09:00
+revision: 5d55c4f
+updated_at: 2026-07-28T14:50:42+09:00
 ---
 
 # Architecture
 
 ## 프로젝트 개요
 
-로또 추첨기는 2~45개의 이름을 공으로 만들어 수동 또는 자동으로 전체 또는 지정한 개수만큼 순차 추첨하는 정적 React 웹앱이다. 같은 이름도 세션 내 고유 ID가 다른 별도 공으로 취급한다.
+로또 추첨기는 이름 목록이나 `1~45` 같은 숫자 범위를 2~45개의 공으로 만들어 수동 또는 자동으로 전체 또는 지정한 개수만큼 순차 추첨하는 정적 React 웹앱이다. 같은 이름도 세션 내 고유 ID가 다른 별도 공으로 취급한다.
 
 핵심 설계 목표는 다음과 같다.
 
@@ -88,7 +88,7 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 
 | 모듈 | 책임 | 주요 입력 | 주요 출력·부작용 | 의존성 |
 |---|---|---|---|---|
-| `domain/names.ts` | 이름 분리·정규화·검증 | 입력 원문 | 이름 배열, 한국어 오류 배열 | 없음 |
+| `domain/names.ts` | 이름 분리 또는 숫자 범위 확장·정규화·검증 | 입력 원문 | 이름 배열, 한국어 오류 배열 | 없음 |
 | `domain/drawCount.ts` | 전체·일부 추첨 목표 검증 | 설정 방식, 입력값, 후보 수 | 목표 개수, 한국어 오류 배열 | `types.ts` |
 | `domain/types.ts` | 도메인 타입과 공 생성 | 이름 배열 | 고유 ID와 색상을 가진 `Ball[]` | 없음 |
 | `domain/random.ts` | 편향 없는 인덱스, 순열, 자동 일정 | 공 배열, 시작 시각, 난수 소스 | 공 ID 순열, `ScheduledDraw[]` | Web Crypto |
@@ -140,16 +140,19 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Raw["textarea 원문"] --> Parse["줄바꿈·콤마 분리"]
+    Raw["textarea 원문"] --> Syntax{"~ 포함?"}
+    Syntax -->|아니요| Parse["줄바꿈·콤마 분리"]
     Parse --> Trim["공백 제거·빈 항목 제외"]
+    Syntax -->|예| Range["단독 숫자 범위 검증·오름차순 확장"]
     Trim --> Validate["2~45개·20자 검증"]
+    Range --> Validate
     Raw --> Persist["{ version: 1, rawInput } 저장"]
     Persist --> Local["localStorage"]
     Validate --> Count["전체/일부 추첨 개수 검증"]
     Count --> Balls["고유 ID Ball[]와 drawCount 세션 생성"]
 ```
 
-저장 키는 `lottery-draw:names:v1`이다. 추첨 개수 설정·추첨 모드·일정·남은 공·결과는 저장하지 않는다. 따라서 새로고침 시 `rawInput`만 복원되고 앱은 전체 추첨이 선택된 설정 상태에서 시작한다.
+저장 키는 `lottery-draw:names:v1`이다. 숫자 범위를 확장한 배열이 아니라 `1~45` 같은 입력 원문을 저장한다. 추첨 개수 설정·추첨 모드·일정·남은 공·결과는 저장하지 않는다. 따라서 새로고침 시 `rawInput`만 복원되고 앱은 전체 추첨이 선택된 설정 상태에서 시작한다.
 
 ### 추첨 결과
 

@@ -39,6 +39,36 @@ describe("parseNames", () => {
     expect(parseNames(rawInput).errors).toEqual([]);
     expect(parseNames(rawInput).names).toHaveLength(45);
   });
+
+  it("숫자 범위를 오름차순 이름 목록으로 확장한다", () => {
+    const result = parseNames("1~45");
+
+    expect(result.errors).toEqual([]);
+    expect(result.names).toHaveLength(45);
+    expect(result.names[0]).toBe("1");
+    expect(result.names[44]).toBe("45");
+  });
+
+  it("숫자 범위의 공백과 선행 0을 정규화한다", () => {
+    expect(parseNames("  01 ~ 03  ").names).toEqual(["1", "2", "3"]);
+  });
+
+  it("숫자 범위를 일반 이름이나 다른 구분자와 섞지 못하게 한다", () => {
+    expect(parseNames("1~3,민지").errors).toContain(
+      "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.",
+    );
+    expect(parseNames("민지~준호").errors).toContain(
+      "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.",
+    );
+  });
+
+  it("역순과 생성 개수 경계를 검증한다", () => {
+    expect(parseNames("3~1").errors[0]).toContain(
+      "시작 숫자는 끝 숫자보다 클 수 없습니다.",
+    );
+    expect(parseNames("1~1").errors[0]).toContain("2개 이상");
+    expect(parseNames("1~46").errors[0]).toContain("최대 45개");
+  });
 });
 
 describe("createBalls", () => {

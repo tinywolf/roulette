@@ -4,7 +4,72 @@ export const MIN_BALLS = 2;
 export const MAX_BALLS = 45;
 export const MAX_NAME_LENGTH = 20;
 
+const NUMERIC_RANGE_PATTERN = /^(\d+)[ \t]*~[ \t]*(\d+)$/;
+const RANGE_FORMAT_ERROR =
+  "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.";
+
+function parseNumericRange(raw: string): ParseNamesResult | null {
+  if (!raw.includes("~")) {
+    return null;
+  }
+
+  const match = NUMERIC_RANGE_PATTERN.exec(raw.trim());
+
+  if (!match) {
+    return {
+      names: [],
+      errors: [RANGE_FORMAT_ERROR],
+    };
+  }
+
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) {
+    return {
+      names: [],
+      errors: ["숫자 범위에는 안전하게 처리할 수 있는 정수를 입력해 주세요."],
+    };
+  }
+
+  if (start > end) {
+    return {
+      names: [],
+      errors: ["숫자 범위의 시작 숫자는 끝 숫자보다 클 수 없습니다."],
+    };
+  }
+
+  const rangeLength = end - start + 1;
+
+  if (rangeLength < MIN_BALLS) {
+    return {
+      names: [],
+      errors: [`숫자 범위에는 ${MIN_BALLS}개 이상의 숫자가 필요합니다.`],
+    };
+  }
+
+  if (rangeLength > MAX_BALLS) {
+    return {
+      names: [],
+      errors: [`숫자 범위는 최대 ${MAX_BALLS}개까지 입력할 수 있습니다.`],
+    };
+  }
+
+  return {
+    names: Array.from({ length: rangeLength }, (_, index) =>
+      String(start + index),
+    ),
+    errors: [],
+  };
+}
+
 export function parseNames(raw: string): ParseNamesResult {
+  const numericRange = parseNumericRange(raw);
+
+  if (numericRange) {
+    return numericRange;
+  }
+
   const names = raw
     .split(/[\n,]/)
     .map((name) => name.trim())

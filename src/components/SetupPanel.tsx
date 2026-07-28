@@ -45,7 +45,7 @@ export function SetupPanel({
         <div>
           <p className="section-kicker">DRAW SETUP</p>
           <h2 id="setup-title">추첨할 이름을 담아주세요</h2>
-          <p>줄바꿈이나 콤마로 구분해 한 번에 입력할 수 있어요.</p>
+          <p>이름 목록 또는 1~45 같은 숫자 범위를 입력할 수 있어요.</p>
         </div>
         <SoundToggle enabled={soundEnabled} onToggle={onSoundToggle} />
       </div>
@@ -67,7 +67,7 @@ export function SetupPanel({
           id="names-input"
           value={rawInput}
           onChange={(event) => onRawInputChange(event.target.value)}
-          placeholder={"민지, 준호\n서연, 현우"}
+          placeholder={"민지, 준호\n서연, 현우\n또는 1~45"}
           rows={7}
           aria-describedby={errors.length > 0 ? "input-errors" : "input-help"}
           aria-invalid={errors.length > 0}
@@ -80,7 +80,7 @@ export function SetupPanel({
           </ul>
         ) : (
           <p className="input-help" id="input-help">
-            같은 이름도 각각 별도의 공으로 추첨됩니다.
+            같은 이름은 별도 공이며, 숫자 범위는 단독으로 입력합니다.
           </p>
         )}
       </div>

@@ -77,6 +77,31 @@ describe("App setup", () => {
       .toBeInTheDocument();
   });
 
+  it("1~45 숫자 범위를 45개의 공으로 확장해 시작한다", () => {
+    render(<App />);
+    const input = screen.getByLabelText("공 이름");
+
+    fireEvent.change(input, { target: { value: "1~45" } });
+
+    expect(screen.getByText("45 / 45")).toBeInTheDocument();
+    expect(localStorage.getItem("lottery-draw:names:v1")).toContain("1~45");
+    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+
+    expect(screen.getByText("0 / 45")).toBeInTheDocument();
+    expect(screen.getByLabelText(/남은 공 45개/)).toBeInTheDocument();
+  });
+
+  it("숫자 범위와 일반 이름을 섞으면 시작을 차단한다", () => {
+    render(<App />);
+    const input = screen.getByLabelText("공 이름");
+    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
+
+    fireEvent.change(input, { target: { value: "1~3,민지" } });
+
+    expect(startButton).toBeDisabled();
+    expect(screen.getByText(/숫자 두 개만 ~로 연결/)).toBeInTheDocument();
+  });
+
   it("일부 추첨 개수를 검증하고 목표 개수로 세션을 시작한다", () => {
     render(<App />);
     const input = screen.getByLabelText("공 이름");
