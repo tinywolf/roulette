@@ -258,7 +258,7 @@ describe("manual draw flow", () => {
 });
 
 describe("automatic draw flow", () => {
-  it("카운트다운 없이 5초부터 순서대로 자동 추첨한다", () => {
+  it("카운트다운 없이 3초부터 순서대로 자동 추첨한다", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);
     const randomSpy = vi
@@ -279,7 +279,7 @@ describe("automatic draw flow", () => {
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
 
     act(() => {
-      vi.advanceTimersByTime(4_999);
+      vi.advanceTimersByTime(2_999);
     });
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
 
@@ -289,7 +289,7 @@ describe("automatic draw flow", () => {
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
 
     act(() => {
-      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(3_000);
     });
     expect(screen.getByText("2 / 2")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "추첨이 완료됐어요" }))
@@ -321,7 +321,7 @@ describe("automatic draw flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
     act(() => {
-      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(3_000);
     });
 
     expect(screen.getByText("1 / 1")).toBeInTheDocument();

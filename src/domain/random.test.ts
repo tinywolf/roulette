@@ -46,13 +46,13 @@ describe("draw order and schedule", () => {
     expect(order).toHaveLength(balls.length);
   });
 
-  it("첫 공부터 5~10초의 누적 일정을 만든다", () => {
+  it("첫 공부터 3~7초의 누적 일정을 만든다", () => {
     const schedule = createAutoSchedule(
       ["ball-1", "ball-2"],
       1_000,
-      sequenceSource(0, 5),
+      sequenceSource(0, 4),
     );
 
-    expect(schedule.map((item) => item.dueAt)).toEqual([6_000, 16_000]);
+    expect(schedule.map((item) => item.dueAt)).toEqual([4_000, 11_000]);
   });
 });

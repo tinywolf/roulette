@@ -1,6 +1,6 @@
 ---
-revision: 5d55c4f
-updated_at: 2026-07-28T14:50:42+09:00
+revision: d90764e
+updated_at: 2026-07-28T15:06:22+09:00
 ---
 
 # Architecture
@@ -61,6 +61,7 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 │   ├── components/
 │   │   ├── DrawControls.tsx  # 수동/자동 상태별 제어
 │   │   ├── LotteryMachine.tsx# Canvas 2D 연출
+│   │   ├── lotteryMotion.ts  # 3축 운동·구형 경계·원근 투영
 │   │   ├── ResultList.tsx    # 누적 결과와 복사
 │   │   ├── SetupPanel.tsx    # 입력·검증·개수·모드 설정
 │   │   └── SoundToggle.tsx   # 효과음 토글
@@ -95,7 +96,8 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 | `domain/drawEngine.ts` | 수동·자동 상태 전이와 비복원 결과 | `DrawSession`, 현재 시각 | 새 `DrawSession` | `random.ts`, `types.ts` |
 | `services/nameStorage.ts` | 입력 원문 저장·복원·삭제 | 원문, Storage 어댑터 | 값과 경고를 포함한 결과 | `localStorage` |
 | `services/soundController.ts` | 음소거 상태와 효과음 재생 | 사운드 이벤트 | Web Audio 출력 | AudioContext |
-| `components/LotteryMachine.tsx` | 공 이동·충돌·배출 시각화 | 남은 공, 혼합 상태, 배출 공 | Canvas 프레임 | Canvas 2D |
+| `components/lotteryMotion.ts` | 3축 초기 배치·구형 경계·회전 난류·원근 투영 | 공 인덱스, 시각, 구 반지름 | 운동 노드, 투영 좌표 | 없음 |
+| `components/LotteryMachine.tsx` | 깊이 정렬·공 겹침·잔상·기계·배출 시각화 | 남은 공, 혼합 상태, 배출 공 | Canvas 프레임 | `lotteryMotion.ts`, Canvas 2D |
 | `App.tsx` | 사용자 이벤트·타이머·가시성·서비스 통합 | 입력·클릭·브라우저 이벤트 | 화면 상태와 알림 | 모든 하위 모듈 |
 
 ### 의존성 방향
@@ -127,7 +129,7 @@ sequenceDiagram
 ### 자동 추첨
 
 1. 시작 시 전체 공 순서를 암호학적으로 섞고 앞에서 `drawCount`개만 선택한다.
-2. 선택한 공마다 5~10초의 정수 간격을 생성해 절대 `dueAt` 목록을 만든다.
+2. 선택한 공마다 3~7초의 정수 간격을 생성해 절대 `dueAt` 목록을 만든다.
 3. 화면이 보이면 Canvas는 계속 혼합하고 가장 가까운 예정 시각에 결과를 반영한다.
 4. 탭 복귀·포커스 또는 지연된 타이머 실행 시 `reconcileScheduledDraws`가 `now` 이전 일정을 한 번에 반영한다.
 5. 한 번에 여러 공이 복구되면 놓친 배출 연출과 소리는 재생하지 않는다.
@@ -157,6 +159,12 @@ flowchart TD
 ### 추첨 결과
 
 `DrawSession.drawCount`는 시작 시 확정한 목표 개수다. 결과 수가 이 값에 도달하면 완료하며, 일부 추첨에서는 `remainingBallIds`에 미추첨 후보가 남는다. `DrawResult`는 순서, 공 ID, 전체 이름, 추첨 시각을 가진다. 결과 목록은 전체 이름을 표시하고, Canvas만 공간에 맞춰 말줄임표를 사용한다. 복사 시 결과를 `1. 이름` 형식의 줄 단위 텍스트로 변환한다.
+
+### Canvas 투영
+
+`lotteryMotion`의 공 노드는 Canvas 중심 기준 상대 `x`, `y`, `z` 좌표와 `vx`, `vy`, `vz` 속도를 가진다. 혼합 상태에서는 복수 회전축과 시간 기반 난류를 적용하고 구형 경계 법선으로 바깥쪽 속도를 반사한다. 공 간 충돌 해소는 하지 않는다.
+
+`LotteryMachine`은 `z`를 원근 배율·반지름·투명도로 변환한 뒤 깊이가 낮은 공부터 그린다. 따라서 3D 공간에서 앞뒤가 다른 공은 2D 좌표가 겹쳐도 자연스럽게 중첩된다. 이 운동 상태는 `DrawSession`과 분리되어 결과 선택이나 자동 일정에 영향을 주지 않는다.
 
 ## 정확성과 실패 격리
 
@@ -188,8 +196,8 @@ Vite가 개발 서버와 정적 번들을 만들고, TypeScript가 타입을 검
 
 ## 확장성과 유지보수 고려사항
 
-- **46개 이상 공 확장:** Canvas 공 반지름, 충돌 계산량, 모바일 높이를 함께 재검증해야 한다.
-- **물리 연출 개선:** 물리 엔진을 도입하더라도 `DrawEngine` 결과를 입력으로만 받아야 한다.
+- **46개 이상 공 확장:** Canvas 공 반지름, 3축 운동 계산량, 모바일 높이를 함께 재검증해야 한다.
+- **실제 3D 전환:** WebGL이나 3D 엔진을 도입하더라도 `DrawEngine` 결과를 입력으로만 받아야 한다.
 - **결과 저장:** 이름 저장소와 분리된 버전형 저장소를 추가하고 개인정보 노출 정책을 먼저 정한다.
 - **배포:** 현재 `dist/`는 정적 산출물이다. 호스팅별 base path와 CI 설정은 별도 범위다.
 - **브라우저:** Chromium 실제 검수는 완료했으나 Safari·Firefox·Edge는 대상 환경에서 추가 실행 검수가 필요하다.

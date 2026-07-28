@@ -1,19 +1,19 @@
 import { useEffect, useRef } from "react";
 import type { Ball } from "../domain/types";
+import {
+  advanceBallMotionNode,
+  createBallMotionNode,
+  projectBallMotionNode,
+  scaleBallMotionNode,
+  type BallMotionNode,
+  type ProjectedBallNode,
+} from "./lotteryMotion";
 
 type LotteryMachineProps = {
   balls: Ball[];
   isMixing: boolean;
   visualBall: Ball | null;
   onError: (message: string) => void;
-};
-
-type BallNode = {
-  id: string;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
 };
 
 const CANVAS_ERROR =
@@ -89,6 +89,38 @@ function drawBall(
   context.restore();
 }
 
+function drawMotionTrail(
+  context: CanvasRenderingContext2D,
+  ball: Ball,
+  node: BallMotionNode,
+  projected: ProjectedBallNode,
+): void {
+  const planarSpeed = Math.hypot(node.vx, node.vy);
+
+  if (planarSpeed < 24) {
+    return;
+  }
+
+  const trailLength = Math.min(
+    projected.radius * 3.2,
+    planarSpeed * projected.perspective * 0.055,
+  );
+
+  context.save();
+  context.globalAlpha = projected.opacity * 0.16;
+  context.strokeStyle = ball.color;
+  context.lineWidth = Math.max(1.5, projected.radius * 0.16);
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(
+    projected.x - (node.vx / planarSpeed) * trailLength,
+    projected.y - (node.vy / planarSpeed) * trailLength,
+  );
+  context.lineTo(projected.x, projected.y);
+  context.stroke();
+  context.restore();
+}
+
 export function LotteryMachine({
   balls,
   isMixing,
@@ -97,7 +129,11 @@ export function LotteryMachine({
 }: LotteryMachineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const nodesRef = useRef<Map<string, BallNode>>(new Map());
+  const nodesRef = useRef<Map<string, BallMotionNode>>(new Map());
+  const ejectionRef = useRef<{
+    ballId: string | null;
+    startedAt: number | null;
+  }>({ ballId: null, startedAt: null });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -118,8 +154,16 @@ export function LotteryMachine({
     let width = 0;
     let height = 0;
     let previousTime = performance.now();
-    const ejectionStartedAt = visualBall ? performance.now() : null;
     const nodes = nodesRef.current;
+    const ejection = ejectionRef.current;
+
+    if (visualBall && visualBall.id !== ejection.ballId) {
+      ejection.ballId = visualBall.id;
+      ejection.startedAt = performance.now();
+    } else if (!visualBall) {
+      ejection.ballId = null;
+      ejection.startedAt = null;
+    }
 
     const resize = () => {
       const rectangle = container.getBoundingClientRect();
@@ -128,19 +172,12 @@ export function LotteryMachine({
       const nextHeight = Math.max(360, rectangle.height || nextWidth * 0.82);
 
       if (width > 0 && height > 0) {
-        const previousCenterX = width / 2;
-        const previousCenterY = height * 0.43;
         const previousRadius = Math.min(width * 0.4, height * 0.36);
-        const nextCenterX = nextWidth / 2;
-        const nextCenterY = nextHeight * 0.43;
         const nextRadius = Math.min(nextWidth * 0.4, nextHeight * 0.36);
         const scale = nextRadius / previousRadius;
 
         for (const node of nodes.values()) {
-          node.x = nextCenterX + (node.x - previousCenterX) * scale;
-          node.y = nextCenterY + (node.y - previousCenterY) * scale;
-          node.vx *= scale;
-          node.vy *= scale;
+          scaleBallMotionNode(node, scale);
         }
       }
 
@@ -161,27 +198,21 @@ export function LotteryMachine({
       }
 
       balls.forEach((ball, index) => {
-        if (nodes.has(ball.id)) {
+        const existingNode = nodes.get(ball.id);
+
+        if (existingNode && Number.isFinite(existingNode.z)) {
           return;
         }
 
-        const angle = index * 2.399963 + 0.4;
         const chamberRadius = Math.min(width * 0.4, height * 0.36);
-        const distance =
-          chamberRadius *
-          0.72 *
-          Math.sqrt((index + 0.5) / Math.max(balls.length, 1));
-        nodes.set(ball.id, {
-          id: ball.id,
-          x: width / 2 + Math.cos(angle) * distance,
-          y: height * 0.45 + Math.sin(angle) * distance,
-          vx: Math.cos(angle + 1.1) * 72,
-          vy: Math.sin(angle + 1.1) * 72,
-        });
+        nodes.set(
+          ball.id,
+          createBallMotionNode(ball.id, index, balls.length, chamberRadius),
+        );
       });
     };
 
-    const drawMachine = (now: number) => {
+    const drawMachineBase = () => {
       const centerX = width / 2;
       const centerY = height * 0.43;
       const chamberRadius = Math.min(width * 0.4, height * 0.36);
@@ -206,20 +237,6 @@ export function LotteryMachine({
       context.arc(centerX, centerY, chamberRadius, 0, Math.PI * 2);
       context.fillStyle = chamberGradient;
       context.fill();
-      context.lineWidth = Math.max(6, chamberRadius * 0.035);
-      context.strokeStyle = "#2a3755";
-      context.stroke();
-      context.beginPath();
-      context.arc(
-        centerX - chamberRadius * 0.2,
-        centerY - chamberRadius * 0.25,
-        chamberRadius * 0.62,
-        Math.PI * 1.02,
-        Math.PI * 1.48,
-      );
-      context.lineWidth = Math.max(3, chamberRadius * 0.018);
-      context.strokeStyle = "rgb(255 255 255 / 80%)";
-      context.stroke();
       context.restore();
 
       context.fillStyle = "#2a3755";
@@ -242,9 +259,62 @@ export function LotteryMachine({
         10,
       );
       context.fill();
+    };
 
-      if (visualBall && ejectionStartedAt !== null) {
-        const progress = Math.min(1, (now - ejectionStartedAt) / 900);
+    const drawMachineForeground = (now: number) => {
+      const centerX = width / 2;
+      const centerY = height * 0.43;
+      const chamberRadius = Math.min(width * 0.4, height * 0.36);
+
+      context.save();
+      context.beginPath();
+      context.arc(centerX, centerY, chamberRadius, 0, Math.PI * 2);
+      context.lineWidth = Math.max(6, chamberRadius * 0.035);
+      context.strokeStyle = "#2a3755";
+      context.stroke();
+
+      context.beginPath();
+      context.arc(
+        centerX - chamberRadius * 0.2,
+        centerY - chamberRadius * 0.25,
+        chamberRadius * 0.62,
+        Math.PI * 1.02,
+        Math.PI * 1.48,
+      );
+      context.lineWidth = Math.max(3, chamberRadius * 0.018);
+      context.strokeStyle = "rgb(255 255 255 / 80%)";
+      context.stroke();
+
+      if (isMixing) {
+        const rotation = now / 720;
+
+        context.beginPath();
+        context.arc(
+          centerX,
+          centerY,
+          chamberRadius * 0.79,
+          rotation,
+          rotation + Math.PI * 0.22,
+        );
+        context.lineWidth = Math.max(1.5, chamberRadius * 0.01);
+        context.strokeStyle = "rgb(109 151 226 / 24%)";
+        context.stroke();
+
+        context.beginPath();
+        context.arc(
+          centerX,
+          centerY,
+          chamberRadius * 0.68,
+          -rotation * 1.18 + Math.PI,
+          -rotation * 1.18 + Math.PI * 1.24,
+        );
+        context.strokeStyle = "rgb(255 255 255 / 34%)";
+        context.stroke();
+      }
+      context.restore();
+
+      if (visualBall && ejection.startedAt !== null) {
+        const progress = Math.min(1, (now - ejection.startedAt) / 900);
         const eased = 1 - (1 - progress) ** 3;
         const startY = centerY + chamberRadius * 0.6;
         const endY = height - 42;
@@ -279,87 +349,54 @@ export function LotteryMachine({
         const nodeList = [...nodes.values()];
 
         nodeList.forEach((node, index) => {
-          const movement = isMixing ? 44 : 8;
-          node.vx += Math.sin(now / 380 + index * 1.71) * movement * delta;
-          node.vy += Math.cos(now / 330 + index * 1.37) * movement * delta;
-
-          const speed = Math.hypot(node.vx, node.vy);
-          const maximumSpeed = isMixing ? 190 : 58;
-
-          if (speed > maximumSpeed) {
-            node.vx = (node.vx / speed) * maximumSpeed;
-            node.vy = (node.vy / speed) * maximumSpeed;
-          }
-
-          if (!isMixing) {
-            node.vx *= 0.985;
-            node.vy *= 0.985;
-          }
-
-          node.x += node.vx * delta;
-          node.y += node.vy * delta;
-
-          const offsetX = node.x - centerX;
-          const offsetY = node.y - centerY;
-          const distance = Math.hypot(offsetX, offsetY);
-          const boundary = chamberRadius - ballRadius - 6;
-
-          if (distance > boundary) {
-            const normalX = offsetX / distance;
-            const normalY = offsetY / distance;
-            node.x = centerX + normalX * boundary;
-            node.y = centerY + normalY * boundary;
-            const dot = node.vx * normalX + node.vy * normalY;
-            node.vx -= 1.82 * dot * normalX;
-            node.vy -= 1.82 * dot * normalY;
-          }
+          advanceBallMotionNode(
+            node,
+            index,
+            now,
+            delta,
+            isMixing,
+            chamberRadius,
+            ballRadius,
+          );
         });
 
-        for (let firstIndex = 0; firstIndex < nodeList.length; firstIndex += 1) {
-          for (
-            let secondIndex = firstIndex + 1;
-            secondIndex < nodeList.length;
-            secondIndex += 1
-          ) {
-            const first = nodeList[firstIndex];
-            const second = nodeList[secondIndex];
-            const offsetX = second.x - first.x;
-            const offsetY = second.y - first.y;
-            const distance = Math.max(0.001, Math.hypot(offsetX, offsetY));
-            const minimumDistance = ballRadius * 2.04;
+        const projectedNodes = nodeList
+          .map((node) => ({
+            node,
+            projected: projectBallMotionNode(
+              node,
+              centerX,
+              centerY,
+              chamberRadius,
+              ballRadius,
+            ),
+          }))
+          .sort(
+            (first, second) =>
+              first.projected.depth - second.projected.depth,
+          );
+        const ballsById = new Map(balls.map((ball) => [ball.id, ball]));
 
-            if (distance >= minimumDistance) {
-              continue;
-            }
-
-            const normalX = offsetX / distance;
-            const normalY = offsetY / distance;
-            const overlap = (minimumDistance - distance) / 2;
-            first.x -= normalX * overlap;
-            first.y -= normalY * overlap;
-            second.x += normalX * overlap;
-            second.y += normalY * overlap;
-            const relativeVelocity =
-              (second.vx - first.vx) * normalX +
-              (second.vy - first.vy) * normalY;
-
-            if (relativeVelocity < 0) {
-              first.vx += relativeVelocity * normalX;
-              first.vy += relativeVelocity * normalY;
-              second.vx -= relativeVelocity * normalX;
-              second.vy -= relativeVelocity * normalY;
-            }
-          }
-        }
-
-        drawMachine(now);
-        nodeList.forEach((node) => {
-          const ball = balls.find((candidate) => candidate.id === node.id);
+        drawMachineBase();
+        projectedNodes.forEach(({ node, projected }) => {
+          const ball = ballsById.get(node.id);
 
           if (ball) {
-            drawBall(context, ball, node.x, node.y, ballRadius);
+            if (isMixing) {
+              drawMotionTrail(context, ball, node, projected);
+            }
+
+            drawBall(
+              context,
+              ball,
+              projected.x,
+              projected.y,
+              projected.radius,
+              projected.opacity,
+            );
           }
         });
+        drawMachineForeground(now);
 
         frame = window.requestAnimationFrame(animate);
       } catch {

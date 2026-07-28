@@ -1,6 +1,8 @@
 import type { Ball, ScheduledDraw } from "./types";
 
 const UINT32_RANGE = 0x1_0000_0000;
+export const AUTO_DRAW_MIN_SECONDS = 3;
+export const AUTO_DRAW_MAX_SECONDS = 7;
 
 export type RandomValuesSource = (values: Uint32Array<ArrayBuffer>) => void;
 
@@ -90,7 +92,12 @@ export function createAutoSchedule(
   let dueAt = startedAt;
 
   return orderedBallIds.map((ballId, index) => {
-    dueAt += secureRandomInteger(5, 10, randomValues) * 1_000;
+    dueAt +=
+      secureRandomInteger(
+        AUTO_DRAW_MIN_SECONDS,
+        AUTO_DRAW_MAX_SECONDS,
+        randomValues,
+      ) * 1_000;
 
     return {
       order: index + 1,

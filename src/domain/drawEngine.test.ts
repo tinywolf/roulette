@@ -80,7 +80,7 @@ describe("automatic draw", () => {
     const reconciled = reconcileScheduledDraws(session, secondDueAt);
     const reconciledAgain = reconcileScheduledDraws(reconciled, secondDueAt);
 
-    expect(firstDueAt).toBe(6_000);
+    expect(firstDueAt).toBe(4_000);
     expect(reconciled.results.map((result) => result.order)).toEqual([1, 2]);
     expect(reconciledAgain.results).toEqual(reconciled.results);
 
