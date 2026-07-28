@@ -18,6 +18,51 @@ describe("parseNames", () => {
     expect(result.names).toEqual(["민지", "민지"]);
   });
 
+  it("이름과 숫자 반복식을 입력 순서대로 확장한다", () => {
+    const result = parseNames("민지*2, 준호*3\n7*2");
+
+    expect(result.errors).toEqual([]);
+    expect(result.names).toEqual([
+      "민지",
+      "민지",
+      "준호",
+      "준호",
+      "준호",
+      "7",
+      "7",
+    ]);
+  });
+
+  it("반복식의 별표 앞뒤 공백과 반복 횟수 1을 허용한다", () => {
+    expect(parseNames(" 민지 * 2 , 준호* 1 ").names).toEqual([
+      "민지",
+      "민지",
+      "준호",
+    ]);
+  });
+
+  it.each([
+    "민지*0,준호",
+    "민지*46,준호",
+    "민지*1.5,준호",
+    "민지*둘,준호",
+    "*2,준호",
+    "민지**2,준호",
+  ])("잘못된 반복식 %s을 거부한다", (rawInput) => {
+    expect(parseNames(rawInput).errors).toContain(
+      "반복 입력은 민지*2처럼 값 뒤에 *와 1~45 사이 정수를 입력해 주세요.",
+    );
+  });
+
+  it("반복식 확장 결과에 전체 개수와 이름 길이 제한을 적용한다", () => {
+    expect(parseNames("민지*45,준호").errors).toContain(
+      "이름은 최대 45개까지 입력할 수 있습니다.",
+    );
+    expect(parseNames(`${"가".repeat(21)}*2`).errors).toContain(
+      "이름은 각각 20자 이하로 입력해 주세요.",
+    );
+  });
+
   it("개수와 길이 제한을 검증한다", () => {
     expect(parseNames("민지").errors).toContain("이름을 2개 이상 입력해 주세요.");
     expect(
@@ -58,6 +103,9 @@ describe("parseNames", () => {
       "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.",
     );
     expect(parseNames("민지~준호").errors).toContain(
+      "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.",
+    );
+    expect(parseNames("1~3*2").errors).toContain(
       "숫자 범위는 1~45처럼 숫자 두 개만 ~로 연결해 입력해 주세요.",
     );
   });

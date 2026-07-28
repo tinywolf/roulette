@@ -44,8 +44,7 @@ export function SetupPanel({
       <div className="setup-heading">
         <div>
           <p className="section-kicker">DRAW SETUP</p>
-          <h2 id="setup-title">추첨할 이름을 담아주세요</h2>
-          <p>이름 목록 또는 1~45 같은 숫자 범위를 입력할 수 있어요.</p>
+          <h2 id="setup-title">어떤 공을 넣어볼까요?</h2>
         </div>
         <SoundToggle enabled={soundEnabled} onToggle={onSoundToggle} />
       </div>
@@ -67,9 +66,11 @@ export function SetupPanel({
           id="names-input"
           value={rawInput}
           onChange={(event) => onRawInputChange(event.target.value)}
-          placeholder={"민지, 준호\n서연, 현우\n또는 1~45"}
+          placeholder={"민지, 준호, 7\n서연*2, 12*3\n또는 1~45"}
           rows={7}
-          aria-describedby={errors.length > 0 ? "input-errors" : "input-help"}
+          aria-describedby={
+            errors.length > 0 ? "input-errors input-help" : "input-help"
+          }
           aria-invalid={errors.length > 0}
         />
         {errors.length > 0 ? (
@@ -78,11 +79,21 @@ export function SetupPanel({
               <li key={error}>{error}</li>
             ))}
           </ul>
-        ) : (
-          <p className="input-help" id="input-help">
-            같은 이름은 별도 공이며, 숫자 범위는 단독으로 입력합니다.
-          </p>
-        )}
+        ) : null}
+        <div className="input-help input-guide" id="input-help">
+          <strong>입력 예시</strong>
+          <ul>
+            <li>
+              목록: <code>민지, 준호, 7</code> (콤마 또는 줄바꿈)
+            </li>
+            <li>
+              반복: <code>민지*2, 7*3</code>
+            </li>
+            <li>
+              숫자 범위: <code>1~45</code> (단독 입력)
+            </li>
+          </ul>
+        </div>
       </div>
 
       <fieldset className="mode-fieldset draw-count-fieldset">

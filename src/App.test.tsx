@@ -28,13 +28,28 @@ describe("App setup", () => {
     render(<App />);
     const startButton = screen.getByRole("button", { name: /추첨 시작/ });
     const input = screen.getByLabelText("공 이름");
+    const hero = screen.getByRole("region", { name: /두근두근/ });
 
+    expect(
+      screen.getByRole("heading", {
+        name: "두근두근, 추첨을 시작합니다",
+      }),
+    ).toBeInTheDocument();
+    expect(hero).toHaveTextContent(
+      "누가 뽑힐지는 마지막 순간까지 아무도 몰라요.",
+    );
+    expect(hero).toHaveTextContent("이름도 숫자도, 원하는 대로 넣어보세요.");
+    expect(hero).not.toHaveTextContent("같은 이름도 하나씩 따로 참여해요.");
     expect(startButton).toBeDisabled();
     fireEvent.change(input, { target: { value: "민지, 민지" } });
     expect(startButton).toBeEnabled();
     fireEvent.click(startButton);
 
-    expect(screen.getByRole("heading", { name: "행운의 공을 기다려보세요" }))
+    expect(
+      screen.getByRole("heading", {
+        name: "두근두근, 추첨을 시작합니다",
+      }),
+    )
       .toBeInTheDocument();
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
   });
@@ -62,7 +77,7 @@ describe("App setup", () => {
     firstRender.unmount();
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "추첨할 이름을 담아주세요" }))
+    expect(screen.getByRole("heading", { name: "어떤 공을 넣어볼까요?" }))
       .toBeInTheDocument();
     expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호");
     expect(screen.queryByText("0 / 2")).not.toBeInTheDocument();
@@ -86,6 +101,47 @@ describe("App setup", () => {
     expect(startButton).toBeDisabled();
     expect(screen.getByText("이름은 최대 45개까지 입력할 수 있습니다."))
       .toBeInTheDocument();
+  });
+
+  it("반복 표현식을 확장한 공 개수로 추첨을 시작한다", () => {
+    render(<App />);
+    const input = screen.getByLabelText("공 이름");
+    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
+
+    expect(input).toHaveAttribute(
+      "placeholder",
+      "민지, 준호, 7\n서연*2, 12*3\n또는 1~45",
+    );
+    const inputGuide = screen.getByText("입력 예시").parentElement;
+    expect(inputGuide).toHaveTextContent(
+      "목록: 민지, 준호, 7 (콤마 또는 줄바꿈)",
+    );
+    expect(inputGuide).toHaveTextContent("반복: 민지*2, 7*3");
+    expect(inputGuide).toHaveTextContent("숫자 범위: 1~45 (단독 입력)");
+
+    fireEvent.change(input, { target: { value: "민지*2, 준호*3" } });
+
+    expect(screen.getByText("5 / 45")).toBeInTheDocument();
+    expect(startButton).toBeEnabled();
+
+    fireEvent.click(startButton);
+
+    expect(screen.getByText("0 / 5")).toBeInTheDocument();
+  });
+
+  it("잘못된 반복 표현식이면 추첨 시작을 차단한다", () => {
+    render(<App />);
+    const input = screen.getByLabelText("공 이름");
+    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
+
+    fireEvent.change(input, { target: { value: "민지*0, 준호" } });
+
+    expect(
+      screen.getByText(
+        "반복 입력은 민지*2처럼 값 뒤에 *와 1~45 사이 정수를 입력해 주세요.",
+      ),
+    ).toBeInTheDocument();
+    expect(startButton).toBeDisabled();
   });
 
   it("1~45 숫자 범위를 45개의 공으로 확장해 시작한다", () => {
@@ -176,7 +232,7 @@ describe("manual draw flow", () => {
 
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
-    expect(screen.getByRole("heading", { name: "추첨할 이름을 담아주세요" }))
+    expect(screen.getByRole("heading", { name: "어떤 공을 넣어볼까요?" }))
       .toBeInTheDocument();
     expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호");
     vi.useRealTimers();

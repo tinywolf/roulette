@@ -249,45 +249,66 @@ input:focus-visible {
 
 .hero-balls {
   position: relative;
-  height: 148px;
+  height: 164px;
   margin-top: 28px;
 }
 
 .hero-balls span {
   position: absolute;
   display: grid;
-  width: 82px;
-  height: 82px;
+  width: 72px;
+  height: 72px;
   border: 4px solid rgb(255 255 255 / 72%);
   border-radius: 50%;
   box-shadow:
     inset -10px -13px 18px rgb(30 45 72 / 14%),
     0 16px 28px rgb(30 45 72 / 16%);
   color: var(--ink);
-  font-size: 0.78rem;
+  font-size: 1.05rem;
   font-weight: 800;
   place-items: center;
 }
 
 .hero-balls span:nth-child(1) {
-  bottom: 12px;
-  left: 4%;
+  bottom: 14px;
+  left: 0;
   background: #ffcb52;
   transform: rotate(-7deg);
 }
 
 .hero-balls span:nth-child(2) {
-  bottom: 46px;
-  left: 24%;
-  background: #63d6b2;
+  bottom: 78px;
+  left: 14%;
+  background: #80adff;
   transform: rotate(8deg);
 }
 
 .hero-balls span:nth-child(3) {
-  bottom: 6px;
-  left: 45%;
-  background: #80adff;
+  bottom: 5px;
+  left: 28%;
+  background: #ff8d78;
   transform: rotate(-4deg);
+}
+
+.hero-balls span:nth-child(4) {
+  bottom: 72px;
+  left: 42%;
+  background: #c7a5ff;
+  transform: rotate(6deg);
+}
+
+.hero-balls span:nth-child(5) {
+  bottom: 11px;
+  left: 56%;
+  background: #63d6b2;
+  transform: rotate(-8deg);
+}
+
+.hero-balls span:nth-child(6) {
+  bottom: 76px;
+  left: 70%;
+  background: #80adff;
+  transform: rotate(5deg);
 }
 
 .setup-card,
@@ -404,6 +425,32 @@ input:focus-visible {
 
 .input-help {
   color: #7a869b;
+}
+
+.input-guide {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.input-guide > strong {
+  flex: 0 0 auto;
+  color: #5a667b;
+}
+
+.input-guide ul {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  gap: 2px 16px;
+  list-style: none;
+}
+
+.input-guide code {
+  color: #58657b;
+  font-family: inherit;
+  font-weight: 700;
 }
 
 .input-errors {

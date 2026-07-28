@@ -310,20 +310,26 @@ function App() {
         <div className="setup-layout">
           <section className="hero-copy" aria-labelledby="hero-title">
             <p className="app-eyebrow">FAIR · SIMPLE · EXCITING</p>
-            <h1 id="hero-title">
-              이름을 넣고,
+            <h1
+              id="hero-title"
+              aria-label="두근두근, 추첨을 시작합니다"
+            >
+              두근두근,
               <br />
-              <span>순간을 즐겨보세요.</span>
+              <span>추첨을 시작합니다</span>
             </h1>
             <p>
-              같은 이름도 각각 하나의 공이 됩니다.
+              이름도 숫자도, 원하는 대로 넣어보세요.
               <br />
-              결과는 안전한 브라우저 난수로 결정돼요.
+              누가 뽑힐지는 마지막 순간까지 아무도 몰라요.
             </p>
             <div className="hero-balls" aria-hidden="true">
-              <span>민지</span>
-              <span>준호</span>
-              <span>서연</span>
+              <span>4</span>
+              <span>12</span>
+              <span>19</span>
+              <span>27</span>
+              <span>33</span>
+              <span>41</span>
             </div>
           </section>
           <SetupPanel
@@ -356,7 +362,7 @@ function App() {
                   ? "추첨이 완료됐어요"
                   : session.phase === "error"
                     ? "추첨을 계속할 수 없어요"
-                    : "행운의 공을 기다려보세요"}
+                    : "두근두근, 추첨을 시작합니다"}
               </h1>
             </div>
             <span className={`phase-pill phase-pill--${session.phase}`}>
