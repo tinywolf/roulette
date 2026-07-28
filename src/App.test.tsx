@@ -6,7 +6,18 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import App from "./App";
+import App, { shouldMixMachine } from "./App";
+
+describe("machine motion state", () => {
+  it("수동 준비·추첨 중에는 계속 혼합하고 완료 시 중단한다", () => {
+    expect(shouldMixMachine({ mode: "manual", phase: "ready" })).toBe(true);
+    expect(shouldMixMachine({ mode: "manual", phase: "mixing" })).toBe(true);
+    expect(shouldMixMachine({ mode: "manual", phase: "completed" })).toBe(
+      false,
+    );
+    expect(shouldMixMachine({ mode: "auto", phase: "running" })).toBe(true);
+  });
+});
 
 describe("App setup", () => {
   beforeEach(() => {

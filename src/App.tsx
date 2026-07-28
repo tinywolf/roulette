@@ -35,6 +35,16 @@ type Notice = {
 
 const MANUAL_DRAW_DURATION = 2_400;
 
+export function shouldMixMachine(
+  session: Pick<DrawSession, "mode" | "phase">,
+): boolean {
+  if (session.mode === "auto") {
+    return session.phase === "running";
+  }
+
+  return session.phase === "ready" || session.phase === "mixing";
+}
+
 function App() {
   const [initialStorage] = useState(() => loadRawInput());
   const [rawInput, setRawInput] = useState(initialStorage.value);
@@ -366,11 +376,7 @@ function App() {
             <section className="machine-card">
               <LotteryMachine
                 balls={remainingBalls}
-                isMixing={
-                  session.mode === "auto"
-                    ? session.phase === "running"
-                    : session.phase === "mixing"
-                }
+                isMixing={shouldMixMachine(session)}
                 isSettling={
                   session.phase === "completed" && remainingBalls.length > 0
                 }

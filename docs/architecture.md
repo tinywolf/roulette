@@ -1,6 +1,6 @@
 ---
 revision: d90764e
-updated_at: 2026-07-28T15:24:30+09:00
+updated_at: 2026-07-28T18:52:35+09:00
 ---
 
 # Architecture
@@ -115,16 +115,17 @@ sequenceDiagram
     participant E as DrawEngine
     participant C as Canvas
 
+    A->>C: 수동 세션 동안 계속 혼합
     U->>A: 다음 공 뽑기
     A->>E: beginManualDraw(session)
     E-->>A: phase=mixing, pendingBallId
-    A->>C: 2.4초 혼합
+    A->>A: 2.4초 결과 확정 대기
     A->>E: completeManualDraw(session, now)
     E-->>A: 결과 추가, 남은 공 제거
     A->>C: 선택 공 배출 표시
 ```
 
-`beginManualDraw`는 `ready` 상태이면서 결과 수가 `drawCount`보다 작을 때만 동작하므로 연속 클릭이 같은 공을 두 번 처리하지 않는다. 선택된 공은 혼합 종료 후 결과에 반영되며 목표 개수에 도달하면 미추첨 후보가 남아 있어도 완료한다.
+수동 세션은 첫 버튼 전과 공 사이의 `ready`, 결과 확정 대기인 `mixing` 상태 모두 Canvas 혼합을 유지한다. `beginManualDraw`는 `ready` 상태이면서 결과 수가 `drawCount`보다 작을 때만 동작하므로 연속 클릭이 같은 공을 두 번 처리하지 않는다. 선택된 공은 2.4초 후 결과에 반영되며 목표 개수에 도달하면 미추첨 후보가 남아 있어도 완료하고, 잔여 공은 중력 정착으로 전환한다.
 
 ### 자동 추첨
 
