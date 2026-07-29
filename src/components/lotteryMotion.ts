@@ -290,17 +290,64 @@ export function projectBallMotionNode(
   centerY: number,
   chamberRadius: number,
   baseRadius: number,
+  target?: ProjectedBallNode,
 ): ProjectedBallNode {
   const depth = clamp(node.z / Math.max(1, chamberRadius), -1, 1);
   const normalizedDepth = (depth + 1) / 2;
   const perspective = 0.82 + normalizedDepth * 0.36;
-
-  return {
-    x: centerX + node.x * perspective,
-    y: centerY + node.y * perspective,
-    radius: baseRadius,
-    opacity: 0.68 + normalizedDepth * 0.32,
-    depth,
-    perspective,
+  const projected = target ?? {
+    x: 0,
+    y: 0,
+    radius: 0,
+    opacity: 1,
+    depth: 0,
+    perspective: 1,
   };
+
+  projected.x = centerX + node.x * perspective;
+  projected.y = centerY + node.y * perspective;
+  projected.radius = baseRadius;
+  projected.opacity = 0.68 + normalizedDepth * 0.32;
+  projected.depth = depth;
+  projected.perspective = perspective;
+  return projected;
+}
+
+/**
+ * WebGL 모드에서 카메라 원근에 따라 좌표와 공 크기를 함께 투영한다.
+ * 기존 2D 모드의 동일 크기 계약은 `projectBallMotionNode`에 그대로 둔다.
+ */
+export function projectBallMotionNode3d(
+  node: BallMotionNode,
+  centerX: number,
+  centerY: number,
+  chamberRadius: number,
+  baseRadius: number,
+  target?: ProjectedBallNode,
+): ProjectedBallNode {
+  const normalizedChamberRadius = Math.max(1, chamberRadius);
+  const depth = clamp(node.z / normalizedChamberRadius, -1, 1);
+  const cameraDistance = normalizedChamberRadius * 2.6;
+  const perspective = clamp(
+    cameraDistance / Math.max(1, cameraDistance - node.z),
+    0.7,
+    1.5,
+  );
+  const normalizedDepth = (depth + 1) / 2;
+  const projected = target ?? {
+    x: 0,
+    y: 0,
+    radius: 0,
+    opacity: 1,
+    depth: 0,
+    perspective: 1,
+  };
+
+  projected.x = centerX + node.x * perspective;
+  projected.y = centerY + node.y * perspective;
+  projected.radius = baseRadius * perspective;
+  projected.opacity = 0.76 + normalizedDepth * 0.24;
+  projected.depth = depth;
+  projected.perspective = perspective;
+  return projected;
 }

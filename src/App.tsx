@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DrawControls } from "./components/DrawControls";
 import { LotteryMachine } from "./components/LotteryMachine";
+import { RenderModeToggle } from "./components/RenderModeToggle";
 import { ResultList } from "./components/ResultList";
 import { SetupPanel } from "./components/SetupPanel";
 import { SoundToggle } from "./components/SoundToggle";
@@ -20,12 +21,17 @@ import {
   type DrawMode,
   type DrawResult,
   type DrawSession,
+  type RenderMode,
 } from "./domain/types";
 import {
   clearRawInput,
   loadRawInput,
   saveRawInput,
 } from "./services/nameStorage";
+import {
+  loadSetupOptions,
+  saveSetupOptions,
+} from "./services/setupOptionsStorage";
 import { SoundController } from "./services/soundController";
 
 type Notice = {
@@ -46,21 +52,34 @@ export function shouldMixMachine(
 }
 
 function App() {
-  const [initialStorage] = useState(() => loadRawInput());
-  const [rawInput, setRawInput] = useState(initialStorage.value);
-  const [mode, setMode] = useState<DrawMode>("manual");
+  const [initialNameStorage] = useState(() => loadRawInput());
+  const [initialOptionsStorage] = useState(() => loadSetupOptions());
+  const initialWarning =
+    initialNameStorage.warning ?? initialOptionsStorage.warning;
+  const [rawInput, setRawInput] = useState(initialNameStorage.value);
+  const [mode, setMode] = useState<DrawMode>(
+    initialOptionsStorage.value.mode,
+  );
   const [drawCountMode, setDrawCountMode] =
-    useState<DrawCountMode>("all");
-  const [customDrawCount, setCustomDrawCount] = useState("1");
+    useState<DrawCountMode>(initialOptionsStorage.value.drawCountMode);
+  const [customDrawCount, setCustomDrawCount] = useState(
+    initialOptionsStorage.value.customDrawCount,
+  );
   const [session, setSession] = useState<DrawSession | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(
+    initialOptionsStorage.value.soundEnabled,
+  );
+  const [renderMode, setRenderMode] = useState<RenderMode>(
+    initialOptionsStorage.value.renderMode,
+  );
   const [notice, setNotice] = useState<Notice | null>(() =>
-    initialStorage.warning
-      ? { type: "warning", text: initialStorage.warning }
+    initialWarning
+      ? { type: "warning", text: initialWarning }
       : null,
   );
   const [visualResult, setVisualResult] = useState<DrawResult | null>(null);
   const previousResultCount = useRef(0);
+  const hasMountedSetupOptions = useRef(false);
   const soundController = useRef<SoundController | null>(null);
   soundController.current ??= new SoundController();
 
@@ -82,7 +101,7 @@ function App() {
 
     const remainingIds = new Set(session.remainingBallIds);
     return session.balls.filter((ball) => remainingIds.has(ball.id));
-  }, [session]);
+  }, [session?.balls, session?.remainingBallIds]);
 
   const handleCanvasError = useCallback((message: string) => {
     setNotice((current) =>
@@ -182,6 +201,26 @@ function App() {
   useEffect(() => {
     soundController.current?.setEnabled(soundEnabled);
   }, [soundEnabled]);
+
+  useEffect(() => {
+    // 복원 직후에는 같은 값을 다시 쓰지 않고 사용자가 옵션을 바꾼 뒤부터 저장한다.
+    if (!hasMountedSetupOptions.current) {
+      hasMountedSetupOptions.current = true;
+      return;
+    }
+
+    const result = saveSetupOptions({
+      mode,
+      drawCountMode,
+      customDrawCount,
+      soundEnabled,
+      renderMode,
+    });
+
+    if (result.warning) {
+      setNotice({ type: "warning", text: result.warning });
+    }
+  }, [customDrawCount, drawCountMode, mode, renderMode, soundEnabled]);
 
   useEffect(() => {
     return () => {
@@ -286,7 +325,13 @@ function App() {
           <span>로또 추첨기</span>
         </div>
         {!isSetup ? (
-          <SoundToggle enabled={soundEnabled} onToggle={handleSoundToggle} />
+          <div className="utility-controls">
+            <RenderModeToggle
+              mode={renderMode}
+              onChange={setRenderMode}
+            />
+            <SoundToggle enabled={soundEnabled} onToggle={handleSoundToggle} />
+          </div>
         ) : null}
       </header>
 
@@ -341,11 +386,13 @@ function App() {
             customDrawCount={customDrawCount}
             drawCountErrors={drawCountValidation.errors}
             soundEnabled={soundEnabled}
+            renderMode={renderMode}
             onRawInputChange={handleRawInputChange}
             onModeChange={setMode}
             onDrawCountModeChange={setDrawCountMode}
             onCustomDrawCountChange={setCustomDrawCount}
             onSoundToggle={handleSoundToggle}
+            onRenderModeChange={setRenderMode}
             onClear={handleClear}
             onStart={handleStart}
           />
@@ -382,6 +429,8 @@ function App() {
             <section className="machine-card">
               <LotteryMachine
                 balls={remainingBalls}
+                allBalls={session.balls}
+                renderMode={renderMode}
                 isMixing={shouldMixMachine(session)}
                 isSettling={
                   session.phase === "completed" && remainingBalls.length > 0

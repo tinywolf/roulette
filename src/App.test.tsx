@@ -54,33 +54,90 @@ describe("App setup", () => {
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
   });
 
-  it("입력 원문을 저장하고 모두 지운다", () => {
+  it("입력 원문을 저장하고 입력만 비운다", () => {
     render(<App />);
     const input = screen.getByLabelText("공 이름");
 
     fireEvent.change(input, { target: { value: "민지\n준호" } });
+    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
     expect(localStorage.getItem("lottery-draw:names:v1")).toContain("민지");
+    expect(
+      localStorage.getItem("lottery-draw:setup-options:v1"),
+    ).toContain('"mode":"auto"');
 
-    fireEvent.click(screen.getByRole("button", { name: "모두 지우기" }));
+    fireEvent.click(screen.getByRole("button", { name: "입력 비우기" }));
     expect(input).toHaveValue("");
     expect(localStorage.getItem("lottery-draw:names:v1")).toBeNull();
+    expect(
+      localStorage.getItem("lottery-draw:setup-options:v1"),
+    ).toContain('"mode":"auto"');
   });
 
-  it("새로 마운트하면 이름만 복원하고 설정 화면에서 시작한다", () => {
+  it("새로 마운트하면 입력과 옵션만 복원하고 설정 화면에서 시작한다", () => {
     const firstRender = render(<App />);
     fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호" },
+      target: { value: "민지, 준호, 서연" },
     });
+    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
+    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
+    fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
+    expect(
+      localStorage.getItem("lottery-draw:setup-options:v1"),
+    ).toContain('"renderMode":"3d"');
 
     firstRender.unmount();
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "어떤 공을 넣어볼까요?" }))
       .toBeInTheDocument();
-    expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호");
+    expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호, 서연");
+    expect(screen.getByRole("radio", { name: /일부만 추첨/ })).toBeChecked();
+    expect(screen.getByLabelText("뽑을 공 개수")).toHaveValue(2);
+    expect(screen.getByRole("radio", { name: /자동 추첨/ })).toBeChecked();
+    expect(screen.getByRole("button", { name: "효과음 켜짐" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "3D" }))
+      .toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText("0 / 2")).not.toBeInTheDocument();
+  });
+
+  it("추첨 진행 상태를 유지하면서 2D와 3D 렌더링을 전환한다", () => {
+    const { container } = render(<App />);
+    fireEvent.change(screen.getByLabelText("공 이름"), {
+      target: { value: "민지, 준호" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+
+    expect(screen.getByRole("button", { name: "3D" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".lottery-canvas--3d"))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "2D" }));
+
+    expect(screen.getByRole("button", { name: "2D" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".lottery-canvas--2d"))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+
+    expect(screen.getByRole("button", { name: "3D" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".lottery-canvas--3d"))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "3D 연출을 사용할 수 없어 간단한 화면으로 표시합니다.",
+    );
   });
 
   it("45개까지 시작을 허용하고 46개는 차단한다", () => {
@@ -156,7 +213,7 @@ describe("App setup", () => {
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
     expect(screen.getByText("0 / 45")).toBeInTheDocument();
-    expect(screen.getByLabelText(/남은 공 45개/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/남은 공 45개/)).toHaveLength(2);
   });
 
   it("숫자 범위와 일반·반복 값을 함께 확장해 시작한다", () => {
@@ -196,23 +253,20 @@ describe("App setup", () => {
     fireEvent.click(startButton);
 
     expect(screen.getByText("0 / 6")).toBeInTheDocument();
-    expect(screen.getByLabelText(/남은 공 45개/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/남은 공 45개/)).toHaveLength(2);
   });
 
-  it("새로 마운트하면 추첨 개수 설정은 전체로 초기화한다", () => {
-    const firstRender = render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "가, 나, 다" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "1" },
-    });
-
-    firstRender.unmount();
+  it("손상된 설정은 경고를 표시하고 기본 옵션으로 시작한다", () => {
+    localStorage.setItem("lottery-draw:setup-options:v1", "{bad json");
     render(<App />);
 
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "저장된 설정을 불러오지 못했습니다.",
+    );
     expect(screen.getByRole("radio", { name: /전체 추첨/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /직접 뽑기/ })).toBeChecked();
+    expect(screen.getByRole("button", { name: "효과음 꺼짐" }))
+      .toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByLabelText("뽑을 공 개수")).not.toBeInTheDocument();
   });
 });
@@ -222,8 +276,13 @@ describe("manual draw flow", () => {
     vi.useFakeTimers();
     render(<App />);
     fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호" },
+      target: { value: "민지, 준호, 서연" },
     });
+    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
+    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
     const drawButton = screen.getByRole("button", { name: /다음 공 뽑기/ });
@@ -239,7 +298,12 @@ describe("manual draw flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
     expect(screen.getByRole("heading", { name: "어떤 공을 넣어볼까요?" }))
       .toBeInTheDocument();
-    expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호");
+    expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호, 서연");
+    expect(screen.getByRole("radio", { name: /일부만 추첨/ })).toBeChecked();
+    expect(screen.getByLabelText("뽑을 공 개수")).toHaveValue(2);
+    expect(screen.getByRole("radio", { name: /직접 뽑기/ })).toBeChecked();
+    expect(screen.getByRole("button", { name: "효과음 켜짐" }))
+      .toHaveAttribute("aria-pressed", "true");
     vi.useRealTimers();
   });
 
@@ -296,7 +360,7 @@ describe("manual draw flow", () => {
       .toBeInTheDocument();
     expect(screen.getByText("선택한 1개의 공을 모두 뽑았어요."))
       .toBeInTheDocument();
-    expect(screen.getByLabelText(/남은 공 2개/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/남은 공 2개/)).toHaveLength(2);
     vi.useRealTimers();
   });
 
@@ -348,6 +412,9 @@ describe("automatic draw flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
     expect(screen.queryByText(/초 남음|카운트다운/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("공이 언제 나올지 집중해 보세요"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
 
     act(() => {
@@ -397,7 +464,7 @@ describe("automatic draw flow", () => {
     });
 
     expect(screen.getByText("1 / 1")).toBeInTheDocument();
-    expect(screen.getByLabelText(/남은 공 2개/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/남은 공 2개/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "추첨이 완료됐어요" }))
       .toBeInTheDocument();
 

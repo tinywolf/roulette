@@ -21,6 +21,8 @@ export type DrawMode = "manual" | "auto";
 
 export type DrawCountMode = "all" | "custom";
 
+export type RenderMode = "2d" | "3d";
+
 export type DrawPhase =
   | "setup"
   | "ready"

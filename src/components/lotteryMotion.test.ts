@@ -4,6 +4,7 @@ import {
   advanceSettlingBallMotionNodes,
   createBallMotionNode,
   projectBallMotionNode,
+  projectBallMotionNode3d,
   scaleBallMotionNode,
   type BallMotionNode,
 } from "./lotteryMotion";
@@ -75,6 +76,28 @@ describe("lotteryMotion", () => {
     expect(front.x).toBe(back.x);
     expect(front.y).toBe(back.y);
     expect(front.radius).toBe(back.radius);
+  });
+
+  it("3D 투영은 앞쪽 공을 더 크고 멀리 배치한다", () => {
+    const back = projectBallMotionNode3d(
+      createNode({ x: 20, y: 10, z: -70 }),
+      100,
+      100,
+      100,
+      12,
+    );
+    const front = projectBallMotionNode3d(
+      createNode({ x: 20, y: 10, z: 70 }),
+      100,
+      100,
+      100,
+      12,
+    );
+
+    expect(front.radius).toBeGreaterThan(back.radius);
+    expect(front.x).toBeGreaterThan(back.x);
+    expect(front.y).toBeGreaterThan(back.y);
+    expect(front.opacity).toBeGreaterThan(back.opacity);
   });
 
   it("공을 구형 경계 안으로 되돌리고 바깥쪽 속도를 반사한다", () => {

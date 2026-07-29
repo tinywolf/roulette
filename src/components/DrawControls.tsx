@@ -29,13 +29,6 @@ export function DrawControls({
         </button>
       ) : null}
 
-      {!isManual && !isCompleted && !isError ? (
-        <div className="auto-status" role="status">
-          <span className="auto-status-dot" aria-hidden="true" />
-          공이 언제 나올지 집중해 보세요
-        </div>
-      ) : null}
-
       <button className="button button--restart" type="button" onClick={onReset}>
         처음부터 다시
       </button>
