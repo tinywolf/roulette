@@ -373,6 +373,9 @@ describe("automatic draw flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
     expect(screen.queryByText(/초 남음|카운트다운/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("공이 언제 나올지 집중해 보세요"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
 
     act(() => {
