@@ -208,7 +208,7 @@ function App() {
     setNotice(null);
   };
 
-  const handleRedraw = () => {
+  const handleRedraw = useCallback(() => {
     if (!session) {
       return;
     }
@@ -222,7 +222,7 @@ function App() {
         ? { type: "error", text: nextSession.error }
         : null,
     );
-  };
+  }, [session]);
 
   const handleSoundToggle = () => {
     setSoundEnabled((enabled) => {

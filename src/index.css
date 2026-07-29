@@ -944,6 +944,54 @@ input:focus-visible {
   background: #ffe9e7;
 }
 
+.redraw-confirmation {
+  display: flex;
+  width: min(100%, 680px);
+  padding: 12px 14px;
+  border: 1px solid rgb(255 92 89 / 24%);
+  border-radius: 14px;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff8f7;
+  gap: 16px;
+}
+
+.redraw-confirmation__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  color: #768097;
+  font-size: 0.72rem;
+  gap: 3px;
+  text-align: left;
+}
+
+.redraw-confirmation__copy strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.redraw-confirmation__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.redraw-confirmation__actions .button {
+  min-height: 42px;
+  padding: 9px 14px;
+}
+
+.button--redraw-confirm {
+  background: var(--primary);
+  box-shadow: 0 8px 18px rgb(255 92 89 / 20%);
+  color: #fff;
+}
+
+.button--redraw-confirm:not(:disabled):hover {
+  background: var(--primary-dark);
+}
+
 .button--restart {
   border: 1px solid var(--line);
   background: #fff;
@@ -1222,6 +1270,20 @@ input:focus-visible {
   .button--redraw,
   .button--restart {
     width: 100%;
+  }
+
+  .redraw-confirmation {
+    padding: 14px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .redraw-confirmation__actions {
+    width: 100%;
+  }
+
+  .redraw-confirmation__actions .button {
+    flex: 1;
   }
 
   .results-card {

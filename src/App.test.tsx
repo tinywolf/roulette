@@ -287,7 +287,40 @@ describe("manual draw flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
     fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
 
-    fireEvent.click(screen.getByRole("button", { name: "재추첨" }));
+    const redrawButton = screen.getByRole("button", { name: "재추첨" });
+    expect(redrawButton).toHaveAttribute("aria-keyshortcuts", "R");
+
+    fireEvent.keyDown(window, {
+      code: "KeyR",
+      key: "r",
+      repeat: true,
+    });
+    fireEvent.keyDown(window, {
+      code: "KeyR",
+      key: "r",
+      ctrlKey: true,
+    });
+    expect(screen.getByRole("button", { name: /공을 섞는 중/ })).toBeDisabled();
+
+    fireEvent.click(redrawButton);
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "추첨을 다시 시작할까요?",
+      }),
+    ).toHaveTextContent("진행 중인 추첨을 취소하고 처음부터 다시 시작해요.");
+    expect(screen.getByRole("button", { name: "계속 추첨" })).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "계속 추첨" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /공을 섞는 중/ })).toBeDisabled();
+
+    fireEvent.keyDown(window, { code: "KeyR", key: "r" });
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "추첨을 다시 시작할까요?",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "재추첨하기" }));
 
     expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
     expect(screen.getByText("0 / 1")).toBeInTheDocument();
@@ -306,6 +339,7 @@ describe("manual draw flow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "재추첨" }));
 
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.getByText("0 / 1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /다음 공 뽑기/ })).toBeEnabled();
     expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
@@ -499,6 +533,13 @@ describe("automatic draw flow", () => {
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "재추첨" }));
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "추첨을 다시 시작할까요?",
+      }),
+    ).toHaveTextContent("지금까지 뽑은 1개의 결과가 모두 사라져요.");
+    fireEvent.click(screen.getByRole("button", { name: "재추첨하기" }));
+
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
     expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
 
