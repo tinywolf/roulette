@@ -5,6 +5,7 @@ import {
   createDrawSession,
   formatResults,
   reconcileScheduledDraws,
+  redrawSession,
   resetDrawSession,
 } from "./drawEngine";
 import type { RandomValuesSource } from "./random";
@@ -153,5 +154,64 @@ describe("formatResults", () => {
 describe("resetDrawSession", () => {
   it("진행 중 세션을 설정 상태로 되돌릴 수 있게 제거한다", () => {
     expect(resetDrawSession()).toBeNull();
+  });
+});
+
+describe("redrawSession", () => {
+  it("수동 결과를 버리고 같은 후보와 목표 개수의 준비 상태로 돌아간다", () => {
+    const balls = createBalls(["가", "나", "다"]);
+    const initial = createDrawSession(balls, "manual", 2, 1_000);
+    const progressed = completeManualDraw(
+      beginManualDraw(initial, zeroSource),
+      2_000,
+    );
+
+    const redrawn = redrawSession(progressed, 3_000);
+
+    expect(redrawn.mode).toBe("manual");
+    expect(redrawn.drawCount).toBe(2);
+    expect(redrawn.balls).toBe(balls);
+    expect(redrawn.remainingBallIds).toEqual(balls.map((ball) => ball.id));
+    expect(redrawn.results).toEqual([]);
+    expect(redrawn.phase).toBe("ready");
+    expect(redrawn.startedAt).toBe(3_000);
+  });
+
+  it("자동 결과와 일정을 버리고 같은 설정의 새 일정을 만든다", () => {
+    const balls = createBalls(["가", "나", "다"]);
+    const initial = createDrawSession(balls, "auto", 2, 1_000, zeroSource);
+    const completed = reconcileScheduledDraws(
+      initial,
+      initial.schedule[1].dueAt,
+    );
+    expect(completed.phase).toBe("completed");
+
+    const redrawn = redrawSession(completed, 5_000, zeroSource);
+
+    expect(redrawn.mode).toBe("auto");
+    expect(redrawn.drawCount).toBe(2);
+    expect(redrawn.remainingBallIds).toEqual(balls.map((ball) => ball.id));
+    expect(redrawn.results).toEqual([]);
+    expect(redrawn.schedule).toHaveLength(2);
+    expect(redrawn.schedule[0].dueAt).toBe(8_000);
+    expect(redrawn.phase).toBe("running");
+  });
+
+  it("자동 재추첨의 난수 생성이 실패하면 기존 결과 없이 중단한다", () => {
+    const balls = createBalls(["가", "나"]);
+    const initial = createDrawSession(balls, "auto", 2, 1_000, zeroSource);
+    const completed = reconcileScheduledDraws(
+      initial,
+      initial.schedule[1].dueAt,
+    );
+
+    const failed = redrawSession(completed, 10_000, () => {
+      throw new Error("실패");
+    });
+
+    expect(failed.phase).toBe("error");
+    expect(failed.results).toEqual([]);
+    expect(failed.remainingBallIds).toEqual(balls.map((ball) => ball.id));
+    expect(failed.error).toContain("추첨을 중단");
   });
 });

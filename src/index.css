@@ -934,6 +934,16 @@ input:focus-visible {
   line-height: 1;
 }
 
+.button--redraw {
+  border: 1px solid rgb(255 92 89 / 24%);
+  background: #fff5f4;
+  color: var(--primary-dark);
+}
+
+.button--redraw:not(:disabled):hover {
+  background: #ffe9e7;
+}
+
 .button--restart {
   border: 1px solid var(--line);
   background: #fff;
@@ -1209,6 +1219,7 @@ input:focus-visible {
   }
 
   .button--draw,
+  .button--redraw,
   .button--restart {
     width: 100%;
   }

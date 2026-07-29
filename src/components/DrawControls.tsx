@@ -3,12 +3,14 @@ import type { DrawSession } from "../domain/types";
 type DrawControlsProps = {
   session: DrawSession;
   onManualDraw: () => void;
+  onRedraw: () => void;
   onReset: () => void;
 };
 
 export function DrawControls({
   session,
   onManualDraw,
+  onRedraw,
   onReset,
 }: DrawControlsProps) {
   const isManual = session.mode === "manual";
@@ -32,6 +34,15 @@ export function DrawControls({
           </kbd>
         </button>
       ) : null}
+
+      <button
+        className="button button--redraw"
+        type="button"
+        onClick={onRedraw}
+      >
+        <span aria-hidden="true">↻</span>
+        재추첨
+      </button>
 
       <button className="button button--restart" type="button" onClick={onReset}>
         처음부터 다시

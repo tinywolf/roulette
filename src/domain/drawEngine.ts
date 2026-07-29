@@ -195,6 +195,24 @@ export function formatResults(results: DrawResult[]): string {
   return results.map((result) => `${result.order}. ${result.name}`).join("\n");
 }
 
+/**
+ * 현재 후보와 설정을 유지하면서 결과와 일정을 버린 새 추첨 세션을 만든다.
+ * 설정 화면으로 돌아가는 reset과 달리 즉시 같은 모드의 추첨을 다시 시작한다.
+ */
+export function redrawSession(
+  session: DrawSession,
+  startedAt: number,
+  randomValues?: RandomValuesSource,
+): DrawSession {
+  return createDrawSession(
+    session.balls,
+    session.mode,
+    session.drawCount,
+    startedAt,
+    randomValues,
+  );
+}
+
 export function resetDrawSession(): null {
   return null;
 }

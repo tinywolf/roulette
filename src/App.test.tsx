@@ -274,6 +274,49 @@ describe("App setup", () => {
 });
 
 describe("manual draw flow", () => {
+  it("진행 중과 완료 후에도 설정 화면을 거치지 않고 재추첨한다", () => {
+    vi.useFakeTimers();
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("공 이름"), {
+      target: { value: "가, 나, 다" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
+    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "재추첨" }));
+
+    expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
+    expect(screen.getByText("0 / 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /다음 공 뽑기/ })).toBeEnabled();
+
+    act(() => {
+      vi.advanceTimersByTime(2_400);
+    });
+    expect(screen.getByText("0 / 1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
+    act(() => {
+      vi.advanceTimersByTime(2_400);
+    });
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "재추첨" }));
+
+    expect(screen.getByText("0 / 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /다음 공 뽑기/ })).toBeEnabled();
+    expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
+    expect(screen.getByLabelText("공 이름")).toHaveValue("가, 나, 다");
+    expect(screen.getByRole("radio", { name: /일부만 추첨/ })).toBeChecked();
+    expect(screen.getByLabelText("뽑을 공 개수")).toHaveValue(1);
+    vi.useRealTimers();
+  });
+
   it("준비 상태에서 Space로 다음 공을 한 번만 뽑는다", () => {
     vi.useFakeTimers();
     render(<App />);
@@ -432,6 +475,51 @@ describe("manual draw flow", () => {
 });
 
 describe("automatic draw flow", () => {
+  it("진행 중 재추첨하면 기존 일정을 버리고 새 일정으로 시작한다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    const randomValues = [0, 0, 0, 0, 4, 4];
+    const randomSpy = vi
+      .spyOn(globalThis.crypto, "getRandomValues")
+      .mockImplementation(((values: Uint32Array<ArrayBuffer>) => {
+        values[0] = randomValues.shift() ?? 0;
+        return values;
+      }) as typeof globalThis.crypto.getRandomValues);
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("공 이름"), {
+      target: { value: "민지, 준호" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
+    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "재추첨" }));
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+    expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(4_000);
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
+    expect(screen.getByRole("radio", { name: /자동 추첨/ })).toBeChecked();
+    expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호");
+
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
   it("카운트다운 없이 3초부터 순서대로 자동 추첨한다", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);

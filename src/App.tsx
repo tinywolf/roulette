@@ -11,6 +11,7 @@ import {
   createDrawSession,
   formatResults,
   reconcileScheduledDraws,
+  redrawSession,
   resetDrawSession,
 } from "./domain/drawEngine";
 import { validateDrawCount } from "./domain/drawCount";
@@ -205,6 +206,22 @@ function App() {
     setVisualResult(null);
     previousResultCount.current = 0;
     setNotice(null);
+  };
+
+  const handleRedraw = () => {
+    if (!session) {
+      return;
+    }
+
+    const nextSession = redrawSession(session, Date.now());
+    previousResultCount.current = 0;
+    setVisualResult(null);
+    setSession(nextSession);
+    setNotice(
+      nextSession.error
+        ? { type: "error", text: nextSession.error }
+        : null,
+    );
   };
 
   const handleSoundToggle = () => {
@@ -484,6 +501,7 @@ function App() {
               <DrawControls
                 session={session}
                 onManualDraw={handleManualDraw}
+                onRedraw={handleRedraw}
                 onReset={handleReset}
               />
             </section>

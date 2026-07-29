@@ -1,6 +1,6 @@
 ---
-revision: 168b689
-updated_at: 2026-07-29T11:26:35+09:00
+revision: 1db9a06
+updated_at: 2026-07-29T12:06:00+09:00
 ---
 
 # Architecture
@@ -62,7 +62,7 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 │   └── TASK.md               # 작업 상태와 진행 이력
 ├── src/
 │   ├── components/
-│   │   ├── DrawControls.tsx  # 수동/자동 상태별 제어
+│   │   ├── DrawControls.tsx  # 다음 공, 재추첨, 설정 복귀 제어
 │   │   ├── LotteryMachine.tsx      # 공통 운동과 2D·3D 렌더러 조정
 │   │   ├── lottery3dRenderer.ts    # 단일 WebGL 장면·공 텍스처 렌더링
 │   │   ├── lotteryMotion.ts        # 3축 혼합·정착·2D/3D 투영
@@ -145,6 +145,12 @@ sequenceDiagram
 5. 한 번에 여러 공이 복구되면 놓친 배출 연출과 소리는 재생하지 않는다.
 
 `reconcileScheduledDraws`는 이미 결과에 포함된 공 ID를 제외하므로 반복 호출해도 결과가 중복되지 않는다.
+
+### 재추첨과 설정 복귀
+
+`redrawSession`은 현재 세션의 전체 후보 공, 수동·자동 모드와 목표 개수를 `createDrawSession`에 다시 전달해 결과·남은 공·대기 중 선택과 자동 일정을 모두 초기화한다. 수동 모드는 `ready`, 자동 모드는 새 절대 일정의 `running` 상태로 시작하며 설정 화면은 표시하지 않는다. `App`은 동시에 직전 배출 공과 결과 개수 추적값을 비워 이전 연출이 새 세션에 남지 않게 한다.
+
+React effect 정리 함수는 재추첨으로 세션 객체가 교체될 때 기존 수동 완료 타이머, 자동 예약 타이머와 가시성 구독을 취소한다. 반면 `resetDrawSession`은 세션을 `null`로 바꿔 입력과 설정을 수정할 수 있는 설정 화면으로 돌아간다.
 
 ## 데이터 흐름
 
