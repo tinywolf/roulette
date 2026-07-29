@@ -23,7 +23,7 @@ export const DEFAULT_SETUP_OPTIONS: SetupOptions = {
   drawCountMode: "all",
   customDrawCount: "1",
   soundEnabled: false,
-  renderMode: "2d",
+  renderMode: "3d",
 };
 
 type StoredSetupOptions = Omit<SetupOptions, "renderMode"> & {

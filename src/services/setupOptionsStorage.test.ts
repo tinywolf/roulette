@@ -46,7 +46,7 @@ describe("SetupOptionsStorage", () => {
     });
   });
 
-  it("렌더링 모드가 없던 기존 v1 설정은 2D 기본값으로 복원한다", () => {
+  it("렌더링 모드가 없던 기존 v1 설정은 3D 기본값으로 복원한다", () => {
     const legacyValue = JSON.stringify({
       version: 1,
       mode: "auto",
@@ -61,7 +61,7 @@ describe("SetupOptionsStorage", () => {
         drawCountMode: "custom",
         customDrawCount: "6",
         soundEnabled: true,
-        renderMode: "2d",
+        renderMode: "3d",
       },
       warning: null,
     });

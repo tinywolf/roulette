@@ -114,6 +114,14 @@ describe("App setup", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
+    expect(screen.getByRole("button", { name: "3D" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".lottery-canvas--3d"))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "2D" }));
+
     expect(screen.getByRole("button", { name: "2D" }))
       .toHaveAttribute("aria-pressed", "true");
     expect(container.querySelector(".lottery-canvas--2d"))
@@ -130,14 +138,6 @@ describe("App setup", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "3D 연출을 사용할 수 없어 간단한 화면으로 표시합니다.",
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "2D" }));
-
-    expect(screen.getByRole("button", { name: "2D" }))
-      .toHaveAttribute("aria-pressed", "true");
-    expect(container.querySelector(".lottery-canvas--2d"))
-      .toBeInTheDocument();
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
   });
 
   it("45개까지 시작을 허용하고 46개는 차단한다", () => {
@@ -213,7 +213,7 @@ describe("App setup", () => {
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
     expect(screen.getByText("0 / 45")).toBeInTheDocument();
-    expect(screen.getByLabelText(/남은 공 45개/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/남은 공 45개/)).toHaveLength(2);
   });
 
   it("숫자 범위와 일반·반복 값을 함께 확장해 시작한다", () => {
@@ -253,7 +253,7 @@ describe("App setup", () => {
     fireEvent.click(startButton);
 
     expect(screen.getByText("0 / 6")).toBeInTheDocument();
-    expect(screen.getByLabelText(/남은 공 45개/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/남은 공 45개/)).toHaveLength(2);
   });
 
   it("손상된 설정은 경고를 표시하고 기본 옵션으로 시작한다", () => {
@@ -360,7 +360,7 @@ describe("manual draw flow", () => {
       .toBeInTheDocument();
     expect(screen.getByText("선택한 1개의 공을 모두 뽑았어요."))
       .toBeInTheDocument();
-    expect(screen.getByLabelText(/남은 공 2개/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/남은 공 2개/)).toHaveLength(2);
     vi.useRealTimers();
   });
 
@@ -464,7 +464,7 @@ describe("automatic draw flow", () => {
     });
 
     expect(screen.getByText("1 / 1")).toBeInTheDocument();
-    expect(screen.getByLabelText(/남은 공 2개/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/남은 공 2개/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "추첨이 완료됐어요" }))
       .toBeInTheDocument();
 
