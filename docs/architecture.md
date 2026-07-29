@@ -1,6 +1,6 @@
 ---
 revision: d90764e
-updated_at: 2026-07-28T18:52:35+09:00
+updated_at: 2026-07-29T09:15:00+09:00
 ---
 
 # Architecture
@@ -14,7 +14,7 @@ updated_at: 2026-07-28T18:52:35+09:00
 - 추첨 결과의 정확성과 Canvas 연출을 분리한다.
 - 모든 무작위 결과와 자동 간격에 Web Crypto API만 사용한다.
 - 서버나 외부 API 없이 브라우저 안에서 동작한다.
-- 새로고침 후 이름 입력만 복원하고 추첨 세션은 새로 시작한다.
+- 새로고침 후 이름 입력과 설정 옵션만 복원하고 추첨 세션은 새로 시작한다.
 - 백그라운드 탭에서는 절대 예정 시각으로 누락 결과를 복구한다.
 
 ## 전체 아키텍처
@@ -24,11 +24,13 @@ flowchart LR
     User["사용자"] --> UI["React UI"]
     UI --> Parser["이름 파서·검증"]
     UI --> Engine["DrawEngine"]
-    UI --> Storage["NameStorage"]
+    UI --> NameStorage["NameStorage"]
+    UI --> OptionsStorage["SetupOptionsStorage"]
     UI --> Sound["SoundController"]
     Engine --> Random["Web Crypto 난수 모듈"]
     Engine --> Canvas["LotteryMachine Canvas"]
-    Storage --> LocalStorage["브라우저 localStorage"]
+    NameStorage --> LocalStorage["브라우저 localStorage"]
+    OptionsStorage --> LocalStorage
     Engine --> Results["결과 목록"]
     Results --> Clipboard["Clipboard API"]
 
@@ -38,7 +40,8 @@ flowchart LR
       Engine
       Random
       Canvas
-      Storage
+      NameStorage
+      OptionsStorage
       Sound
       Results
       LocalStorage
@@ -72,8 +75,9 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 │   │   ├── random.ts         # 안전한 난수·일정
 │   │   └── types.ts          # 도메인 타입과 공 생성
 │   ├── services/
-│   │   ├── nameStorage.ts    # 입력 원문 영속화
-│   │   └── soundController.ts# Web Audio 효과음
+│   │   ├── nameStorage.ts         # 입력 원문 영속화
+│   │   ├── setupOptionsStorage.ts # 설정 옵션 영속화·검증
+│   │   └── soundController.ts     # Web Audio 효과음
 │   ├── test/setup.ts         # jsdom과 Canvas 테스트 환경
 │   ├── App.tsx               # 앱 오케스트레이션
 │   ├── index.css             # 반응형 디자인
@@ -95,6 +99,7 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 | `domain/random.ts` | 편향 없는 인덱스, 순열, 자동 일정 | 공 배열, 시작 시각, 난수 소스 | 공 ID 순열, `ScheduledDraw[]` | Web Crypto |
 | `domain/drawEngine.ts` | 수동·자동 상태 전이와 비복원 결과 | `DrawSession`, 현재 시각 | 새 `DrawSession` | `random.ts`, `types.ts` |
 | `services/nameStorage.ts` | 입력 원문 저장·복원·삭제 | 원문, Storage 어댑터 | 값과 경고를 포함한 결과 | `localStorage` |
+| `services/setupOptionsStorage.ts` | 추첨·개수·효과음 설정 저장·검증·복원 | `SetupOptions`, Storage 어댑터 | 설정값과 경고를 포함한 결과 | `localStorage`, `types.ts` |
 | `services/soundController.ts` | 음소거 상태와 효과음 재생 | 사운드 이벤트 | Web Audio 출력 | AudioContext |
 | `components/lotteryMotion.ts` | 3축 초기 배치·구형 경계·회전 난류·중앙 횡단·중력 적층·깊이 투영 | 공 목록, 상태, 시각, 구 반지름 | 운동 노드, 투영 좌표 | 없음 |
 | `components/LotteryMachine.tsx` | 동일 크기 공·혼합/정착 전환·깊이 정렬·잔상·기계·배출 시각화 | 남은 공, 혼합·정착 상태, 배출 공 | Canvas 프레임 | `lotteryMotion.ts`, Canvas 2D |
@@ -154,11 +159,13 @@ flowchart TD
     Range --> Validate
     Raw --> Persist["{ version: 1, rawInput } 저장"]
     Persist --> Local["localStorage"]
+    Options["추첨 방식·개수·효과음 옵션"] --> PersistOptions["버전 설정값 저장"]
+    PersistOptions --> Local
     Validate --> Count["전체/일부 추첨 개수 검증"]
     Count --> Balls["고유 ID Ball[]와 drawCount 세션 생성"]
 ```
 
-저장 키는 `lottery-draw:names:v1`이다. 반복식이나 숫자 범위를 확장한 배열이 아니라 `1~5, 민지*2, 7` 같은 입력 원문을 저장한다. 추첨 개수 설정·추첨 모드·일정·남은 공·결과는 저장하지 않는다. 따라서 새로고침 시 `rawInput`만 복원되고 앱은 전체 추첨이 선택된 설정 상태에서 시작한다.
+입력은 `lottery-draw:names:v1`, 설정은 `lottery-draw:setup-options:v1` 키에 각각 버전 값으로 저장한다. 입력은 확장 배열이 아니라 `1~5, 민지*2, 7` 같은 원문을 저장하고, 설정은 추첨 방식·전체/일부 선택·일부 개수·효과음 상태를 저장한다. 새로고침 시 이 값들만 복원하며 일정·남은 공·결과·완료 상태는 복원하지 않는다.
 
 ### 추첨 결과
 
@@ -177,7 +184,7 @@ flowchart TD
 - `secureRandomIndex`는 32비트 난수 범위를 목표 길이로 나눌 때 남는 편향 구간을 거부하고 다시 추출한다.
 - Web Crypto 실패는 비보안 난수로 대체하지 않고 세션을 `error` 상태로 전환한다.
 - Canvas 프레임 저하·오류는 도메인 결과와 일정을 바꾸지 않는다.
-- 저장 실패는 현재 메모리 입력을 유지한 채 경고한다.
+- 입력 또는 설정 저장 실패는 현재 메모리 상태를 유지한 채 경고한다.
 - Clipboard 실패는 오류 알림만 표시한다.
 - Web Audio 실패는 소리 없이 추첨을 계속한다.
 
@@ -190,7 +197,7 @@ flowchart TD
 | React, React DOM | UI 렌더링과 상태 관리 | 없음 |
 | Web Crypto API | 결과 순서와 자동 간격 난수 | 없음 |
 | Canvas 2D | 로또 기계 연출 | 없음 |
-| localStorage | 입력 원문 저장 | 없음 |
+| localStorage | 입력 원문과 설정 옵션 저장 | 없음 |
 | Clipboard API | 결과 복사 | 없음 |
 | Web Audio API | 선택적 효과음 | 없음 |
 

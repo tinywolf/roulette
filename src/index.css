@@ -427,8 +427,18 @@ input:focus-visible {
   color: #7a869b;
 }
 
+.input-guide-row {
+  display: flex;
+  margin-top: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .input-guide {
   display: flex;
+  min-width: 0;
+  margin: 0;
   align-items: baseline;
   gap: 10px;
 }
@@ -451,6 +461,38 @@ input:focus-visible {
   color: #58657b;
   font-family: inherit;
   font-weight: 700;
+}
+
+.input-clear-button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f5f7fb;
+  color: #69758b;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.input-clear-button:not(:disabled):hover {
+  border-color: #bfc9da;
+  background: #fff;
+  color: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.input-clear-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .input-errors {
@@ -626,12 +668,6 @@ input:focus-visible {
 .button--primary:not(:disabled):hover {
   background: var(--primary-dark);
   box-shadow: 0 15px 30px rgb(255 92 89 / 30%);
-}
-
-.button--ghost {
-  border: 1px solid var(--line);
-  background: #f5f7fb;
-  color: #69758b;
 }
 
 .app-footer {
@@ -1073,15 +1109,6 @@ input:focus-visible {
 
   .mode-grid {
     grid-template-columns: 1fr;
-  }
-
-  .setup-actions {
-    flex-direction: column-reverse;
-  }
-
-  .button--ghost,
-  .button--primary {
-    width: 100%;
   }
 
   .draw-page {

@@ -80,22 +80,32 @@ export function SetupPanel({
             ))}
           </ul>
         ) : null}
-        <div className="input-help input-guide" id="input-help">
-          <strong>입력 예시</strong>
-          <ul>
-            <li>
-              목록: <code>민지, 준호, 7</code> (콤마 또는 줄바꿈)
-            </li>
-            <li>
-              반복: <code>민지*2, 7*3</code>
-            </li>
-            <li>
-              숫자 범위: <code>1~45</code>
-            </li>
-            <li>
-              함께 입력: <code>1~5, 민지*2, 7</code>
-            </li>
-          </ul>
+        <div className="input-guide-row">
+          <div className="input-help input-guide" id="input-help">
+            <strong>입력 예시</strong>
+            <ul>
+              <li>
+                목록: <code>민지, 준호, 7</code> (콤마 또는 줄바꿈)
+              </li>
+              <li>
+                반복: <code>민지*2, 7*3</code>
+              </li>
+              <li>
+                숫자 범위: <code>1~45</code>
+              </li>
+              <li>
+                함께 입력: <code>1~5, 민지*2, 7</code>
+              </li>
+            </ul>
+          </div>
+          <button
+            className="input-clear-button"
+            type="button"
+            onClick={onClear}
+            disabled={rawInput.length === 0}
+          >
+            입력 비우기
+          </button>
         </div>
       </div>
 
@@ -223,14 +233,6 @@ export function SetupPanel({
       </fieldset>
 
       <div className="setup-actions">
-        <button
-          className="button button--ghost"
-          type="button"
-          onClick={onClear}
-          disabled={rawInput.length === 0}
-        >
-          모두 지우기
-        </button>
         <button
           className="button button--primary"
           type="button"

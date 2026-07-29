@@ -26,6 +26,10 @@ import {
   loadRawInput,
   saveRawInput,
 } from "./services/nameStorage";
+import {
+  loadSetupOptions,
+  saveSetupOptions,
+} from "./services/setupOptionsStorage";
 import { SoundController } from "./services/soundController";
 
 type Notice = {
@@ -46,21 +50,31 @@ export function shouldMixMachine(
 }
 
 function App() {
-  const [initialStorage] = useState(() => loadRawInput());
-  const [rawInput, setRawInput] = useState(initialStorage.value);
-  const [mode, setMode] = useState<DrawMode>("manual");
+  const [initialNameStorage] = useState(() => loadRawInput());
+  const [initialOptionsStorage] = useState(() => loadSetupOptions());
+  const initialWarning =
+    initialNameStorage.warning ?? initialOptionsStorage.warning;
+  const [rawInput, setRawInput] = useState(initialNameStorage.value);
+  const [mode, setMode] = useState<DrawMode>(
+    initialOptionsStorage.value.mode,
+  );
   const [drawCountMode, setDrawCountMode] =
-    useState<DrawCountMode>("all");
-  const [customDrawCount, setCustomDrawCount] = useState("1");
+    useState<DrawCountMode>(initialOptionsStorage.value.drawCountMode);
+  const [customDrawCount, setCustomDrawCount] = useState(
+    initialOptionsStorage.value.customDrawCount,
+  );
   const [session, setSession] = useState<DrawSession | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(
+    initialOptionsStorage.value.soundEnabled,
+  );
   const [notice, setNotice] = useState<Notice | null>(() =>
-    initialStorage.warning
-      ? { type: "warning", text: initialStorage.warning }
+    initialWarning
+      ? { type: "warning", text: initialWarning }
       : null,
   );
   const [visualResult, setVisualResult] = useState<DrawResult | null>(null);
   const previousResultCount = useRef(0);
+  const hasMountedSetupOptions = useRef(false);
   const soundController = useRef<SoundController | null>(null);
   soundController.current ??= new SoundController();
 
@@ -182,6 +196,25 @@ function App() {
   useEffect(() => {
     soundController.current?.setEnabled(soundEnabled);
   }, [soundEnabled]);
+
+  useEffect(() => {
+    // 복원 직후에는 같은 값을 다시 쓰지 않고 사용자가 옵션을 바꾼 뒤부터 저장한다.
+    if (!hasMountedSetupOptions.current) {
+      hasMountedSetupOptions.current = true;
+      return;
+    }
+
+    const result = saveSetupOptions({
+      mode,
+      drawCountMode,
+      customDrawCount,
+      soundEnabled,
+    });
+
+    if (result.warning) {
+      setNotice({ type: "warning", text: result.warning });
+    }
+  }, [customDrawCount, drawCountMode, mode, soundEnabled]);
 
   useEffect(() => {
     return () => {
