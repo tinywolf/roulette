@@ -730,11 +730,24 @@ input:focus-visible {
 }
 
 .app-footer {
+  display: flex;
   margin-top: auto;
   padding: 18px 0 24px;
+  flex-direction: column;
   color: #8993a5;
   font-size: 0.7rem;
+  gap: 5px;
   text-align: center;
+}
+
+.app-footer a {
+  color: inherit;
+  text-underline-offset: 3px;
+  transition: color 160ms ease;
+}
+
+.app-footer a:hover {
+  color: var(--primary-dark);
 }
 
 .draw-page {

@@ -499,7 +499,17 @@ function App() {
       )}
 
       <footer className="app-footer">
-        모든 이름은 이 브라우저 안에서만 처리됩니다.
+        <span>입력한 내용과 설정은 이 브라우저에서만 저장하고 처리해요.</span>
+        <span>
+          © 2026 로또 추첨기 ·{" "}
+          <a
+            href="https://github.com/tinywolf/roulette"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+        </span>
       </footer>
     </main>
   );

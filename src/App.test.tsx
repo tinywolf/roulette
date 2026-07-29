@@ -40,6 +40,8 @@ describe("App setup", () => {
     );
     expect(hero).toHaveTextContent("이름도 숫자도, 원하는 대로 넣어보세요.");
     expect(hero).not.toHaveTextContent("같은 이름도 하나씩 따로 참여해요.");
+    expect(screen.getByRole("link", { name: "GitHub" }))
+      .toHaveAttribute("href", "https://github.com/tinywolf/roulette");
     expect(startButton).toBeDisabled();
     fireEvent.change(input, { target: { value: "민지, 민지" } });
     expect(startButton).toBeEnabled();
