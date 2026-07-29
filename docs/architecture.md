@@ -1,6 +1,6 @@
 ---
-revision: 7384289
-updated_at: 2026-07-29T09:50:00+09:00
+revision: c5f0d5a
+updated_at: 2026-07-29T10:54:00+09:00
 ---
 
 # Architecture
@@ -64,7 +64,7 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 │   ├── components/
 │   │   ├── DrawControls.tsx  # 수동/자동 상태별 제어
 │   │   ├── LotteryMachine.tsx      # 공통 운동과 2D·3D 렌더러 조정
-│   │   ├── lottery3dRenderer.ts    # WebGL 공 텍스처·깊이 렌더링
+│   │   ├── lottery3dRenderer.ts    # 단일 WebGL 장면·공 텍스처 렌더링
 │   │   ├── lotteryMotion.ts        # 3축 혼합·정착·2D/3D 투영
 │   │   ├── RenderModeToggle.tsx    # 설정·추첨 중 2D/3D 전환
 │   │   ├── ResultList.tsx    # 누적 결과와 복사
@@ -104,7 +104,7 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 | `services/setupOptionsStorage.ts` | 추첨·개수·효과음·렌더링 설정 저장·검증·복원 | `SetupOptions`, Storage 어댑터 | 설정값과 경고를 포함한 결과 | `localStorage`, `types.ts` |
 | `services/soundController.ts` | 음소거 상태와 효과음 재생 | 사운드 이벤트 | Web Audio 출력 | AudioContext |
 | `components/lotteryMotion.ts` | 3축 초기 배치·구형 경계·회전 난류·중앙 횡단·중력 적층·2D/3D 투영 | 공 목록, 상태, 시각, 구 반지름 | 운동 노드, 투영 좌표 | 없음 |
-| `components/lottery3dRenderer.ts` | 이름이 포함된 공 텍스처 아틀라스와 WebGL 깊이순 빌보드 렌더링 | 공 목록, 3D 투영 좌표 | WebGL 프레임 | Canvas 2D, WebGL |
+| `components/lottery3dRenderer.ts` | 공 아틀라스와 정적 장면 텍스처를 한 버퍼·draw call로 합성 | 공 목록, 3D 투영·배출 좌표, 장면 페인터 | 단일 WebGL 프레임 | Canvas 2D, WebGL |
 | `components/LotteryMachine.tsx` | 공통 운동 노드, 2D·3D 렌더러 전환, 기계·배출·실패 대체 연출 조정 | 남은 공, 렌더링 모드, 혼합·정착 상태, 배출 공 | Canvas 2D 또는 WebGL 프레임 | `lotteryMotion.ts`, `lottery3dRenderer.ts` |
 | `components/RenderModeToggle.tsx` | 설정·추첨 화면의 렌더링 선택 | 현재 `RenderMode` | 2D/3D 변경 이벤트 | React |
 | `App.tsx` | 사용자 이벤트·타이머·가시성·서비스 통합 | 입력·클릭·브라우저 이벤트 | 화면 상태와 알림 | 모든 하위 모듈 |
@@ -181,9 +181,9 @@ flowchart TD
 
 2D 모드의 `projectBallMotionNode`는 `z`를 좌표 원근 배율과 투명도로 변환하되 모든 공의 반지름과 이름 글자 크기는 동일하게 유지하고 깊이가 낮은 공부터 그린다. 따라서 기존의 평면 로또 방송 스타일과 자연스러운 겹침을 보존한다.
 
-3D 모드의 `projectBallMotionNode3d`는 카메라 거리로 원근 배율을 계산해 앞쪽 공을 더 크게 표시한다. `lottery3dRenderer`는 최대 45개 공의 색상과 말줄임 이름을 로컬 Canvas 텍스처 아틀라스에 만든 뒤, 깊이순 WebGL 빌보드로 그린다. 구형 위·경도 가이드와 전면 호는 별도 Canvas 레이어로 합성한다. WebGL 생성·실행이 실패하거나 context가 유실되면 같은 3D 투영 좌표를 Canvas로 그리는 대체 경로를 사용한다.
+3D 모드의 `projectBallMotionNode3d`는 카메라 거리로 원근 배율을 계산해 앞쪽 공을 더 크게 표시한다. `lottery3dRenderer`는 최대 45개 공의 색상과 말줄임 이름을 로컬 Canvas 텍스처 아틀라스에 만들고 깊이순 WebGL 빌보드로 배치한다. 외곽선 없는 유리구·면 반사·3D 받침·접촉 및 바닥 그림자는 리사이즈 때만 배경/전경 정적 장면 텍스처로 갱신한다. 프레임에서는 배경, 깊이순 공, 유리 전경, 배출 공의 쿼드를 한 버텍스 버퍼에 기록하고 한 번의 draw call로 합성한다.
 
-두 모드는 `nodesRef`의 같은 `BallMotionNode`를 공유한다. `renderMode` 변경은 effect와 Canvas 레이어만 다시 구성하므로 현재 공 위치, `DrawSession`, 결과와 자동 일정은 유지된다. 이 운동 상태는 결과 선택이나 자동 일정에 영향을 주지 않는다.
+정상 3D 경로에는 보이는 WebGL Canvas 하나만 사용한다. WebGL 생성·실행이 실패하거나 context가 유실될 때만 숨겨 둔 Canvas 대체 경로를 활성화해 같은 3D 투영 좌표와 장면을 그린다. 두 모드는 `nodesRef`의 같은 `BallMotionNode`를 공유하며, `renderMode` 변경은 effect와 렌더링 리소스만 다시 구성하므로 현재 공 위치, `DrawSession`, 결과와 자동 일정은 유지된다.
 
 일부 추첨 완료 시 `App`은 남은 공이 있는 경우에만 `isSettling`을 전달한다. `LotteryMachine`은 혼합 운동 대신 아래 방향 중력과 구형 벽 반발을 적용하고, 3회 반복하는 공 간 위치 보정·저반발 충돌·마찰로 남은 공을 바닥에 쌓는다. 전체 추첨 완료처럼 남은 공이 없으면 정착 계산을 수행하지 않는다.
 
@@ -205,8 +205,8 @@ flowchart TD
 |---|---|---|
 | React, React DOM | UI 렌더링과 상태 관리 | 없음 |
 | Web Crypto API | 결과 순서와 자동 간격 난수 | 없음 |
-| Canvas 2D | 로또 기계 연출 | 없음 |
-| WebGL | 선택형 3D 공 텍스처와 원근 렌더링 | 없음 |
+| Canvas 2D | 2D 연출, 3D 정적 장면·공 텍스처 생성과 실패 대체 | 없음 |
+| WebGL | 단일 3D 장면 합성과 원근 공 렌더링 | 없음 |
 | localStorage | 입력 원문과 설정 옵션 저장 | 없음 |
 | Clipboard API | 결과 복사 | 없음 |
 | Web Audio API | 선택적 효과음 | 없음 |
@@ -220,7 +220,7 @@ Vite가 개발 서버와 정적 번들을 만들고, TypeScript가 타입을 검
 ## 확장성과 유지보수 고려사항
 
 - **46개 이상 공 확장:** Canvas·WebGL 공 반지름, 텍스처 아틀라스, 3축 운동 계산량과 모바일 높이를 함께 재검증해야 한다.
-- **고급 3D 확장:** 현재 WebGL 빌보드를 메시 기반 구체·광원·회전 물리로 바꾸더라도 `DrawEngine` 결과를 입력으로만 받아야 한다.
+- **고급 3D 확장:** 현재 단일 장면의 빌보드 공을 메시 기반 구체·광원·회전 물리로 바꾸더라도 정적 장면 캐시와 `DrawEngine` 결과 격리를 유지해야 한다.
 - **결과 저장:** 이름 저장소와 분리된 버전형 저장소를 추가하고 개인정보 노출 정책을 먼저 정한다.
 - **배포:** 현재 `dist/`는 정적 산출물이다. 호스팅별 base path와 CI 설정은 별도 범위다.
 - **브라우저:** Chromium 실제 검수는 완료했으나 Safari·Firefox·Edge는 대상 환경에서 추가 실행 검수가 필요하다.

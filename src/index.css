@@ -848,17 +848,17 @@ input:focus-visible {
   inset: 0;
 }
 
-.lottery-canvas--background {
-  z-index: 0;
-}
-
-.lottery-canvas--3d {
+.lottery-canvas--3d,
+.lottery-canvas--fallback {
   z-index: 1;
 }
 
-.lottery-canvas--overlay {
-  z-index: 2;
+.lottery-canvas--fallback {
   pointer-events: none;
+}
+
+.lottery-canvas[hidden] {
+  display: none;
 }
 
 .machine-badge {

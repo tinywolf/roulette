@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import type { Ball, RenderMode } from "../domain/types";
 import {
   Lottery3dRenderer,
+  type Lottery3dEjectedBall,
   type Lottery3dFrameBall,
+  type Lottery3dSceneLayer,
 } from "./lottery3dRenderer";
 import {
   advanceBallMotionNode,
@@ -348,7 +350,6 @@ function drawGlassChamberForeground(
   context.restore();
 
   context.restore();
-
 }
 
 /**
@@ -631,6 +632,60 @@ function drawMachineBase(
   }
 }
 
+function createEjectedBallFrame(
+  visualBall: Ball | null,
+  ejectionStartedAt: number | null,
+  now: number,
+  centerX: number,
+  centerY: number,
+  chamberRadius: number,
+  height: number,
+): Lottery3dEjectedBall | null {
+  if (!visualBall || ejectionStartedAt === null) {
+    return null;
+  }
+
+  const progress = Math.max(
+    0,
+    Math.min(1, (now - ejectionStartedAt) / 900),
+  );
+  const eased = 1 - (1 - progress) ** 3;
+  const startY = centerY + chamberRadius * 0.6;
+  const endY = height - 42;
+
+  return {
+    ball: visualBall,
+    x: centerX,
+    y: startY + (endY - startY) * eased,
+    radius: Math.max(22, chamberRadius * 0.13),
+    opacity: progress < 0.92 ? 1 : (1 - progress) / 0.08,
+  };
+}
+
+function paintThreeDimensionalScene(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  layer: Lottery3dSceneLayer,
+): void {
+  context.clearRect(0, 0, width, height);
+
+  if (layer === "background") {
+    drawMachineBase(context, width, height, true);
+    return;
+  }
+
+  const centerX = width / 2;
+  const centerY = height * 0.43;
+  const chamberRadius = Math.min(width * 0.4, height * 0.36);
+  drawGlassChamberForeground(
+    context,
+    centerX,
+    centerY,
+    chamberRadius,
+  );
+}
+
 function drawMachineForeground(
   context: CanvasRenderingContext2D,
   width: number,
@@ -701,19 +756,24 @@ function drawMachineForeground(
     context.restore();
   }
 
-  if (visualBall && ejectionStartedAt !== null) {
-    const progress = Math.min(1, (now - ejectionStartedAt) / 900);
-    const eased = 1 - (1 - progress) ** 3;
-    const startY = centerY + chamberRadius * 0.6;
-    const endY = height - 42;
+  const ejectedBall = createEjectedBallFrame(
+    visualBall,
+    ejectionStartedAt,
+    now,
+    centerX,
+    centerY,
+    chamberRadius,
+    height,
+  );
 
+  if (ejectedBall) {
     drawBall(
       context,
-      visualBall,
-      centerX,
-      startY + (endY - startY) * eased,
-      Math.max(22, chamberRadius * 0.13),
-      progress < 0.92 ? 1 : (1 - progress) / 0.08,
+      ejectedBall.ball,
+      ejectedBall.x,
+      ejectedBall.y,
+      ejectedBall.radius,
+      ejectedBall.opacity,
     );
   }
 }
@@ -731,9 +791,8 @@ export function LotteryMachine({
   onError,
 }: LotteryMachineProps) {
   const canvas2dRef = useRef<HTMLCanvasElement>(null);
-  const background3dRef = useRef<HTMLCanvasElement>(null);
   const webglRef = useRef<HTMLCanvasElement>(null);
-  const overlay3dRef = useRef<HTMLCanvasElement>(null);
+  const fallback3dRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<Map<string, BallMotionNode>>(new Map());
   const ejectionRef = useRef<{
@@ -744,9 +803,8 @@ export function LotteryMachine({
   useEffect(() => {
     const container = containerRef.current;
     const canvas2d = canvas2dRef.current;
-    const background3d = background3dRef.current;
     const webglCanvas = webglRef.current;
-    const overlay3d = overlay3dRef.current;
+    const fallbackCanvas = fallback3dRef.current;
 
     if (!container) {
       return undefined;
@@ -754,55 +812,22 @@ export function LotteryMachine({
 
     const context2d =
       renderMode === "2d" ? canvas2d?.getContext("2d") ?? null : null;
-    const backgroundContext =
-      renderMode === "3d"
-        ? background3d?.getContext("2d") ?? null
-        : null;
-    const overlayContext =
-      renderMode === "3d" ? overlay3d?.getContext("2d") ?? null : null;
 
     if (
       (renderMode === "2d" && (!canvas2d || !context2d)) ||
-      (renderMode === "3d" &&
-        (!background3d ||
-          !webglCanvas ||
-          !overlay3d ||
-          !backgroundContext ||
-          !overlayContext))
+      (renderMode === "3d" && (!webglCanvas || !fallbackCanvas))
     ) {
       onError(CANVAS_ERROR);
       return undefined;
     }
 
-    let renderer3d: Lottery3dRenderer | null = null;
-
-    if (renderMode === "3d" && webglCanvas) {
-      try {
-        renderer3d = new Lottery3dRenderer(webglCanvas);
-        renderer3d.syncBalls(balls);
-      } catch {
-        renderer3d?.dispose();
-        renderer3d = null;
-        onError(WEBGL_ERROR);
-      }
-    }
-
-    const handleWebglContextLost = (event: Event) => {
-      event.preventDefault();
-      renderer3d?.dispose();
-      renderer3d = null;
-      onError(WEBGL_ERROR);
-    };
-
-    webglCanvas?.addEventListener(
-      "webglcontextlost",
-      handleWebglContextLost,
-    );
-
     let frame = 0;
     let width = 0;
     let height = 0;
+    let currentPixelRatio = 1;
     let previousTime = performance.now();
+    let renderer3d: Lottery3dRenderer | null = null;
+    let fallbackContext: CanvasRenderingContext2D | null = null;
     const nodes = nodesRef.current;
     const ejection = ejectionRef.current;
 
@@ -824,6 +849,70 @@ export function LotteryMachine({
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     };
 
+    const activateFallback = () => {
+      renderer3d?.dispose();
+      renderer3d = null;
+
+      if (!webglCanvas || !fallbackCanvas) {
+        return false;
+      }
+
+      fallbackContext = fallbackCanvas.getContext("2d");
+      webglCanvas.hidden = true;
+      fallbackCanvas.hidden = false;
+
+      if (fallbackContext && width > 0 && height > 0) {
+        resize2dCanvas(
+          fallbackCanvas,
+          fallbackContext,
+          currentPixelRatio,
+        );
+      }
+
+      return fallbackContext !== null;
+    };
+
+    if (
+      renderMode === "3d" &&
+      webglCanvas &&
+      fallbackCanvas
+    ) {
+      try {
+        renderer3d = new Lottery3dRenderer(webglCanvas);
+        const textureBalls =
+          visualBall &&
+          !balls.some((ball) => ball.id === visualBall.id)
+            ? [...balls, visualBall]
+            : balls;
+        renderer3d.syncBalls(textureBalls);
+        webglCanvas.hidden = false;
+        fallbackCanvas.hidden = true;
+      } catch {
+        if (!activateFallback()) {
+          onError(CANVAS_ERROR);
+          return undefined;
+        }
+
+        onError(WEBGL_ERROR);
+      }
+    }
+
+    const handleWebglContextLost = (event: Event) => {
+      event.preventDefault();
+
+      if (!activateFallback()) {
+        onError(CANVAS_ERROR);
+        return;
+      }
+
+      onError(WEBGL_ERROR);
+    };
+
+    webglCanvas?.addEventListener(
+      "webglcontextlost",
+      handleWebglContextLost,
+    );
+
     const resize = () => {
       const rectangle = container.getBoundingClientRect();
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -842,20 +931,36 @@ export function LotteryMachine({
 
       width = nextWidth;
       height = nextHeight;
+      currentPixelRatio = pixelRatio;
 
       if (canvas2d && context2d) {
         resize2dCanvas(canvas2d, context2d, pixelRatio);
       }
 
-      if (
-        background3d &&
-        backgroundContext &&
-        overlay3d &&
-        overlayContext
-      ) {
-        resize2dCanvas(background3d, backgroundContext, pixelRatio);
-        resize2dCanvas(overlay3d, overlayContext, pixelRatio);
-        renderer3d?.resize(width, height, pixelRatio);
+      if (fallbackCanvas && fallbackContext) {
+        resize2dCanvas(
+          fallbackCanvas,
+          fallbackContext,
+          pixelRatio,
+        );
+      }
+
+      if (renderer3d) {
+        try {
+          renderer3d.resize(
+            width,
+            height,
+            pixelRatio,
+            paintThreeDimensionalScene,
+          );
+        } catch {
+          if (!activateFallback()) {
+            onError(CANVAS_ERROR);
+            return;
+          }
+
+          onError(WEBGL_ERROR);
+        }
       }
     };
 
@@ -973,34 +1078,42 @@ export function LotteryMachine({
             visualBall,
             ejection.startedAt,
           );
-        } else if (
-          renderMode === "3d" &&
-          backgroundContext &&
-          overlayContext
-        ) {
-          drawMachineBase(backgroundContext, width, height, true);
-          overlayContext.clearRect(0, 0, width, height);
+        } else if (renderMode === "3d") {
           const frameBalls = projectedNodes.flatMap<Lottery3dFrameBall>(
             ({ node, projected }) => {
               const ball = ballsById.get(node.id);
               return ball ? [{ ball, projected }] : [];
             },
           );
+          const ejectedBall = createEjectedBallFrame(
+            visualBall,
+            ejection.startedAt,
+            now,
+            centerX,
+            centerY,
+            chamberRadius,
+            height,
+          );
 
           if (renderer3d) {
             try {
-              renderer3d.render(frameBalls);
+              renderer3d.render(frameBalls, ejectedBall);
             } catch {
-              renderer3d.dispose();
-              renderer3d = null;
+              if (!activateFallback()) {
+                onError(CANVAS_ERROR);
+                return;
+              }
+
               onError(WEBGL_ERROR);
             }
           }
 
-          if (!renderer3d) {
+          if (fallbackContext) {
+            const context = fallbackContext;
+            drawMachineBase(context, width, height, true);
             frameBalls.forEach(({ ball, projected }) => {
               drawBall(
-                overlayContext,
+                context,
                 ball,
                 projected.x,
                 projected.y,
@@ -1008,18 +1121,17 @@ export function LotteryMachine({
                 projected.opacity,
               );
             });
+            drawMachineForeground(
+              context,
+              width,
+              height,
+              now,
+              isMixing,
+              true,
+              visualBall,
+              ejection.startedAt,
+            );
           }
-
-          drawMachineForeground(
-            overlayContext,
-            width,
-            height,
-            now,
-            isMixing,
-            true,
-            visualBall,
-            ejection.startedAt,
-          );
         }
 
         frame = window.requestAnimationFrame(animate);
@@ -1071,19 +1183,15 @@ export function LotteryMachine({
       ) : (
         <>
           <canvas
-            ref={background3dRef}
-            className="lottery-canvas lottery-canvas-layer lottery-canvas--background"
-            aria-hidden="true"
-          />
-          <canvas
             ref={webglRef}
             className="lottery-canvas lottery-canvas-layer lottery-canvas--3d"
             aria-label={ariaLabel}
           />
           <canvas
-            ref={overlay3dRef}
-            className="lottery-canvas lottery-canvas-layer lottery-canvas--overlay"
-            aria-hidden="true"
+            ref={fallback3dRef}
+            className="lottery-canvas lottery-canvas-layer lottery-canvas--fallback"
+            aria-label={ariaLabel}
+            hidden
           />
         </>
       )}

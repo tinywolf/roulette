@@ -6,7 +6,7 @@
 - supplemental_source: 없음 (`PRD.md` 미사용)
 - last_updated: 2026-07-29
 - overall_status: `done`
-- progress: 31/31 tasks done
+- progress: 32/32 tasks done
 - open_questions: 없음
 - next_task: 없음
 - workflow_feedback: 단계별 승인 없이 전체 작업 연속 진행 승인
@@ -38,6 +38,7 @@
 22. 숫자 범위 조합 입력: T29
 23. 설정 옵션 브라우저 저장: T30
 24. 2D·3D 렌더링 모드 선택과 실시간 전환: T31
+25. 단일 WebGL 3D 장면 통합: T32
 
 ## Tasks
 
@@ -484,7 +485,37 @@
   - progress: 설정 저장형 2D/3D 토글, 공통 운동 노드 기반 WebGL 텍스처 렌더러, Canvas 실패 대체 경로, 추첨 중 전환과 문서·테스트 구현 완료
   - notes: `feature/3d-render-mode` 브랜치에서 추첨 난수와 상태 엔진을 변경하지 않고 구현했다. 타입 검사, 79개 테스트와 프로덕션 빌드를 통과했고 실제 브라우저에서 데스크톱·390px 모바일, 10개·45개 3D 혼합과 추첨 중 전환을 검증했다.
 
+- [x] T32 | done | 단일 WebGL 3D 장면 통합
+  - scope: 3D 모드의 다중 Canvas 합성을 하나의 WebGL 장면으로 통합하고, 유리구·공·받침·접촉 및 바닥 그림자를 GPU에서 함께 렌더링
+  - acceptance:
+    - 3D 모드는 하나의 WebGL Canvas와 프레임당 최소 draw call로 유리구·공·받침을 합성한다.
+    - 기존의 외곽선 없는 옅은 유리구, 면 반사, 3D 받침과 자연스러운 접촉·바닥 그림자 수준을 유지한다.
+    - 최대 45개 공의 이름, 깊이 정렬, 혼합·정착·배출과 실시간 2D/3D 전환이 유지된다.
+    - 정적 유리구와 받침을 Canvas 2D에서 매 프레임 다시 그리지 않는다.
+    - WebGL 실패·context 유실 시 Canvas 대체 연출과 추첨 정확성 격리가 유지된다.
+    - 타입 검사, 자동 테스트, 프로덕션 빌드와 데스크톱·모바일 브라우저 스모크가 통과한다.
+  - dependencies: T31
+  - next_action: 완료
+  - progress: 정적 장면 텍스처 캐시, 공·장면 멀티 텍스처 셰이더, 단일 버텍스 버퍼·draw call, GPU 배출 공과 숨김 Canvas 실패 대체 구현 완료
+  - notes: 타입 검사, 10개 테스트 파일의 80개 테스트, 빌드와 `git diff --check`를 통과했다. 브라우저에서 45개 혼합·수동 배출·2D↔3D 전환, 단일 WebGL Canvas 활성·대체 Canvas 숨김과 콘솔 오류 없음을 확인했고 390px 장면 리사이즈는 렌더러 단위 테스트로 검증했다.
+
 ## 진행 로그
+
+- 2026-07-29 10:45 | 단계: T32 | 상태: not_started -> in_progress
+  - 요약: 기존 사실성을 유지하면서 3D 유리구·공·받침을 하나의 WebGL 장면으로 통합 시작
+  - 산출물: T32 작업 정의와 현재 렌더링 비용·실패 대체 경로 분석
+  - 검증: 예정 (79개 회귀 테스트, typecheck, build, 데스크톱·모바일 45개 스모크와 콘솔 오류 확인)
+  - 리스크_또는_차단: WebGL context 유실 시 Canvas 대체 연출과 추첨 결과 격리를 유지해야 함
+  - 다음: GPU 장면 텍스처·단일 프레임 합성 렌더러 구현
+  - 사용자_피드백: 현재 수준의 사실성을 유지하면서 제안한 단일 WebGL 방식으로 성능 개선 요청 반영
+
+- 2026-07-29 10:57 | 단계: T32 | 상태: in_progress -> done
+  - 요약: 3D 유리구·공·받침·그림자를 단일 WebGL 장면과 프레임당 한 draw call로 통합
+  - 산출물: `Lottery3dRenderer` 멀티 텍스처 셰이더·정적 장면 캐시·GPU 배출 공, `LotteryMachine` 단일 Canvas 정상 경로·숨김 Canvas 대체 경로, 렌더러 단위 테스트와 README·SPEC·아키텍처·개발 가이드
+  - 검증: typecheck, 80 tests, build, `git diff --check` 통과; 데스크톱 Chromium에서 45개 혼합·배출·2D↔3D 전환·WebGL 단일 활성 Canvas와 콘솔 오류 없음 확인, 390px 장면 버퍼 크기 단위 검증
+  - 리스크_또는_차단: Safari·Firefox·Edge와 실제 모바일 GPU 스모크는 해당 실행 환경에서 추가 확인 필요
+  - 다음: 전체 작업 완료
+  - 사용자_피드백: 현재 사실성을 유지하되 다중 Canvas의 매 프레임 정적 도형 재합성을 제거하는 성능 개선 요청 반영
 
 - 2026-07-29 09:50 | 단계: T31 | 상태: not_started -> in_progress
   - 요약: 2D 기본 연출을 보존한 WebGL 3D 모드와 추첨 전·중 전환 구현 시작

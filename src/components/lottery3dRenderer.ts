@@ -4,30 +4,41 @@ import type { ProjectedBallNode } from "./lotteryMotion";
 const ATLAS_SIZE = 1_024;
 const ATLAS_COLUMNS = 8;
 const ATLAS_CELL_SIZE = 128;
+const VERTEX_FLOAT_COUNT = 6;
 
 const VERTEX_SHADER = `
   attribute vec2 a_position;
   attribute vec2 a_uv;
   attribute float a_opacity;
+  attribute float a_texture_kind;
   varying vec2 v_uv;
   varying float v_opacity;
+  varying float v_texture_kind;
 
   void main() {
     gl_Position = vec4(a_position, 0.0, 1.0);
     v_uv = a_uv;
     v_opacity = a_opacity;
+    v_texture_kind = a_texture_kind;
   }
 `;
 
 const FRAGMENT_SHADER = `
   precision mediump float;
-  uniform sampler2D u_texture;
+  uniform sampler2D u_ball_texture;
+  uniform sampler2D u_scene_texture;
   varying vec2 v_uv;
   varying float v_opacity;
+  varying float v_texture_kind;
 
   void main() {
-    vec4 color = texture2D(u_texture, v_uv);
-    gl_FragColor = vec4(color.rgb, color.a * v_opacity);
+    vec4 color = v_texture_kind < 0.5
+      ? texture2D(u_ball_texture, v_uv)
+      : texture2D(u_scene_texture, v_uv);
+    gl_FragColor = vec4(
+      color.rgb * v_opacity,
+      color.a * v_opacity
+    );
   }
 `;
 
@@ -35,6 +46,23 @@ export type Lottery3dFrameBall = {
   ball: Ball;
   projected: ProjectedBallNode;
 };
+
+export type Lottery3dEjectedBall = {
+  ball: Ball;
+  x: number;
+  y: number;
+  radius: number;
+  opacity: number;
+};
+
+export type Lottery3dSceneLayer = "background" | "foreground";
+
+export type Lottery3dScenePainter = (
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  layer: Lottery3dSceneLayer,
+) => void;
 
 type TextureCoordinates = {
   left: number;
@@ -215,20 +243,45 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
   return program;
 }
 
+function configureTexture(
+  gl: WebGLRenderingContext,
+  texture: WebGLTexture,
+  textureUnit: number,
+): void {
+  gl.activeTexture(textureUnit);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    1,
+    1,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array([0, 0, 0, 0]),
+  );
+}
+
 /**
- * 공 이름이 포함된 Canvas 텍스처를 WebGL 빌보드로 그린다.
- * 추첨 물리와 결과에는 관여하지 않고 프레임별 투영 결과만 소비한다.
+ * 유리구·공·받침을 단일 WebGL Canvas에서 한 번의 draw call로 합성한다.
+ * 정적 장면은 리사이즈 때만 Canvas 텍스처로 갱신하고 매 프레임에는 공 버퍼만 바꾼다.
  */
 export class Lottery3dRenderer {
   private readonly gl: WebGLRenderingContext;
   private readonly program: WebGLProgram;
   private readonly vertexBuffer: WebGLBuffer;
-  private readonly texture: WebGLTexture;
-  private readonly positionLocation: number;
-  private readonly textureLocation: number;
-  private readonly opacityLocation: number;
+  private readonly ballTexture: WebGLTexture;
+  private readonly sceneTexture: WebGLTexture;
+  private readonly maximumTextureSize: number;
   private textureCoordinates = new Map<string, TextureCoordinates>();
   private ballsSignature = "";
+  private sceneSignature = "";
+  private sceneReady = false;
   private width = 1;
   private height = 1;
 
@@ -237,6 +290,7 @@ export class Lottery3dRenderer {
       alpha: true,
       antialias: true,
       premultipliedAlpha: true,
+      powerPreference: "high-performance",
     }) as WebGLRenderingContext | null;
 
     if (!gl || typeof gl.createShader !== "function") {
@@ -245,87 +299,181 @@ export class Lottery3dRenderer {
 
     const program = createProgram(gl);
     const vertexBuffer = gl.createBuffer();
-    const texture = gl.createTexture();
+    const ballTexture = gl.createTexture();
+    const sceneTexture = gl.createTexture();
 
-    if (!vertexBuffer || !texture) {
+    if (!vertexBuffer || !ballTexture || !sceneTexture) {
+      gl.deleteBuffer(vertexBuffer);
+      gl.deleteTexture(ballTexture);
+      gl.deleteTexture(sceneTexture);
       gl.deleteProgram(program);
       throw new Error("WebGL 리소스를 생성할 수 없습니다.");
+    }
+
+    const positionLocation = gl.getAttribLocation(program, "a_position");
+    const textureLocation = gl.getAttribLocation(program, "a_uv");
+    const opacityLocation = gl.getAttribLocation(program, "a_opacity");
+    const textureKindLocation = gl.getAttribLocation(
+      program,
+      "a_texture_kind",
+    );
+
+    if (
+      positionLocation < 0 ||
+      textureLocation < 0 ||
+      opacityLocation < 0 ||
+      textureKindLocation < 0
+    ) {
+      gl.deleteBuffer(vertexBuffer);
+      gl.deleteTexture(ballTexture);
+      gl.deleteTexture(sceneTexture);
+      gl.deleteProgram(program);
+      throw new Error("WebGL 속성을 찾을 수 없습니다.");
     }
 
     this.gl = gl;
     this.program = program;
     this.vertexBuffer = vertexBuffer;
-    this.texture = texture;
-    this.positionLocation = gl.getAttribLocation(program, "a_position");
-    this.textureLocation = gl.getAttribLocation(program, "a_uv");
-    this.opacityLocation = gl.getAttribLocation(program, "a_opacity");
-
-    if (
-      this.positionLocation < 0 ||
-      this.textureLocation < 0 ||
-      this.opacityLocation < 0
-    ) {
-      this.dispose();
-      throw new Error("WebGL 속성을 찾을 수 없습니다.");
-    }
+    this.ballTexture = ballTexture;
+    this.sceneTexture = sceneTexture;
+    this.maximumTextureSize = gl.getParameter(
+      gl.MAX_TEXTURE_SIZE,
+    ) as number;
 
     gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-    gl.enableVertexAttribArray(this.positionLocation);
-    gl.enableVertexAttribArray(this.textureLocation);
-    gl.enableVertexAttribArray(this.opacityLocation);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.enableVertexAttribArray(textureLocation);
+    gl.enableVertexAttribArray(opacityLocation);
+    gl.enableVertexAttribArray(textureKindLocation);
     gl.vertexAttribPointer(
-      this.positionLocation,
+      positionLocation,
       2,
       gl.FLOAT,
       false,
-      20,
+      VERTEX_FLOAT_COUNT * 4,
       0,
     );
     gl.vertexAttribPointer(
-      this.textureLocation,
+      textureLocation,
       2,
       gl.FLOAT,
       false,
-      20,
+      VERTEX_FLOAT_COUNT * 4,
       8,
     );
     gl.vertexAttribPointer(
-      this.opacityLocation,
+      opacityLocation,
       1,
       gl.FLOAT,
       false,
-      20,
+      VERTEX_FLOAT_COUNT * 4,
       16,
     );
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.vertexAttribPointer(
+      textureKindLocation,
+      1,
+      gl.FLOAT,
+      false,
+      VERTEX_FLOAT_COUNT * 4,
+      20,
+    );
+
+    configureTexture(gl, ballTexture, gl.TEXTURE0);
+    configureTexture(gl, sceneTexture, gl.TEXTURE1);
+    gl.uniform1i(
+      gl.getUniformLocation(program, "u_ball_texture"),
+      0,
+    );
+    gl.uniform1i(
+      gl.getUniformLocation(program, "u_scene_texture"),
+      1,
+    );
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.clearColor(0, 0, 0, 0);
+  }
+
+  resize(
+    width: number,
+    height: number,
+    pixelRatio: number,
+    paintScene: Lottery3dScenePainter,
+  ): void {
+    const requestedRatio = Math.min(pixelRatio, 2);
+    const sceneRatio = Math.max(
+      0.5,
+      Math.min(
+        requestedRatio,
+        this.maximumTextureSize / width,
+        this.maximumTextureSize / (height * 2),
+      ),
+    );
+    const signature = [
+      width,
+      height,
+      requestedRatio,
+      sceneRatio,
+    ].join(":");
+
+    this.width = width;
+    this.height = height;
+
+    if (signature === this.sceneSignature) {
+      return;
+    }
+
+    this.canvas.width = Math.round(width * requestedRatio);
+    this.canvas.height = Math.round(height * requestedRatio);
+    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+
+    const sceneCanvas = document.createElement("canvas");
+    const sceneWidth = Math.max(1, Math.round(width * sceneRatio));
+    const sceneLayerHeight = Math.max(
+      1,
+      Math.round(height * sceneRatio),
+    );
+    sceneCanvas.width = sceneWidth;
+    sceneCanvas.height = sceneLayerHeight * 2;
+    const context = sceneCanvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("3D 장면 텍스처를 생성할 수 없습니다.");
+    }
+
+    context.setTransform(
+      sceneWidth / width,
+      0,
+      0,
+      sceneLayerHeight / height,
+      0,
+      0,
+    );
+    paintScene(context, width, height, "background");
+    context.setTransform(
+      sceneWidth / width,
+      0,
+      0,
+      sceneLayerHeight / height,
+      0,
+      sceneLayerHeight,
+    );
+    paintScene(context, width, height, "foreground");
+
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
       gl.RGBA,
-      1,
-      1,
-      0,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
-      new Uint8Array([0, 0, 0, 0]),
+      sceneCanvas,
     );
-    gl.uniform1i(gl.getUniformLocation(program, "u_texture"), 0);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.clearColor(0, 0, 0, 0);
-  }
-
-  resize(width: number, height: number, pixelRatio: number): void {
-    this.width = width;
-    this.height = height;
-    this.canvas.width = Math.round(width * pixelRatio);
-    this.canvas.height = Math.round(height * pixelRatio);
-    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    this.sceneSignature = signature;
+    this.sceneReady = true;
   }
 
   syncBalls(balls: Ball[]): void {
@@ -340,8 +488,8 @@ export class Lottery3dRenderer {
     const atlas = createTextureAtlas(balls);
     this.textureCoordinates = atlas.coordinates;
     this.ballsSignature = signature;
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
-    this.gl.pixelStorei(this.gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+    this.gl.activeTexture(this.gl.TEXTURE0);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.ballTexture);
     this.gl.texImage2D(
       this.gl.TEXTURE_2D,
       0,
@@ -352,7 +500,10 @@ export class Lottery3dRenderer {
     );
   }
 
-  render(frameBalls: Lottery3dFrameBall[]): void {
+  render(
+    frameBalls: Lottery3dFrameBall[],
+    ejectedBall: Lottery3dEjectedBall | null,
+  ): void {
     const gl = this.gl;
     const vertices: number[] = [];
     const orderedBalls = [...frameBalls].sort(
@@ -366,6 +517,7 @@ export class Lottery3dRenderer {
       u: number,
       v: number,
       opacity: number,
+      textureKind: number,
     ) => {
       vertices.push(
         (x / this.width) * 2 - 1,
@@ -373,65 +525,136 @@ export class Lottery3dRenderer {
         u,
         v,
         opacity,
+        textureKind,
       );
     };
 
-    orderedBalls.forEach(({ ball, projected }) => {
+    const pushQuad = (
+      left: number,
+      top: number,
+      right: number,
+      bottom: number,
+      texture: TextureCoordinates,
+      opacity: number,
+      textureKind: number,
+    ) => {
+      pushVertex(
+        left,
+        top,
+        texture.left,
+        texture.top,
+        opacity,
+        textureKind,
+      );
+      pushVertex(
+        left,
+        bottom,
+        texture.left,
+        texture.bottom,
+        opacity,
+        textureKind,
+      );
+      pushVertex(
+        right,
+        bottom,
+        texture.right,
+        texture.bottom,
+        opacity,
+        textureKind,
+      );
+      pushVertex(
+        left,
+        top,
+        texture.left,
+        texture.top,
+        opacity,
+        textureKind,
+      );
+      pushVertex(
+        right,
+        bottom,
+        texture.right,
+        texture.bottom,
+        opacity,
+        textureKind,
+      );
+      pushVertex(
+        right,
+        top,
+        texture.right,
+        texture.top,
+        opacity,
+        textureKind,
+      );
+    };
+
+    if (this.sceneReady) {
+      pushQuad(
+        0,
+        0,
+        this.width,
+        this.height,
+        { left: 0, top: 0, right: 1, bottom: 0.5 },
+        1,
+        1,
+      );
+    }
+
+    const pushBall = (
+      ball: Ball,
+      x: number,
+      y: number,
+      radius: number,
+      opacity: number,
+    ) => {
       const coordinates = this.textureCoordinates.get(ball.id);
 
       if (!coordinates) {
         return;
       }
 
-      const left = projected.x - projected.radius;
-      const right = projected.x + projected.radius;
-      const top = projected.y - projected.radius;
-      const bottom = projected.y + projected.radius;
-      const opacity = projected.opacity;
+      pushQuad(
+        x - radius,
+        y - radius,
+        x + radius,
+        y + radius,
+        coordinates,
+        opacity,
+        0,
+      );
+    };
 
-      pushVertex(
-        left,
-        top,
-        coordinates.left,
-        coordinates.top,
-        opacity,
-      );
-      pushVertex(
-        left,
-        bottom,
-        coordinates.left,
-        coordinates.bottom,
-        opacity,
-      );
-      pushVertex(
-        right,
-        bottom,
-        coordinates.right,
-        coordinates.bottom,
-        opacity,
-      );
-      pushVertex(
-        left,
-        top,
-        coordinates.left,
-        coordinates.top,
-        opacity,
-      );
-      pushVertex(
-        right,
-        bottom,
-        coordinates.right,
-        coordinates.bottom,
-        opacity,
-      );
-      pushVertex(
-        right,
-        top,
-        coordinates.right,
-        coordinates.top,
-        opacity,
+    orderedBalls.forEach(({ ball, projected }) => {
+      pushBall(
+        ball,
+        projected.x,
+        projected.y,
+        projected.radius,
+        projected.opacity,
       );
     });
+
+    if (this.sceneReady) {
+      pushQuad(
+        0,
+        0,
+        this.width,
+        this.height,
+        { left: 0, top: 0.5, right: 1, bottom: 1 },
+        1,
+        1,
+      );
+    }
+
+    if (ejectedBall) {
+      pushBall(
+        ejectedBall.ball,
+        ejectedBall.x,
+        ejectedBall.y,
+        ejectedBall.radius,
+        ejectedBall.opacity,
+      );
+    }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -447,13 +670,20 @@ export class Lottery3dRenderer {
       gl.DYNAMIC_DRAW,
     );
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 5);
+    gl.bindTexture(gl.TEXTURE_2D, this.ballTexture);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
+    gl.drawArrays(
+      gl.TRIANGLES,
+      0,
+      vertices.length / VERTEX_FLOAT_COUNT,
+    );
   }
 
   dispose(): void {
     this.gl?.deleteBuffer(this.vertexBuffer);
-    this.gl?.deleteTexture(this.texture);
+    this.gl?.deleteTexture(this.ballTexture);
+    this.gl?.deleteTexture(this.sceneTexture);
     this.gl?.deleteProgram(this.program);
   }
 }
