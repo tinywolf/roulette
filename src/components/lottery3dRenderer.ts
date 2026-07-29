@@ -1,10 +1,12 @@
 import type { Ball } from "../domain/types";
 import type { ProjectedBallNode } from "./lotteryMotion";
 
-const ATLAS_SIZE = 1_024;
+const ATLAS_WIDTH = 1_024;
 const ATLAS_COLUMNS = 8;
 const ATLAS_CELL_SIZE = 128;
 const VERTEX_FLOAT_COUNT = 6;
+const MAX_RENDERED_QUADS = 48;
+const FLOATS_PER_QUAD = 6 * VERTEX_FLOAT_COUNT;
 
 const VERTEX_SHADER = `
   attribute vec2 a_position;
@@ -57,6 +59,18 @@ export type Lottery3dEjectedBall = {
 
 export type Lottery3dSceneLayer = "background" | "foreground";
 
+export type Lottery3dSceneBounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+export type Lottery3dSceneLayout = Record<
+  Lottery3dSceneLayer,
+  Lottery3dSceneBounds
+>;
+
 export type Lottery3dScenePainter = (
   context: CanvasRenderingContext2D,
   width: number,
@@ -69,6 +83,11 @@ type TextureCoordinates = {
   top: number;
   right: number;
   bottom: number;
+};
+
+type SceneQuad = {
+  bounds: Lottery3dSceneBounds;
+  texture: TextureCoordinates;
 };
 
 function displayName(
@@ -157,8 +176,10 @@ function createTextureAtlas(balls: Ball[]): {
   coordinates: Map<string, TextureCoordinates>;
 } {
   const canvas = document.createElement("canvas");
-  canvas.width = ATLAS_SIZE;
-  canvas.height = ATLAS_SIZE;
+  canvas.width = ATLAS_WIDTH;
+  canvas.height =
+    Math.max(1, Math.ceil(balls.length / ATLAS_COLUMNS)) *
+    ATLAS_CELL_SIZE;
   const context = canvas.getContext("2d");
 
   if (!context) {
@@ -180,10 +201,10 @@ function createTextureAtlas(balls: Ball[]): {
       top + ATLAS_CELL_SIZE / 2,
     );
     coordinates.set(ball.id, {
-      left: left / ATLAS_SIZE,
-      top: top / ATLAS_SIZE,
-      right: (left + ATLAS_CELL_SIZE) / ATLAS_SIZE,
-      bottom: (top + ATLAS_CELL_SIZE) / ATLAS_SIZE,
+      left: left / canvas.width,
+      top: top / canvas.height,
+      right: (left + ATLAS_CELL_SIZE) / canvas.width,
+      bottom: (top + ATLAS_CELL_SIZE) / canvas.height,
     });
   });
 
@@ -277,19 +298,38 @@ export class Lottery3dRenderer {
   private readonly vertexBuffer: WebGLBuffer;
   private readonly ballTexture: WebGLTexture;
   private readonly sceneTexture: WebGLTexture;
+  private readonly sceneCanvas: HTMLCanvasElement;
   private readonly maximumTextureSize: number;
   private textureCoordinates = new Map<string, TextureCoordinates>();
   private ballsSignature = "";
   private sceneSignature = "";
   private sceneReady = false;
+  private sceneQuads: Record<Lottery3dSceneLayer, SceneQuad> = {
+    background: {
+      bounds: { left: 0, top: 0, width: 1, height: 1 },
+      texture: { left: 0, top: 0, right: 1, bottom: 0.5 },
+    },
+    foreground: {
+      bounds: { left: 0, top: 0, width: 1, height: 1 },
+      texture: { left: 0, top: 0.5, right: 1, bottom: 1 },
+    },
+  };
   private width = 1;
   private height = 1;
+  private readonly vertexData = new Float32Array(
+    MAX_RENDERED_QUADS * FLOATS_PER_QUAD,
+  );
+  private activeVertexView = this.vertexData.subarray(0, 0);
+  private activeVertexFloatCount = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl", {
       alpha: true,
-      antialias: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
       premultipliedAlpha: true,
+      preserveDrawingBuffer: false,
       powerPreference: "high-performance",
     }) as WebGLRenderingContext | null;
 
@@ -336,12 +376,18 @@ export class Lottery3dRenderer {
     this.vertexBuffer = vertexBuffer;
     this.ballTexture = ballTexture;
     this.sceneTexture = sceneTexture;
+    this.sceneCanvas = document.createElement("canvas");
     this.maximumTextureSize = gl.getParameter(
       gl.MAX_TEXTURE_SIZE,
     ) as number;
 
     gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      this.vertexData.byteLength,
+      gl.DYNAMIC_DRAW,
+    );
     gl.enableVertexAttribArray(positionLocation);
     gl.enableVertexAttribArray(textureLocation);
     gl.enableVertexAttribArray(opacityLocation);
@@ -400,14 +446,25 @@ export class Lottery3dRenderer {
     height: number,
     pixelRatio: number,
     paintScene: Lottery3dScenePainter,
+    layout?: Lottery3dSceneLayout,
   ): void {
     const requestedRatio = Math.min(pixelRatio, 2);
+    const sceneLayout = layout ?? {
+      background: { left: 0, top: 0, width, height },
+      foreground: { left: 0, top: 0, width, height },
+    };
+    const atlasWidth = Math.max(
+      sceneLayout.background.width,
+      sceneLayout.foreground.width,
+    );
+    const atlasHeight =
+      sceneLayout.background.height + sceneLayout.foreground.height;
     const sceneRatio = Math.max(
       0.5,
       Math.min(
         requestedRatio,
-        this.maximumTextureSize / width,
-        this.maximumTextureSize / (height * 2),
+        this.maximumTextureSize / atlasWidth,
+        this.maximumTextureSize / atlasHeight,
       ),
     );
     const signature = [
@@ -415,6 +472,12 @@ export class Lottery3dRenderer {
       height,
       requestedRatio,
       sceneRatio,
+      ...Object.values(sceneLayout).flatMap((bounds) => [
+        bounds.left,
+        bounds.top,
+        bounds.width,
+        bounds.height,
+      ]),
     ].join(":");
 
     this.width = width;
@@ -428,38 +491,86 @@ export class Lottery3dRenderer {
     this.canvas.height = Math.round(height * requestedRatio);
     this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
 
-    const sceneCanvas = document.createElement("canvas");
-    const sceneWidth = Math.max(1, Math.round(width * sceneRatio));
-    const sceneLayerHeight = Math.max(
+    const sceneCanvas = this.sceneCanvas;
+    const backgroundWidth = Math.max(
       1,
-      Math.round(height * sceneRatio),
+      Math.round(sceneLayout.background.width * sceneRatio),
     );
-    sceneCanvas.width = sceneWidth;
-    sceneCanvas.height = sceneLayerHeight * 2;
+    const backgroundHeight = Math.max(
+      1,
+      Math.round(sceneLayout.background.height * sceneRatio),
+    );
+    const foregroundWidth = Math.max(
+      1,
+      Math.round(sceneLayout.foreground.width * sceneRatio),
+    );
+    const foregroundHeight = Math.max(
+      1,
+      Math.round(sceneLayout.foreground.height * sceneRatio),
+    );
+    sceneCanvas.width = Math.max(backgroundWidth, foregroundWidth);
+    sceneCanvas.height = backgroundHeight + foregroundHeight;
     const context = sceneCanvas.getContext("2d");
 
     if (!context) {
       throw new Error("3D 장면 텍스처를 생성할 수 없습니다.");
     }
 
-    context.setTransform(
-      sceneWidth / width,
-      0,
-      0,
-      sceneLayerHeight / height,
-      0,
-      0,
+    const paintLayer = (
+      layer: Lottery3dSceneLayer,
+      layerWidth: number,
+      layerHeight: number,
+      atlasTop: number,
+    ) => {
+      const bounds = sceneLayout[layer];
+      const scaleX = layerWidth / bounds.width;
+      const scaleY = layerHeight / bounds.height;
+
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.beginPath();
+      context.rect(0, atlasTop, layerWidth, layerHeight);
+      context.clip();
+      context.setTransform(
+        scaleX,
+        0,
+        0,
+        scaleY,
+        -bounds.left * scaleX,
+        atlasTop - bounds.top * scaleY,
+      );
+      paintScene(context, width, height, layer);
+      context.restore();
+    };
+
+    paintLayer("background", backgroundWidth, backgroundHeight, 0);
+    paintLayer(
+      "foreground",
+      foregroundWidth,
+      foregroundHeight,
+      backgroundHeight,
     );
-    paintScene(context, width, height, "background");
-    context.setTransform(
-      sceneWidth / width,
-      0,
-      0,
-      sceneLayerHeight / height,
-      0,
-      sceneLayerHeight,
-    );
-    paintScene(context, width, height, "foreground");
+
+    this.sceneQuads = {
+      background: {
+        bounds: sceneLayout.background,
+        texture: {
+          left: 0,
+          top: 0,
+          right: backgroundWidth / sceneCanvas.width,
+          bottom: backgroundHeight / sceneCanvas.height,
+        },
+      },
+      foreground: {
+        bounds: sceneLayout.foreground,
+        texture: {
+          left: 0,
+          top: backgroundHeight / sceneCanvas.height,
+          right: foregroundWidth / sceneCanvas.width,
+          bottom: 1,
+        },
+      },
+    };
 
     const gl = this.gl;
     gl.activeTexture(gl.TEXTURE1);
@@ -505,11 +616,7 @@ export class Lottery3dRenderer {
     ejectedBall: Lottery3dEjectedBall | null,
   ): void {
     const gl = this.gl;
-    const vertices: number[] = [];
-    const orderedBalls = [...frameBalls].sort(
-      (first, second) =>
-        first.projected.depth - second.projected.depth,
-    );
+    let vertexFloatCount = 0;
 
     const pushVertex = (
       x: number,
@@ -519,14 +626,18 @@ export class Lottery3dRenderer {
       opacity: number,
       textureKind: number,
     ) => {
-      vertices.push(
-        (x / this.width) * 2 - 1,
-        1 - (y / this.height) * 2,
-        u,
-        v,
-        opacity,
-        textureKind,
-      );
+      if (vertexFloatCount + VERTEX_FLOAT_COUNT > this.vertexData.length) {
+        throw new Error("3D 정점 버퍼의 최대 크기를 초과했습니다.");
+      }
+
+      this.vertexData[vertexFloatCount] = (x / this.width) * 2 - 1;
+      this.vertexData[vertexFloatCount + 1] =
+        1 - (y / this.height) * 2;
+      this.vertexData[vertexFloatCount + 2] = u;
+      this.vertexData[vertexFloatCount + 3] = v;
+      this.vertexData[vertexFloatCount + 4] = opacity;
+      this.vertexData[vertexFloatCount + 5] = textureKind;
+      vertexFloatCount += VERTEX_FLOAT_COUNT;
     };
 
     const pushQuad = (
@@ -589,12 +700,13 @@ export class Lottery3dRenderer {
     };
 
     if (this.sceneReady) {
+      const { bounds, texture } = this.sceneQuads.background;
       pushQuad(
-        0,
-        0,
-        this.width,
-        this.height,
-        { left: 0, top: 0, right: 1, bottom: 0.5 },
+        bounds.left,
+        bounds.top,
+        bounds.left + bounds.width,
+        bounds.top + bounds.height,
+        texture,
         1,
         1,
       );
@@ -624,7 +736,7 @@ export class Lottery3dRenderer {
       );
     };
 
-    orderedBalls.forEach(({ ball, projected }) => {
+    frameBalls.forEach(({ ball, projected }) => {
       pushBall(
         ball,
         projected.x,
@@ -635,12 +747,13 @@ export class Lottery3dRenderer {
     });
 
     if (this.sceneReady) {
+      const { bounds, texture } = this.sceneQuads.foreground;
       pushQuad(
-        0,
-        0,
-        this.width,
-        this.height,
-        { left: 0, top: 0.5, right: 1, bottom: 1 },
+        bounds.left,
+        bounds.top,
+        bounds.left + bounds.width,
+        bounds.top + bounds.height,
+        texture,
         1,
         1,
       );
@@ -658,16 +771,24 @@ export class Lottery3dRenderer {
 
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    if (vertices.length === 0) {
+    if (vertexFloatCount === 0) {
       return;
+    }
+
+    if (vertexFloatCount !== this.activeVertexFloatCount) {
+      this.activeVertexFloatCount = vertexFloatCount;
+      this.activeVertexView = this.vertexData.subarray(
+        0,
+        vertexFloatCount,
+      );
     }
 
     gl.useProgram(this.program);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-    gl.bufferData(
+    gl.bufferSubData(
       gl.ARRAY_BUFFER,
-      new Float32Array(vertices),
-      gl.DYNAMIC_DRAW,
+      0,
+      this.activeVertexView,
     );
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.ballTexture);
@@ -676,7 +797,7 @@ export class Lottery3dRenderer {
     gl.drawArrays(
       gl.TRIANGLES,
       0,
-      vertices.length / VERTEX_FLOAT_COUNT,
+      vertexFloatCount / VERTEX_FLOAT_COUNT,
     );
   }
 

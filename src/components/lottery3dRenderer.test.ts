@@ -34,6 +34,7 @@ function createWebglMock(): WebGLRenderingContext {
     bindTexture: vi.fn(),
     blendFunc: vi.fn(),
     bufferData: vi.fn(),
+    bufferSubData: vi.fn(),
     clear: vi.fn(),
     clearColor: vi.fn(),
     compileShader: vi.fn(),
@@ -85,6 +86,15 @@ describe("Lottery3dRenderer", () => {
     const paintScene = vi.fn();
     const renderer = new Lottery3dRenderer(canvas);
 
+    expect(canvas.getContext).toHaveBeenCalledWith(
+      "webgl",
+      expect.objectContaining({
+        antialias: false,
+        depth: false,
+        preserveDrawingBuffer: false,
+        stencil: false,
+      }),
+    );
     renderer.resize(640, 500, 2, paintScene);
     renderer.resize(640, 500, 2, paintScene);
     renderer.render([], null);
@@ -100,11 +110,59 @@ describe("Lottery3dRenderer", () => {
       0,
       12,
     );
+    expect(gl.bufferData).toHaveBeenCalledTimes(1);
+    expect(gl.bufferSubData).toHaveBeenCalledTimes(1);
 
     renderer.resize(390, 500, 2, paintScene);
 
     expect(canvas.width).toBe(780);
     expect(canvas.height).toBe(1_000);
     expect(paintScene).toHaveBeenCalledTimes(4);
+  });
+
+  it("정적 장면에서 실제 도형 경계만 텍스처에 패킹한다", () => {
+    const gl = createWebglMock();
+    const canvas = {
+      getContext: vi.fn(() => gl),
+      height: 0,
+      width: 0,
+    } as unknown as HTMLCanvasElement;
+    const renderer = new Lottery3dRenderer(canvas);
+
+    renderer.resize(640, 500, 2, vi.fn(), {
+      background: { left: 100, top: 20, width: 400, height: 480 },
+      foreground: { left: 100, top: 20, width: 400, height: 360 },
+    });
+
+    const sceneCanvas = vi.mocked(gl.texImage2D).mock.calls.at(-1)?.[5];
+
+    expect(sceneCanvas).toBeInstanceOf(HTMLCanvasElement);
+    expect((sceneCanvas as HTMLCanvasElement).width).toBe(800);
+    expect((sceneCanvas as HTMLCanvasElement).height).toBe(1_680);
+  });
+
+  it("45개 공 아틀라스를 한 번 만들고 투명한 빈 행은 할당하지 않는다", () => {
+    const gl = createWebglMock();
+    const canvas = {
+      getContext: vi.fn(() => gl),
+      height: 0,
+      width: 0,
+    } as unknown as HTMLCanvasElement;
+    const renderer = new Lottery3dRenderer(canvas);
+    const balls = Array.from({ length: 45 }, (_, index) => ({
+      id: `ball-${index}`,
+      name: `${index + 1}`,
+      color: "#ff5c59",
+    }));
+
+    renderer.syncBalls(balls);
+    renderer.syncBalls(balls);
+
+    const atlasCanvas = vi.mocked(gl.texImage2D).mock.calls.at(-1)?.[5];
+
+    expect(atlasCanvas).toBeInstanceOf(HTMLCanvasElement);
+    expect((atlasCanvas as HTMLCanvasElement).width).toBe(1_024);
+    expect((atlasCanvas as HTMLCanvasElement).height).toBe(768);
+    expect(gl.texImage2D).toHaveBeenCalledTimes(3);
   });
 });

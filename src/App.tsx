@@ -101,7 +101,7 @@ function App() {
 
     const remainingIds = new Set(session.remainingBallIds);
     return session.balls.filter((ball) => remainingIds.has(ball.id));
-  }, [session]);
+  }, [session?.balls, session?.remainingBallIds]);
 
   const handleCanvasError = useCallback((message: string) => {
     setNotice((current) =>
@@ -429,6 +429,7 @@ function App() {
             <section className="machine-card">
               <LotteryMachine
                 balls={remainingBalls}
+                allBalls={session.balls}
                 renderMode={renderMode}
                 isMixing={shouldMixMachine(session)}
                 isSettling={

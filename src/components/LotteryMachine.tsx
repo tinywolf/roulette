@@ -4,6 +4,8 @@ import {
   Lottery3dRenderer,
   type Lottery3dEjectedBall,
   type Lottery3dFrameBall,
+  type Lottery3dSceneBounds,
+  type Lottery3dSceneLayout,
   type Lottery3dSceneLayer,
 } from "./lottery3dRenderer";
 import {
@@ -19,11 +21,17 @@ import {
 
 type LotteryMachineProps = {
   balls: Ball[];
+  allBalls: Ball[];
   renderMode: RenderMode;
   isMixing: boolean;
   isSettling: boolean;
   visualBall: Ball | null;
   onError: (message: string) => void;
+};
+
+type CachedCanvasLayer = {
+  canvas: HTMLCanvasElement;
+  bounds: Lottery3dSceneBounds;
 };
 
 const CANVAS_ERROR =
@@ -567,13 +575,16 @@ function drawMachineBase(
   width: number,
   height: number,
   isThreeDimensional: boolean,
+  shouldClear = true,
 ): void {
   const centerX = width / 2;
   const centerY = height * 0.43;
   const chamberRadius = Math.min(width * 0.4, height * 0.36);
   const baseY = centerY + chamberRadius;
 
-  context.clearRect(0, 0, width, height);
+  if (shouldClear) {
+    context.clearRect(0, 0, width, height);
+  }
 
   if (isThreeDimensional) {
     drawGlassChamberBackground(
@@ -632,6 +643,42 @@ function drawMachineBase(
   }
 }
 
+/**
+ * 정적 3D 장면에서 실제 픽셀이 있는 유리구·받침 영역만 텍스처에 담는다.
+ * 안티앨리어싱과 그림자 가장자리가 잘리지 않도록 구 바깥에 소량의 여백을 둔다.
+ */
+function createThreeDimensionalSceneLayout(
+  width: number,
+  height: number,
+): Lottery3dSceneLayout {
+  const centerX = width / 2;
+  const centerY = height * 0.43;
+  const chamberRadius = Math.min(width * 0.4, height * 0.36);
+  const margin = Math.max(2, chamberRadius * 0.02);
+  const left = Math.max(0, centerX - chamberRadius - margin);
+  const right = Math.min(width, centerX + chamberRadius + margin);
+  const top = Math.max(0, centerY - chamberRadius - margin);
+  const chamberBottom = Math.min(
+    height,
+    centerY + chamberRadius + margin,
+  );
+
+  return {
+    background: {
+      left,
+      top,
+      width: Math.max(1, right - left),
+      height: Math.max(1, height - top),
+    },
+    foreground: {
+      left,
+      top,
+      width: Math.max(1, right - left),
+      height: Math.max(1, chamberBottom - top),
+    },
+  };
+}
+
 function createEjectedBallFrame(
   visualBall: Ball | null,
   ejectionStartedAt: number | null,
@@ -640,6 +687,7 @@ function createEjectedBallFrame(
   centerY: number,
   chamberRadius: number,
   height: number,
+  target?: Lottery3dEjectedBall,
 ): Lottery3dEjectedBall | null {
   if (!visualBall || ejectionStartedAt === null) {
     return null;
@@ -653,13 +701,19 @@ function createEjectedBallFrame(
   const startY = centerY + chamberRadius * 0.6;
   const endY = height - 42;
 
-  return {
+  const frame = target ?? {
     ball: visualBall,
     x: centerX,
-    y: startY + (endY - startY) * eased,
-    radius: Math.max(22, chamberRadius * 0.13),
-    opacity: progress < 0.92 ? 1 : (1 - progress) / 0.08,
+    y: startY,
+    radius: 0,
+    opacity: 1,
   };
+  frame.ball = visualBall;
+  frame.x = centerX;
+  frame.y = startY + (endY - startY) * eased;
+  frame.radius = Math.max(22, chamberRadius * 0.13);
+  frame.opacity = progress < 0.92 ? 1 : (1 - progress) / 0.08;
+  return frame;
 }
 
 function paintThreeDimensionalScene(
@@ -671,7 +725,7 @@ function paintThreeDimensionalScene(
   context.clearRect(0, 0, width, height);
 
   if (layer === "background") {
-    drawMachineBase(context, width, height, true);
+    drawMachineBase(context, width, height, true, false);
     return;
   }
 
@@ -686,6 +740,73 @@ function paintThreeDimensionalScene(
   );
 }
 
+function drawTwoDimensionalMachineSurface(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+): void {
+  const centerX = width / 2;
+  const centerY = height * 0.43;
+  const chamberRadius = Math.min(width * 0.4, height * 0.36);
+
+  context.save();
+  context.beginPath();
+  context.arc(centerX, centerY, chamberRadius, 0, Math.PI * 2);
+  context.lineWidth = Math.max(6, chamberRadius * 0.035);
+  context.strokeStyle = "#2a3755";
+  context.stroke();
+
+  context.beginPath();
+  context.arc(
+    centerX - chamberRadius * 0.2,
+    centerY - chamberRadius * 0.25,
+    chamberRadius * 0.62,
+    Math.PI * 1.02,
+    Math.PI * 1.48,
+  );
+  context.lineWidth = Math.max(3, chamberRadius * 0.018);
+  context.strokeStyle = "rgb(255 255 255 / 80%)";
+  context.stroke();
+  context.restore();
+}
+
+function drawTwoDimensionalMixingAccents(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  now: number,
+): void {
+  const centerX = width / 2;
+  const centerY = height * 0.43;
+  const chamberRadius = Math.min(width * 0.4, height * 0.36);
+  const rotation = now / 720;
+
+  context.save();
+  context.beginPath();
+  context.arc(
+    centerX,
+    centerY,
+    chamberRadius * 0.79,
+    rotation,
+    rotation + Math.PI * 0.22,
+  );
+  context.lineWidth = Math.max(1.5, chamberRadius * 0.01);
+  context.strokeStyle = "rgb(109 151 226 / 24%)";
+  context.stroke();
+
+  context.beginPath();
+  context.arc(
+    centerX,
+    centerY,
+    chamberRadius * 0.68,
+    -rotation * 1.18 + Math.PI,
+    -rotation * 1.18 + Math.PI * 1.24,
+  );
+  context.strokeStyle = "rgb(255 255 255 / 34%)";
+  context.stroke();
+  context.restore();
+}
+
 function drawMachineForeground(
   context: CanvasRenderingContext2D,
   width: number,
@@ -695,6 +816,7 @@ function drawMachineForeground(
   isThreeDimensional: boolean,
   visualBall: Ball | null,
   ejectionStartedAt: number | null,
+  drawStaticSurface = true,
 ): void {
   const centerX = width / 2;
   const centerY = height * 0.43;
@@ -708,52 +830,18 @@ function drawMachineForeground(
       chamberRadius,
     );
   } else {
-    context.save();
-    context.beginPath();
-    context.arc(centerX, centerY, chamberRadius, 0, Math.PI * 2);
-    context.lineWidth = Math.max(6, chamberRadius * 0.035);
-    context.strokeStyle = "#2a3755";
-    context.stroke();
-
-    context.beginPath();
-    context.arc(
-      centerX - chamberRadius * 0.2,
-      centerY - chamberRadius * 0.25,
-      chamberRadius * 0.62,
-      Math.PI * 1.02,
-      Math.PI * 1.48,
-    );
-    context.lineWidth = Math.max(3, chamberRadius * 0.018);
-    context.strokeStyle = "rgb(255 255 255 / 80%)";
-    context.stroke();
+    if (drawStaticSurface) {
+      drawTwoDimensionalMachineSurface(context, width, height);
+    }
 
     if (isMixing) {
-      const rotation = now / 720;
-
-      context.beginPath();
-      context.arc(
-        centerX,
-        centerY,
-        chamberRadius * 0.79,
-        rotation,
-        rotation + Math.PI * 0.22,
+      drawTwoDimensionalMixingAccents(
+        context,
+        width,
+        height,
+        now,
       );
-      context.lineWidth = Math.max(1.5, chamberRadius * 0.01);
-      context.strokeStyle = "rgb(109 151 226 / 24%)";
-      context.stroke();
-
-      context.beginPath();
-      context.arc(
-        centerX,
-        centerY,
-        chamberRadius * 0.68,
-        -rotation * 1.18 + Math.PI,
-        -rotation * 1.18 + Math.PI * 1.24,
-      );
-      context.strokeStyle = "rgb(255 255 255 / 34%)";
-      context.stroke();
     }
-    context.restore();
   }
 
   const ejectedBall = createEjectedBallFrame(
@@ -784,6 +872,7 @@ function drawMachineForeground(
  */
 export function LotteryMachine({
   balls,
+  allBalls,
   renderMode,
   isMixing,
   isSettling,
@@ -799,6 +888,46 @@ export function LotteryMachine({
     ballId: string | null;
     startedAt: number | null;
   }>({ ballId: null, startedAt: null });
+  const renderer3dRef = useRef<Lottery3dRenderer | null>(null);
+  const wakeAnimationRef = useRef<(() => void) | null>(null);
+  const ballsRevisionRef = useRef(0);
+  const ballsRef = useRef(balls);
+  const allBallsRef = useRef(allBalls);
+  const isMixingRef = useRef(isMixing);
+  const isSettlingRef = useRef(isSettling);
+  const visualBallRef = useRef(visualBall);
+  const onErrorRef = useRef(onError);
+
+  ballsRef.current = balls;
+  allBallsRef.current = allBalls;
+  isMixingRef.current = isMixing;
+  isSettlingRef.current = isSettling;
+  visualBallRef.current = visualBall;
+  onErrorRef.current = onError;
+
+  useEffect(() => {
+    renderer3dRef.current?.syncBalls(allBalls);
+    wakeAnimationRef.current?.();
+  }, [allBalls]);
+
+  useEffect(() => {
+    ballsRevisionRef.current += 1;
+    wakeAnimationRef.current?.();
+  }, [balls]);
+
+  useEffect(() => {
+    const ejection = ejectionRef.current;
+
+    if (visualBall && visualBall.id !== ejection.ballId) {
+      ejection.ballId = visualBall.id;
+      ejection.startedAt = performance.now();
+    } else if (!visualBall) {
+      ejection.ballId = null;
+      ejection.startedAt = null;
+    }
+
+    wakeAnimationRef.current?.();
+  }, [isMixing, isSettling, visualBall]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -817,27 +946,35 @@ export function LotteryMachine({
       (renderMode === "2d" && (!canvas2d || !context2d)) ||
       (renderMode === "3d" && (!webglCanvas || !fallbackCanvas))
     ) {
-      onError(CANVAS_ERROR);
+      onErrorRef.current(CANVAS_ERROR);
       return undefined;
     }
 
-    let frame = 0;
+    let animationFrame: number | null = null;
+    let resizeFrame: number | null = null;
     let width = 0;
     let height = 0;
     let currentPixelRatio = 1;
     let previousTime = performance.now();
     let renderer3d: Lottery3dRenderer | null = null;
     let fallbackContext: CanvasRenderingContext2D | null = null;
+    let syncedBallsRevision = -1;
+    let nodeList: BallMotionNode[] = [];
+    let projectedNodes: Array<
+      Lottery3dFrameBall & { node: BallMotionNode }
+    > = [];
+    let settlingPositions = new Float64Array();
+    let hasSettlingSnapshot = false;
+    let settledFrameCount = 0;
+    let reusableEjectedBall: Lottery3dEjectedBall | undefined;
+    let cached2dBase: CachedCanvasLayer | null = null;
+    let cached2dSurface: CachedCanvasLayer | null = null;
+    const cached2dBaseCanvas =
+      renderMode === "2d" ? document.createElement("canvas") : null;
+    const cached2dSurfaceCanvas =
+      renderMode === "2d" ? document.createElement("canvas") : null;
     const nodes = nodesRef.current;
     const ejection = ejectionRef.current;
-
-    if (visualBall && visualBall.id !== ejection.ballId) {
-      ejection.ballId = visualBall.id;
-      ejection.startedAt = performance.now();
-    } else if (!visualBall) {
-      ejection.ballId = null;
-      ejection.startedAt = null;
-    }
 
     const resize2dCanvas = (
       canvas: HTMLCanvasElement,
@@ -849,9 +986,80 @@ export function LotteryMachine({
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     };
 
+    const createCached2dLayer = (
+      canvas: HTMLCanvasElement,
+      bounds: Lottery3dSceneBounds,
+      painter: (context: CanvasRenderingContext2D) => void,
+    ): CachedCanvasLayer | null => {
+      canvas.width = Math.max(
+        1,
+        Math.round(bounds.width * currentPixelRatio),
+      );
+      canvas.height = Math.max(
+        1,
+        Math.round(bounds.height * currentPixelRatio),
+      );
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        return null;
+      }
+
+      const scaleX = canvas.width / bounds.width;
+      const scaleY = canvas.height / bounds.height;
+      context.setTransform(
+        scaleX,
+        0,
+        0,
+        scaleY,
+        -bounds.left * scaleX,
+        -bounds.top * scaleY,
+      );
+      painter(context);
+      return { canvas, bounds };
+    };
+
+    const refresh2dSceneCache = () => {
+      if (renderMode !== "2d") {
+        return;
+      }
+
+      const layout = createThreeDimensionalSceneLayout(width, height);
+      cached2dBase = cached2dBaseCanvas
+        ? createCached2dLayer(
+            cached2dBaseCanvas,
+            layout.background,
+            (context) =>
+              drawMachineBase(context, width, height, false, false),
+          )
+        : null;
+      cached2dSurface = cached2dSurfaceCanvas
+        ? createCached2dLayer(
+            cached2dSurfaceCanvas,
+            layout.foreground,
+            (context) =>
+              drawTwoDimensionalMachineSurface(context, width, height),
+          )
+        : null;
+    };
+
+    const drawCached2dLayer = (
+      context: CanvasRenderingContext2D,
+      layer: CachedCanvasLayer,
+    ) => {
+      context.drawImage(
+        layer.canvas,
+        layer.bounds.left,
+        layer.bounds.top,
+        layer.bounds.width,
+        layer.bounds.height,
+      );
+    };
+
     const activateFallback = () => {
       renderer3d?.dispose();
       renderer3d = null;
+      renderer3dRef.current = null;
 
       if (!webglCanvas || !fallbackCanvas) {
         return false;
@@ -879,21 +1087,17 @@ export function LotteryMachine({
     ) {
       try {
         renderer3d = new Lottery3dRenderer(webglCanvas);
-        const textureBalls =
-          visualBall &&
-          !balls.some((ball) => ball.id === visualBall.id)
-            ? [...balls, visualBall]
-            : balls;
-        renderer3d.syncBalls(textureBalls);
+        renderer3dRef.current = renderer3d;
+        renderer3d.syncBalls(allBallsRef.current);
         webglCanvas.hidden = false;
         fallbackCanvas.hidden = true;
       } catch {
         if (!activateFallback()) {
-          onError(CANVAS_ERROR);
+          onErrorRef.current(CANVAS_ERROR);
           return undefined;
         }
 
-        onError(WEBGL_ERROR);
+        onErrorRef.current(WEBGL_ERROR);
       }
     }
 
@@ -901,11 +1105,11 @@ export function LotteryMachine({
       event.preventDefault();
 
       if (!activateFallback()) {
-        onError(CANVAS_ERROR);
+        onErrorRef.current(CANVAS_ERROR);
         return;
       }
 
-      onError(WEBGL_ERROR);
+      onErrorRef.current(WEBGL_ERROR);
     };
 
     webglCanvas?.addEventListener(
@@ -927,6 +1131,9 @@ export function LotteryMachine({
         for (const node of nodes.values()) {
           scaleBallMotionNode(node, scale);
         }
+
+        hasSettlingSnapshot = false;
+        settledFrameCount = 0;
       }
 
       width = nextWidth;
@@ -935,6 +1142,7 @@ export function LotteryMachine({
 
       if (canvas2d && context2d) {
         resize2dCanvas(canvas2d, context2d, pixelRatio);
+        refresh2dSceneCache();
       }
 
       if (fallbackCanvas && fallbackContext) {
@@ -952,20 +1160,28 @@ export function LotteryMachine({
             height,
             pixelRatio,
             paintThreeDimensionalScene,
+            createThreeDimensionalSceneLayout(width, height),
           );
         } catch {
           if (!activateFallback()) {
-            onError(CANVAS_ERROR);
+            onErrorRef.current(CANVAS_ERROR);
             return;
           }
 
-          onError(WEBGL_ERROR);
+          onErrorRef.current(WEBGL_ERROR);
         }
       }
+
+      wakeAnimation();
     };
 
     const syncNodes = () => {
-      const activeIds = new Set(balls.map((ball) => ball.id));
+      if (syncedBallsRevision === ballsRevisionRef.current) {
+        return;
+      }
+
+      const currentBalls = ballsRef.current;
+      const activeIds = new Set(currentBalls.map((ball) => ball.id));
 
       for (const id of nodes.keys()) {
         if (!activeIds.has(id)) {
@@ -973,7 +1189,7 @@ export function LotteryMachine({
         }
       }
 
-      balls.forEach((ball, index) => {
+      currentBalls.forEach((ball, index) => {
         const existingNode = nodes.get(ball.id);
 
         if (existingNode && Number.isFinite(existingNode.z)) {
@@ -983,17 +1199,96 @@ export function LotteryMachine({
         const chamberRadius = Math.min(width * 0.4, height * 0.36);
         nodes.set(
           ball.id,
-          createBallMotionNode(ball.id, index, balls.length, chamberRadius),
+          createBallMotionNode(
+            ball.id,
+            index,
+            currentBalls.length,
+            chamberRadius,
+          ),
         );
       });
+
+      const ballsById = new Map(
+        currentBalls.map((ball) => [ball.id, ball]),
+      );
+      nodeList = [...nodes.values()];
+      projectedNodes = nodeList.flatMap((node) => {
+        const ball = ballsById.get(node.id);
+
+        return ball
+          ? [
+              {
+                node,
+                ball,
+                projected: {
+                  x: 0,
+                  y: 0,
+                  radius: 0,
+                  opacity: 1,
+                  depth: 0,
+                  perspective: 1,
+                },
+              },
+            ]
+          : [];
+      });
+      settlingPositions = new Float64Array(nodeList.length * 3);
+      syncedBallsRevision = ballsRevisionRef.current;
+      hasSettlingSnapshot = false;
+      settledFrameCount = 0;
     };
 
-    const animate = (now: number) => {
+    const measureSettlingDisplacement = () => {
+      let maximumDisplacement = hasSettlingSnapshot
+        ? 0
+        : Number.POSITIVE_INFINITY;
+
+      nodeList.forEach((node, index) => {
+        const offset = index * 3;
+
+        if (hasSettlingSnapshot) {
+          maximumDisplacement = Math.max(
+            maximumDisplacement,
+            Math.hypot(
+              node.x - settlingPositions[offset],
+              node.y - settlingPositions[offset + 1],
+              node.z - settlingPositions[offset + 2],
+            ),
+          );
+        }
+
+        settlingPositions[offset] = node.x;
+        settlingPositions[offset + 1] = node.y;
+        settlingPositions[offset + 2] = node.z;
+      });
+      hasSettlingSnapshot = true;
+      return maximumDisplacement;
+    };
+
+    function wakeAnimation() {
+      settledFrameCount = 0;
+      hasSettlingSnapshot = false;
+
+      if (animationFrame !== null) {
+        return;
+      }
+
+      previousTime = performance.now();
+      animationFrame = window.requestAnimationFrame(animate);
+    }
+
+    function animate(now: number) {
+      animationFrame = null;
+
       try {
         const delta = Math.min(0.034, (now - previousTime) / 1_000);
         previousTime = now;
         syncNodes();
 
+        const currentBalls = ballsRef.current;
+        const currentIsMixing = isMixingRef.current;
+        const currentIsSettling = isSettlingRef.current;
+        const currentVisualBall = visualBallRef.current;
         const centerX = width / 2;
         const centerY = height * 0.43;
         const chamberRadius = Math.min(width * 0.4, height * 0.36);
@@ -1001,12 +1296,12 @@ export function LotteryMachine({
           9,
           Math.min(
             31,
-            chamberRadius / (Math.sqrt(Math.max(balls.length, 5)) * 1.75),
+            chamberRadius /
+              (Math.sqrt(Math.max(currentBalls.length, 5)) * 1.75),
           ),
         );
-        const nodeList = [...nodes.values()];
 
-        if (isSettling) {
+        if (currentIsSettling) {
           advanceSettlingBallMotionNodes(
             nodeList,
             delta,
@@ -1020,7 +1315,7 @@ export function LotteryMachine({
               index,
               now,
               delta,
-              isMixing,
+              currentIsMixing,
               chamberRadius,
               ballRadius,
             );
@@ -1031,87 +1326,90 @@ export function LotteryMachine({
           renderMode === "3d"
             ? projectBallMotionNode3d
             : projectBallMotionNode;
-        const projectedNodes = nodeList
-          .map((node) => ({
+        projectedNodes.forEach(({ node, projected }) => {
+          project(
             node,
-            projected: project(
-              node,
-              centerX,
-              centerY,
-              chamberRadius,
-              ballRadius,
-            ),
-          }))
-          .sort(
-            (first, second) =>
-              first.projected.depth - second.projected.depth,
+            centerX,
+            centerY,
+            chamberRadius,
+            ballRadius,
+            projected,
           );
-        const ballsById = new Map(balls.map((ball) => [ball.id, ball]));
+        });
+        projectedNodes.sort(
+          (first, second) =>
+            first.projected.depth - second.projected.depth,
+        );
 
         if (renderMode === "2d" && context2d) {
-          drawMachineBase(context2d, width, height, false);
-          projectedNodes.forEach(({ node, projected }) => {
-            const ball = ballsById.get(node.id);
+          context2d.clearRect(0, 0, width, height);
 
-            if (ball) {
-              if (isMixing) {
-                drawMotionTrail(context2d, ball, node, projected);
-              }
+          if (cached2dBase) {
+            drawCached2dLayer(context2d, cached2dBase);
+          } else {
+            drawMachineBase(context2d, width, height, false);
+          }
 
-              drawBall(
-                context2d,
-                ball,
-                projected.x,
-                projected.y,
-                projected.radius,
-                projected.opacity,
-              );
+          projectedNodes.forEach(({ ball, node, projected }) => {
+            if (currentIsMixing) {
+              drawMotionTrail(context2d, ball, node, projected);
             }
+
+            drawBall(
+              context2d,
+              ball,
+              projected.x,
+              projected.y,
+              projected.radius,
+              projected.opacity,
+            );
           });
+
+          if (cached2dSurface) {
+            drawCached2dLayer(context2d, cached2dSurface);
+          }
+
           drawMachineForeground(
             context2d,
             width,
             height,
             now,
-            isMixing,
+            currentIsMixing,
             false,
-            visualBall,
+            currentVisualBall,
             ejection.startedAt,
+            cached2dSurface === null,
           );
         } else if (renderMode === "3d") {
-          const frameBalls = projectedNodes.flatMap<Lottery3dFrameBall>(
-            ({ node, projected }) => {
-              const ball = ballsById.get(node.id);
-              return ball ? [{ ball, projected }] : [];
-            },
-          );
           const ejectedBall = createEjectedBallFrame(
-            visualBall,
+            currentVisualBall,
             ejection.startedAt,
             now,
             centerX,
             centerY,
             chamberRadius,
             height,
+            reusableEjectedBall,
           );
+          reusableEjectedBall = ejectedBall ?? reusableEjectedBall;
 
           if (renderer3d) {
             try {
-              renderer3d.render(frameBalls, ejectedBall);
+              renderer3d.render(projectedNodes, ejectedBall);
             } catch {
               if (!activateFallback()) {
-                onError(CANVAS_ERROR);
+                onErrorRef.current(CANVAS_ERROR);
                 return;
               }
 
-              onError(WEBGL_ERROR);
+              onErrorRef.current(WEBGL_ERROR);
             }
           }
 
           if (fallbackContext) {
             const context = fallbackContext;
             drawMachineBase(context, width, height, true);
-            frameBalls.forEach(({ ball, projected }) => {
+            projectedNodes.forEach(({ ball, projected }) => {
               drawBall(
                 context,
                 ball,
@@ -1126,42 +1424,78 @@ export function LotteryMachine({
               width,
               height,
               now,
-              isMixing,
+              currentIsMixing,
               true,
-              visualBall,
+              currentVisualBall,
               ejection.startedAt,
             );
           }
         }
 
-        frame = window.requestAnimationFrame(animate);
+        let shouldContinue = true;
+
+        if (currentIsSettling) {
+          const displacement = measureSettlingDisplacement();
+          settledFrameCount =
+            displacement <= 0.08 ? settledFrameCount + 1 : 0;
+          shouldContinue = settledFrameCount < 18;
+        } else {
+          settledFrameCount = 0;
+          hasSettlingSnapshot = false;
+        }
+
+        const ejectionFinished =
+          !currentVisualBall ||
+          ejection.startedAt === null ||
+          now - ejection.startedAt >= 900;
+
+        if (nodeList.length === 0 && ejectionFinished) {
+          shouldContinue = false;
+        }
+
+        if (shouldContinue) {
+          animationFrame = window.requestAnimationFrame(animate);
+        }
       } catch {
-        onError(CANVAS_ERROR);
+        onErrorRef.current(CANVAS_ERROR);
       }
-    };
+    }
 
     resize();
-    const resizeObserver = new ResizeObserver(resize);
+    const scheduleResize = () => {
+      if (resizeFrame !== null) {
+        return;
+      }
+
+      resizeFrame = window.requestAnimationFrame(() => {
+        resizeFrame = null;
+        resize();
+      });
+    };
+    const resizeObserver = new ResizeObserver(scheduleResize);
     resizeObserver.observe(container);
-    frame = window.requestAnimationFrame(animate);
+    wakeAnimationRef.current = wakeAnimation;
 
     return () => {
       resizeObserver.disconnect();
-      window.cancelAnimationFrame(frame);
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      if (resizeFrame !== null) {
+        window.cancelAnimationFrame(resizeFrame);
+      }
       webglCanvas?.removeEventListener(
         "webglcontextlost",
         handleWebglContextLost,
       );
       renderer3d?.dispose();
+      renderer3dRef.current = null;
+
+      if (wakeAnimationRef.current === wakeAnimation) {
+        wakeAnimationRef.current = null;
+      }
     };
-  }, [
-    balls,
-    isMixing,
-    isSettling,
-    onError,
-    renderMode,
-    visualBall,
-  ]);
+  }, [renderMode]);
 
   const ariaLabel = `남은 공 ${balls.length}개가 들어 있는 로또 추첨기`;
 
