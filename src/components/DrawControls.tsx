@@ -23,9 +23,13 @@ export function DrawControls({
           type="button"
           onClick={onManualDraw}
           disabled={session.phase !== "ready"}
+          aria-keyshortcuts="Space"
         >
           <span aria-hidden="true">{session.phase === "mixing" ? "◌" : "●"}</span>
           {session.phase === "mixing" ? "공을 섞는 중…" : "다음 공 뽑기"}
+          <kbd className="shortcut-key" aria-hidden="true">
+            Space
+          </kbd>
         </button>
       ) : null}
 

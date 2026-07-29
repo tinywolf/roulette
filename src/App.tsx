@@ -154,12 +154,51 @@ function App() {
     }
   };
 
-  const handleManualDraw = () => {
+  const handleManualDraw = useCallback(() => {
     void soundController.current?.play("mix");
     setSession((current) =>
       current ? beginManualDraw(current) : current,
     );
-  };
+  }, []);
+
+  useEffect(() => {
+    if (
+      !session ||
+      session.mode !== "manual" ||
+      session.phase !== "ready"
+    ) {
+      return undefined;
+    }
+
+    const handleManualDrawShortcut = (event: KeyboardEvent) => {
+      if (
+        event.code !== "Space" ||
+        event.repeat ||
+        event.isComposing
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          "button, input, textarea, select, [contenteditable='true']",
+        )
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      handleManualDraw();
+    };
+
+    window.addEventListener("keydown", handleManualDrawShortcut);
+
+    return () => {
+      window.removeEventListener("keydown", handleManualDrawShortcut);
+    };
+  }, [handleManualDraw, session]);
 
   const handleReset = () => {
     setSession(resetDrawSession());

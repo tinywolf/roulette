@@ -272,6 +272,42 @@ describe("App setup", () => {
 });
 
 describe("manual draw flow", () => {
+  it("준비 상태에서 Space로 다음 공을 한 번만 뽑는다", () => {
+    vi.useFakeTimers();
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("공 이름"), {
+      target: { value: "민지, 준호" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+
+    const drawButton = screen.getByRole("button", { name: /다음 공 뽑기/ });
+    expect(drawButton).toHaveAttribute("aria-keyshortcuts", "Space");
+
+    fireEvent.keyDown(window, {
+      code: "Space",
+      key: " ",
+      repeat: true,
+    });
+    expect(drawButton).toBeEnabled();
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "처음부터 다시" }), {
+      code: "Space",
+      key: " ",
+    });
+    expect(drawButton).toBeEnabled();
+
+    fireEvent.keyDown(window, { code: "Space", key: " " });
+    expect(screen.getByRole("button", { name: /공을 섞는 중/ })).toBeDisabled();
+
+    fireEvent.keyDown(window, { code: "Space", key: " " });
+    act(() => {
+      vi.advanceTimersByTime(2_400);
+    });
+
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
   it("혼합 시간 후 공을 한 번만 결과에 반영하고 설정으로 돌아간다", () => {
     vi.useFakeTimers();
     render(<App />);
