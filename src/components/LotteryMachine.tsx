@@ -132,8 +132,8 @@ function drawMotionTrail(
 }
 
 /**
- * 실제 구의 투영선을 그리는 대신 투명도·색 분산·반사광으로 유리구의 부피를 표현한다.
- * 배경 레이어는 공을 가리지 않도록 옅게 유지하고 바닥 그림자를 함께 그린다.
+ * 실제 구의 투영선을 그리는 대신 투명도·면 음영·반사광으로 유리구의 부피를 표현한다.
+ * 배경 레이어는 공을 가리지 않도록 옅게 유지한다.
  */
 function drawGlassChamberBackground(
   context: CanvasRenderingContext2D,
@@ -141,42 +141,6 @@ function drawGlassChamberBackground(
   centerY: number,
   chamberRadius: number,
 ): void {
-  const floorY = centerY + chamberRadius * 1.025;
-
-  context.save();
-  context.fillStyle = "rgb(31 48 73 / 16%)";
-  context.shadowColor = "rgb(28 45 72 / 32%)";
-  context.shadowBlur = chamberRadius * 0.16;
-  context.beginPath();
-  context.ellipse(
-    centerX,
-    floorY,
-    chamberRadius * 0.76,
-    chamberRadius * 0.065,
-    0,
-    0,
-    Math.PI * 2,
-  );
-  context.fill();
-  context.restore();
-
-  context.save();
-  context.fillStyle = "rgb(68 112 145 / 18%)";
-  context.shadowColor = "rgb(105 201 224 / 22%)";
-  context.shadowBlur = chamberRadius * 0.055;
-  context.beginPath();
-  context.ellipse(
-    centerX,
-    floorY - chamberRadius * 0.014,
-    chamberRadius * 0.34,
-    chamberRadius * 0.026,
-    0,
-    0,
-    Math.PI * 2,
-  );
-  context.fill();
-  context.restore();
-
   const chamberGradient = context.createRadialGradient(
     centerX - chamberRadius * 0.28,
     centerY - chamberRadius * 0.36,
@@ -185,11 +149,11 @@ function drawGlassChamberBackground(
     centerY + chamberRadius * 0.08,
     chamberRadius,
   );
-  chamberGradient.addColorStop(0, "rgb(255 255 255 / 15%)");
-  chamberGradient.addColorStop(0.52, "rgb(236 248 252 / 8%)");
-  chamberGradient.addColorStop(0.78, "rgb(203 234 243 / 14%)");
-  chamberGradient.addColorStop(0.94, "rgb(120 190 213 / 25%)");
-  chamberGradient.addColorStop(1, "rgb(72 137 171 / 36%)");
+  chamberGradient.addColorStop(0, "rgb(255 255 255 / 13%)");
+  chamberGradient.addColorStop(0.52, "rgb(229 243 248 / 10%)");
+  chamberGradient.addColorStop(0.78, "rgb(198 226 235 / 13%)");
+  chamberGradient.addColorStop(0.94, "rgb(139 190 209 / 18%)");
+  chamberGradient.addColorStop(1, "rgb(96 155 183 / 23%)");
 
   context.save();
   context.beginPath();
@@ -228,10 +192,10 @@ function drawGlassChamberBackground(
     centerX + chamberRadius,
     centerY,
   );
-  sideShade.addColorStop(0, "rgb(83 169 200 / 15%)");
+  sideShade.addColorStop(0, "rgb(83 150 178 / 8%)");
   sideShade.addColorStop(0.18, "rgb(255 255 255 / 0%)");
   sideShade.addColorStop(0.72, "rgb(255 255 255 / 0%)");
-  sideShade.addColorStop(1, "rgb(43 103 145 / 13%)");
+  sideShade.addColorStop(1, "rgb(43 92 126 / 9%)");
   context.fillStyle = sideShade;
   context.fillRect(
     centerX - chamberRadius,
@@ -243,7 +207,7 @@ function drawGlassChamberBackground(
 }
 
 /**
- * 공 위에 얇은 유리 테두리와 반사광을 합성해 투명 구의 표면을 표현한다.
+ * 공 위에 가장자리 음영과 반사광을 합성해 외곽선 없이 투명 구의 표면을 표현한다.
  * 반사광은 레퍼런스처럼 위·아래로 나누어 내부 공의 이름을 가리지 않는다.
  */
 function drawGlassChamberForeground(
@@ -256,6 +220,27 @@ function drawGlassChamberForeground(
   context.beginPath();
   context.arc(centerX, centerY, chamberRadius, 0, Math.PI * 2);
   context.clip();
+
+  const fresnelVeil = context.createRadialGradient(
+    centerX - chamberRadius * 0.04,
+    centerY - chamberRadius * 0.06,
+    chamberRadius * 0.5,
+    centerX,
+    centerY,
+    chamberRadius,
+  );
+  fresnelVeil.addColorStop(0, "rgb(255 255 255 / 0%)");
+  fresnelVeil.addColorStop(0.62, "rgb(228 247 252 / 3%)");
+  fresnelVeil.addColorStop(0.84, "rgb(176 218 231 / 6%)");
+  fresnelVeil.addColorStop(0.96, "rgb(117 174 197 / 12%)");
+  fresnelVeil.addColorStop(1, "rgb(83 139 166 / 17%)");
+  context.fillStyle = fresnelVeil;
+  context.fillRect(
+    centerX - chamberRadius,
+    centerY - chamberRadius,
+    chamberRadius * 2,
+    chamberRadius * 2,
+  );
 
   const upperReflection = context.createLinearGradient(
     centerX,
@@ -362,103 +347,218 @@ function drawGlassChamberForeground(
   context.fill();
   context.restore();
 
+  context.restore();
+
+}
+
+/**
+ * 3D 모드의 유리구 결합부와 받침을 타원·곡면 음영으로 구성한다.
+ * 평면 사각형 대신 위에서 내려다본 면과 측면을 분리해 실제 장치의 깊이를 표현한다.
+ */
+function drawThreeDimensionalPedestal(
+  context: CanvasRenderingContext2D,
+  centerX: number,
+  baseY: number,
+  chamberRadius: number,
+  height: number,
+): void {
+  const neckTopY = baseY - chamberRadius * 0.018;
+  const plinthTopY = height - 32;
+  const plinthDepth = Math.max(17, chamberRadius * 0.1);
+
+  const neckGradient = context.createLinearGradient(
+    centerX - chamberRadius * 0.25,
+    neckTopY,
+    centerX + chamberRadius * 0.25,
+    neckTopY,
+  );
+  neckGradient.addColorStop(0, "#10192d");
+  neckGradient.addColorStop(0.24, "#263552");
+  neckGradient.addColorStop(0.48, "#4a5d7d");
+  neckGradient.addColorStop(0.7, "#283751");
+  neckGradient.addColorStop(1, "#0d1528");
+
   context.save();
-  context.lineCap = "round";
-  context.shadowColor = "rgb(112 211 232 / 22%)";
-  context.shadowBlur = chamberRadius * 0.035;
+  context.shadowColor = "rgb(16 24 40 / 28%)";
+  context.shadowBlur = chamberRadius * 0.055;
+  context.shadowOffsetY = chamberRadius * 0.035;
+  context.beginPath();
+  context.moveTo(centerX - chamberRadius * 0.225, neckTopY);
+  context.bezierCurveTo(
+    centerX - chamberRadius * 0.205,
+    neckTopY + chamberRadius * 0.15,
+    centerX - chamberRadius * 0.19,
+    plinthTopY - chamberRadius * 0.08,
+    centerX - chamberRadius * 0.235,
+    plinthTopY,
+  );
+  context.lineTo(centerX + chamberRadius * 0.235, plinthTopY);
+  context.bezierCurveTo(
+    centerX + chamberRadius * 0.19,
+    plinthTopY - chamberRadius * 0.08,
+    centerX + chamberRadius * 0.205,
+    neckTopY + chamberRadius * 0.15,
+    centerX + chamberRadius * 0.225,
+    neckTopY,
+  );
+  context.closePath();
+  context.fillStyle = neckGradient;
+  context.fill();
+  context.restore();
+
+  const collarGradient = context.createLinearGradient(
+    centerX,
+    neckTopY - chamberRadius * 0.07,
+    centerX,
+    neckTopY + chamberRadius * 0.07,
+  );
+  collarGradient.addColorStop(0, "#7587a4");
+  collarGradient.addColorStop(0.28, "#344661");
+  collarGradient.addColorStop(0.7, "#17243b");
+  collarGradient.addColorStop(1, "#0c1528");
+
   context.beginPath();
   context.ellipse(
-    centerX - chamberRadius * 0.78,
-    centerY + chamberRadius * 0.03,
-    chamberRadius * 0.12,
-    chamberRadius * 0.55,
-    -0.08,
-    Math.PI * 1.45,
-    Math.PI * 0.52,
+    centerX,
+    neckTopY,
+    chamberRadius * 0.27,
+    chamberRadius * 0.075,
+    0,
+    0,
+    Math.PI * 2,
   );
-  context.lineWidth = Math.max(3, chamberRadius * 0.022);
-  context.strokeStyle = "rgb(188 241 252 / 35%)";
-  context.stroke();
-  context.restore();
-  context.restore();
+  context.fillStyle = collarGradient;
+  context.fill();
 
-  const rimGradient = context.createLinearGradient(
-    centerX - chamberRadius,
-    centerY - chamberRadius,
-    centerX + chamberRadius,
-    centerY + chamberRadius,
+  const contactShadow = context.createRadialGradient(
+    centerX + chamberRadius * 0.025,
+    neckTopY - chamberRadius * 0.012,
+    0,
+    centerX + chamberRadius * 0.025,
+    neckTopY - chamberRadius * 0.012,
+    chamberRadius * 0.24,
   );
-  rimGradient.addColorStop(0, "rgb(88 190 220 / 72%)");
-  rimGradient.addColorStop(0.23, "rgb(197 133 186 / 45%)");
-  rimGradient.addColorStop(0.49, "rgb(255 255 255 / 78%)");
-  rimGradient.addColorStop(0.74, "rgb(128 203 224 / 68%)");
-  rimGradient.addColorStop(1, "rgb(75 146 185 / 78%)");
+  contactShadow.addColorStop(0, "rgb(7 14 28 / 28%)");
+  contactShadow.addColorStop(0.52, "rgb(13 24 42 / 13%)");
+  contactShadow.addColorStop(1, "rgb(20 37 59 / 0%)");
 
   context.save();
-  context.shadowColor = "rgb(73 154 188 / 38%)";
-  context.shadowBlur = chamberRadius * 0.075;
   context.beginPath();
-  context.arc(
+  context.ellipse(
     centerX,
-    centerY,
-    chamberRadius - Math.max(2, chamberRadius * 0.012),
+    neckTopY - chamberRadius * 0.012,
+    chamberRadius * 0.245,
+    chamberRadius * 0.04,
+    0,
     0,
     Math.PI * 2,
   );
-  context.lineWidth = Math.max(8, chamberRadius * 0.052);
-  context.strokeStyle = "rgb(91 168 198 / 18%)";
-  context.stroke();
+  context.clip();
+  context.fillStyle = contactShadow;
+  context.fillRect(
+    centerX - chamberRadius * 0.25,
+    neckTopY - chamberRadius * 0.07,
+    chamberRadius * 0.5,
+    chamberRadius * 0.14,
+  );
   context.restore();
 
   context.beginPath();
-  context.arc(
-    centerX,
-    centerY,
-    chamberRadius - Math.max(2, chamberRadius * 0.012),
+  context.ellipse(
+    centerX - chamberRadius * 0.035,
+    neckTopY - chamberRadius * 0.018,
+    chamberRadius * 0.19,
+    chamberRadius * 0.035,
     0,
-    Math.PI * 2,
-  );
-  context.lineWidth = Math.max(4, chamberRadius * 0.026);
-  context.strokeStyle = rimGradient;
-  context.stroke();
-
-  context.beginPath();
-  context.arc(
-    centerX,
-    centerY,
-    chamberRadius - Math.max(5, chamberRadius * 0.027),
-    0,
+    Math.PI,
     Math.PI * 2,
   );
   context.lineWidth = Math.max(1.5, chamberRadius * 0.009);
+  context.strokeStyle = "rgb(222 240 248 / 48%)";
+  context.stroke();
+
+  const plinthShadowY = plinthTopY + plinthDepth;
+  context.save();
+  context.fillStyle = "rgb(25 35 52 / 18%)";
+  context.shadowColor = "rgb(20 30 50 / 30%)";
+  context.shadowBlur = chamberRadius * 0.07;
+  context.beginPath();
+  context.ellipse(
+    centerX,
+    plinthShadowY + chamberRadius * 0.025,
+    chamberRadius * 0.5,
+    chamberRadius * 0.055,
+    0,
+    0,
+    Math.PI * 2,
+  );
+  context.fill();
+  context.restore();
+
+  const plinthSideGradient = context.createLinearGradient(
+    centerX,
+    plinthTopY,
+    centerX,
+    plinthShadowY,
+  );
+  plinthSideGradient.addColorStop(0, "#fa605f");
+  plinthSideGradient.addColorStop(0.42, "#e5484e");
+  plinthSideGradient.addColorStop(1, "#b92838");
+
+  context.beginPath();
+  context.moveTo(centerX - chamberRadius * 0.45, plinthTopY);
+  context.lineTo(centerX - chamberRadius * 0.43, plinthShadowY);
+  context.bezierCurveTo(
+    centerX - chamberRadius * 0.22,
+    plinthShadowY + chamberRadius * 0.045,
+    centerX + chamberRadius * 0.22,
+    plinthShadowY + chamberRadius * 0.045,
+    centerX + chamberRadius * 0.43,
+    plinthShadowY,
+  );
+  context.lineTo(centerX + chamberRadius * 0.45, plinthTopY);
+  context.closePath();
+  context.fillStyle = plinthSideGradient;
+  context.fill();
+
+  const plinthTopGradient = context.createLinearGradient(
+    centerX - chamberRadius * 0.45,
+    plinthTopY,
+    centerX + chamberRadius * 0.45,
+    plinthTopY,
+  );
+  plinthTopGradient.addColorStop(0, "#ff7774");
+  plinthTopGradient.addColorStop(0.42, "#ffaaa3");
+  plinthTopGradient.addColorStop(0.68, "#ff6262");
+  plinthTopGradient.addColorStop(1, "#d73b45");
+
+  context.beginPath();
+  context.ellipse(
+    centerX,
+    plinthTopY,
+    chamberRadius * 0.45,
+    chamberRadius * 0.065,
+    0,
+    0,
+    Math.PI * 2,
+  );
+  context.fillStyle = plinthTopGradient;
+  context.fill();
+
+  context.beginPath();
+  context.ellipse(
+    centerX - chamberRadius * 0.08,
+    plinthTopY - chamberRadius * 0.012,
+    chamberRadius * 0.26,
+    chamberRadius * 0.026,
+    -0.03,
+    Math.PI * 1.04,
+    Math.PI * 1.9,
+  );
+  context.lineCap = "round";
+  context.lineWidth = Math.max(1.5, chamberRadius * 0.009);
   context.strokeStyle = "rgb(255 255 255 / 54%)";
   context.stroke();
-
-  context.save();
-  context.lineCap = "round";
-  context.beginPath();
-  context.arc(
-    centerX,
-    centerY,
-    chamberRadius - Math.max(3, chamberRadius * 0.018),
-    Math.PI * 1.03,
-    Math.PI * 1.42,
-  );
-  context.lineWidth = Math.max(3, chamberRadius * 0.018);
-  context.strokeStyle = "rgb(216 140 194 / 38%)";
-  context.stroke();
-
-  context.beginPath();
-  context.arc(
-    centerX,
-    centerY,
-    chamberRadius - Math.max(3, chamberRadius * 0.018),
-    Math.PI * 1.56,
-    Math.PI * 1.94,
-  );
-  context.strokeStyle = "rgb(201 249 255 / 74%)";
-  context.stroke();
-  context.restore();
 }
 
 function drawMachineBase(
@@ -481,6 +581,13 @@ function drawMachineBase(
       centerY,
       chamberRadius,
     );
+    drawThreeDimensionalPedestal(
+      context,
+      centerX,
+      baseY,
+      chamberRadius,
+      height,
+    );
   } else {
     const chamberGradient = context.createRadialGradient(
       centerX - chamberRadius * 0.35,
@@ -500,28 +607,28 @@ function drawMachineBase(
     context.fillStyle = chamberGradient;
     context.fill();
     context.restore();
-  }
 
-  context.fillStyle = "#2a3755";
-  context.beginPath();
-  context.roundRect(
-    centerX - chamberRadius * 0.24,
-    baseY - 5,
-    chamberRadius * 0.48,
-    height * 0.16,
-    14,
-  );
-  context.fill();
-  context.fillStyle = "#ff5c59";
-  context.beginPath();
-  context.roundRect(
-    centerX - chamberRadius * 0.42,
-    height - 30,
-    chamberRadius * 0.84,
-    20,
-    10,
-  );
-  context.fill();
+    context.fillStyle = "#2a3755";
+    context.beginPath();
+    context.roundRect(
+      centerX - chamberRadius * 0.24,
+      baseY - 5,
+      chamberRadius * 0.48,
+      height * 0.16,
+      14,
+    );
+    context.fill();
+    context.fillStyle = "#ff5c59";
+    context.beginPath();
+    context.roundRect(
+      centerX - chamberRadius * 0.42,
+      height - 30,
+      chamberRadius * 0.84,
+      20,
+      10,
+    );
+    context.fill();
+  }
 }
 
 function drawMachineForeground(
