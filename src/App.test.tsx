@@ -84,8 +84,12 @@ describe("App setup", () => {
     });
     fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
     fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
+    expect(
+      localStorage.getItem("lottery-draw:setup-options:v1"),
+    ).toContain('"renderMode":"3d"');
 
     firstRender.unmount();
     render(<App />);
@@ -98,7 +102,42 @@ describe("App setup", () => {
     expect(screen.getByRole("radio", { name: /자동 추첨/ })).toBeChecked();
     expect(screen.getByRole("button", { name: "효과음 켜짐" }))
       .toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "3D" }))
+      .toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText("0 / 2")).not.toBeInTheDocument();
+  });
+
+  it("추첨 진행 상태를 유지하면서 2D와 3D 렌더링을 전환한다", () => {
+    const { container } = render(<App />);
+    fireEvent.change(screen.getByLabelText("공 이름"), {
+      target: { value: "민지, 준호" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+
+    expect(screen.getByRole("button", { name: "2D" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".lottery-canvas--2d"))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+
+    expect(screen.getByRole("button", { name: "3D" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".lottery-canvas--3d"))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "3D 연출을 사용할 수 없어 간단한 화면으로 표시합니다.",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "2D" }));
+
+    expect(screen.getByRole("button", { name: "2D" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".lottery-canvas--2d"))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
   });
 
   it("45개까지 시작을 허용하고 46개는 차단한다", () => {

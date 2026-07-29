@@ -2,7 +2,11 @@
  * 추첨 세션과 무관한 사용자 설정을 버전 저장값으로 관리하고,
  * 손상 데이터나 저장소 접근 실패를 안전한 기본값으로 격리한다.
  */
-import type { DrawCountMode, DrawMode } from "../domain/types";
+import type {
+  DrawCountMode,
+  DrawMode,
+  RenderMode,
+} from "../domain/types";
 
 export const SETUP_OPTIONS_STORAGE_KEY = "lottery-draw:setup-options:v1";
 
@@ -11,6 +15,7 @@ export type SetupOptions = {
   drawCountMode: DrawCountMode;
   customDrawCount: string;
   soundEnabled: boolean;
+  renderMode: RenderMode;
 };
 
 export const DEFAULT_SETUP_OPTIONS: SetupOptions = {
@@ -18,10 +23,13 @@ export const DEFAULT_SETUP_OPTIONS: SetupOptions = {
   drawCountMode: "all",
   customDrawCount: "1",
   soundEnabled: false,
+  renderMode: "2d",
 };
 
-type StoredSetupOptions = SetupOptions & {
+type StoredSetupOptions = Omit<SetupOptions, "renderMode"> & {
   version: 1;
+  // renderMode 추가 전의 v1 저장값도 다른 옵션을 잃지 않고 복원한다.
+  renderMode?: RenderMode;
 };
 
 type StorageAdapter = Pick<Storage, "getItem" | "setItem">;
@@ -51,7 +59,10 @@ function isStoredSetupOptions(value: unknown): value is StoredSetupOptions {
     (candidate.drawCountMode === "all" ||
       candidate.drawCountMode === "custom") &&
     typeof candidate.customDrawCount === "string" &&
-    typeof candidate.soundEnabled === "boolean"
+    typeof candidate.soundEnabled === "boolean" &&
+    (candidate.renderMode === undefined ||
+      candidate.renderMode === "2d" ||
+      candidate.renderMode === "3d")
   );
 }
 
@@ -80,6 +91,7 @@ export function loadSetupOptions(
         drawCountMode: parsed.drawCountMode,
         customDrawCount: parsed.customDrawCount,
         soundEnabled: parsed.soundEnabled,
+        renderMode: parsed.renderMode ?? DEFAULT_SETUP_OPTIONS.renderMode,
       },
       warning: null,
     };

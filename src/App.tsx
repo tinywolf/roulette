@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DrawControls } from "./components/DrawControls";
 import { LotteryMachine } from "./components/LotteryMachine";
+import { RenderModeToggle } from "./components/RenderModeToggle";
 import { ResultList } from "./components/ResultList";
 import { SetupPanel } from "./components/SetupPanel";
 import { SoundToggle } from "./components/SoundToggle";
@@ -20,6 +21,7 @@ import {
   type DrawMode,
   type DrawResult,
   type DrawSession,
+  type RenderMode,
 } from "./domain/types";
 import {
   clearRawInput,
@@ -66,6 +68,9 @@ function App() {
   const [session, setSession] = useState<DrawSession | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(
     initialOptionsStorage.value.soundEnabled,
+  );
+  const [renderMode, setRenderMode] = useState<RenderMode>(
+    initialOptionsStorage.value.renderMode,
   );
   const [notice, setNotice] = useState<Notice | null>(() =>
     initialWarning
@@ -209,12 +214,13 @@ function App() {
       drawCountMode,
       customDrawCount,
       soundEnabled,
+      renderMode,
     });
 
     if (result.warning) {
       setNotice({ type: "warning", text: result.warning });
     }
-  }, [customDrawCount, drawCountMode, mode, soundEnabled]);
+  }, [customDrawCount, drawCountMode, mode, renderMode, soundEnabled]);
 
   useEffect(() => {
     return () => {
@@ -319,7 +325,13 @@ function App() {
           <span>로또 추첨기</span>
         </div>
         {!isSetup ? (
-          <SoundToggle enabled={soundEnabled} onToggle={handleSoundToggle} />
+          <div className="utility-controls">
+            <RenderModeToggle
+              mode={renderMode}
+              onChange={setRenderMode}
+            />
+            <SoundToggle enabled={soundEnabled} onToggle={handleSoundToggle} />
+          </div>
         ) : null}
       </header>
 
@@ -374,11 +386,13 @@ function App() {
             customDrawCount={customDrawCount}
             drawCountErrors={drawCountValidation.errors}
             soundEnabled={soundEnabled}
+            renderMode={renderMode}
             onRawInputChange={handleRawInputChange}
             onModeChange={setMode}
             onDrawCountModeChange={setDrawCountMode}
             onCustomDrawCountChange={setCustomDrawCount}
             onSoundToggle={handleSoundToggle}
+            onRenderModeChange={setRenderMode}
             onClear={handleClear}
             onStart={handleStart}
           />
@@ -415,6 +429,7 @@ function App() {
             <section className="machine-card">
               <LotteryMachine
                 balls={remainingBalls}
+                renderMode={renderMode}
                 isMixing={shouldMixMachine(session)}
                 isSettling={
                   session.phase === "completed" && remainingBalls.length > 0

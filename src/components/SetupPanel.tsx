@@ -1,5 +1,10 @@
-import type { DrawCountMode, DrawMode } from "../domain/types";
+import type {
+  DrawCountMode,
+  DrawMode,
+  RenderMode,
+} from "../domain/types";
 import { MAX_BALLS } from "../domain/names";
+import { RenderModeToggle } from "./RenderModeToggle";
 import { SoundToggle } from "./SoundToggle";
 
 type SetupPanelProps = {
@@ -11,11 +16,13 @@ type SetupPanelProps = {
   customDrawCount: string;
   drawCountErrors: string[];
   soundEnabled: boolean;
+  renderMode: RenderMode;
   onRawInputChange: (value: string) => void;
   onModeChange: (mode: DrawMode) => void;
   onDrawCountModeChange: (mode: DrawCountMode) => void;
   onCustomDrawCountChange: (value: string) => void;
   onSoundToggle: () => void;
+  onRenderModeChange: (mode: RenderMode) => void;
   onClear: () => void;
   onStart: () => void;
 };
@@ -29,11 +36,13 @@ export function SetupPanel({
   customDrawCount,
   drawCountErrors,
   soundEnabled,
+  renderMode,
   onRawInputChange,
   onModeChange,
   onDrawCountModeChange,
   onCustomDrawCountChange,
   onSoundToggle,
+  onRenderModeChange,
   onClear,
   onStart,
 }: SetupPanelProps) {
@@ -42,11 +51,15 @@ export function SetupPanel({
   return (
     <section className="setup-card" aria-labelledby="setup-title">
       <div className="setup-heading">
-        <div>
-          <p className="section-kicker">DRAW SETUP</p>
-          <h2 id="setup-title">어떤 공을 넣어볼까요?</h2>
+        <p className="section-kicker">DRAW SETUP</p>
+        <div className="utility-controls">
+          <RenderModeToggle
+            mode={renderMode}
+            onChange={onRenderModeChange}
+          />
+          <SoundToggle enabled={soundEnabled} onToggle={onSoundToggle} />
         </div>
-        <SoundToggle enabled={soundEnabled} onToggle={onSoundToggle} />
+        <h2 id="setup-title">어떤 공을 넣어볼까요?</h2>
       </div>
 
       <div className="input-group">

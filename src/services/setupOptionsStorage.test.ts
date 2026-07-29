@@ -25,6 +25,7 @@ describe("SetupOptionsStorage", () => {
       drawCountMode: "custom" as const,
       customDrawCount: "6",
       soundEnabled: true,
+      renderMode: "3d" as const,
     };
 
     expect(saveSetupOptions(options, storage).warning).toBeNull();
@@ -45,6 +46,27 @@ describe("SetupOptionsStorage", () => {
     });
   });
 
+  it("렌더링 모드가 없던 기존 v1 설정은 2D 기본값으로 복원한다", () => {
+    const legacyValue = JSON.stringify({
+      version: 1,
+      mode: "auto",
+      drawCountMode: "custom",
+      customDrawCount: "6",
+      soundEnabled: true,
+    });
+
+    expect(loadSetupOptions(memoryStorage(legacyValue))).toEqual({
+      value: {
+        mode: "auto",
+        drawCountMode: "custom",
+        customDrawCount: "6",
+        soundEnabled: true,
+        renderMode: "2d",
+      },
+      warning: null,
+    });
+  });
+
   it.each([
     "{bad json",
     JSON.stringify({
@@ -53,6 +75,7 @@ describe("SetupOptionsStorage", () => {
       drawCountMode: "all",
       customDrawCount: "1",
       soundEnabled: false,
+      renderMode: "2d",
     }),
     JSON.stringify({
       version: 2,
@@ -60,6 +83,15 @@ describe("SetupOptionsStorage", () => {
       drawCountMode: "all",
       customDrawCount: "1",
       soundEnabled: false,
+      renderMode: "2d",
+    }),
+    JSON.stringify({
+      version: 1,
+      mode: "manual",
+      drawCountMode: "all",
+      customDrawCount: "1",
+      soundEnabled: false,
+      renderMode: "invalid",
     }),
   ])("손상되거나 지원하지 않는 저장값을 기본 설정과 경고로 변환한다", (value) => {
     expect(loadSetupOptions(memoryStorage(value))).toEqual({

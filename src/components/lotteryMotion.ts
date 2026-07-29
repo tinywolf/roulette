@@ -304,3 +304,34 @@ export function projectBallMotionNode(
     perspective,
   };
 }
+
+/**
+ * WebGL 모드에서 카메라 원근에 따라 좌표와 공 크기를 함께 투영한다.
+ * 기존 2D 모드의 동일 크기 계약은 `projectBallMotionNode`에 그대로 둔다.
+ */
+export function projectBallMotionNode3d(
+  node: BallMotionNode,
+  centerX: number,
+  centerY: number,
+  chamberRadius: number,
+  baseRadius: number,
+): ProjectedBallNode {
+  const normalizedChamberRadius = Math.max(1, chamberRadius);
+  const depth = clamp(node.z / normalizedChamberRadius, -1, 1);
+  const cameraDistance = normalizedChamberRadius * 2.6;
+  const perspective = clamp(
+    cameraDistance / Math.max(1, cameraDistance - node.z),
+    0.7,
+    1.5,
+  );
+  const normalizedDepth = (depth + 1) / 2;
+
+  return {
+    x: centerX + node.x * perspective,
+    y: centerY + node.y * perspective,
+    radius: baseRadius * perspective,
+    opacity: 0.76 + normalizedDepth * 0.24,
+    depth,
+    perspective,
+  };
+}
