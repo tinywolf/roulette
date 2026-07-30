@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyFinalSettlingTransition,
   advanceBallMotionNode,
   advanceSettlingBallMotionNodes,
   createBallMotionNode,
+  createFinalSettlingTransition,
+  forceSettleBallMotionNodes,
   projectBallMotionNode,
   projectBallMotionNode3d,
   scaleBallMotionNode,
@@ -206,6 +209,106 @@ describe("lotteryMotion", () => {
     expect(node.y).toBeGreaterThan(72);
     expect(Math.hypot(node.x, node.y, node.z)).toBeLessThanOrEqual(80.51);
     expect(Math.hypot(node.vx, node.vy, node.vz)).toBeLessThan(1);
+  });
+
+  it("공중의 느린 공은 잠들지 않고 정상 중력으로 낙하한다", () => {
+    const node = createNode({ y: -60 });
+
+    advanceSettlingBallMotionNodes([node], 1 / 60, 100, 10);
+
+    expect(node.y).toBeGreaterThan(-60);
+    expect(node.vy).toBeGreaterThan(0);
+  });
+
+  it("정착 3초 이후에는 시간이 지날수록 감쇠를 강화한다", () => {
+    const normalNode = createNode({ vx: 60 });
+    const urgentNode = createNode({ vx: 60 });
+
+    advanceSettlingBallMotionNodes(
+      [normalNode],
+      1 / 60,
+      100,
+      10,
+      3_000,
+    );
+    advanceSettlingBallMotionNodes(
+      [urgentNode],
+      1 / 60,
+      100,
+      10,
+      6_000,
+    );
+
+    expect(
+      Math.hypot(urgentNode.vx, urgentNode.vy, urgentNode.vz),
+    ).toBeLessThan(
+      Math.hypot(normalNode.vx, normalNode.vy, normalNode.vz),
+    );
+  });
+
+  it("하드 리밋에서는 마지막 겹침을 보정하고 모든 공을 고정한다", () => {
+    const nodes = Array.from({ length: 4 }, (_, index) =>
+      createNode({ id: `ball-${index + 1}`, y: -30 }),
+    );
+
+    forceSettleBallMotionNodes(nodes, 100, 10);
+
+    let minimumDistance = Number.POSITIVE_INFINITY;
+
+    nodes.forEach((node, firstIndex) => {
+      expect(node.y).toBeGreaterThan(0);
+      expect(Math.hypot(node.vx, node.vy, node.vz)).toBe(0);
+
+      nodes.slice(firstIndex + 1).forEach((other) => {
+        minimumDistance = Math.min(
+          minimumDistance,
+          Math.hypot(
+            node.x - other.x,
+            node.y - other.y,
+            node.z - other.z,
+          ),
+        );
+      });
+    });
+
+    expect(minimumDistance).toBeGreaterThan(19);
+  });
+
+  it("하드 리밋 직전에는 현재 위치에서 최종 위치까지 여러 프레임에 걸쳐 이동한다", () => {
+    const nodes = Array.from({ length: 12 }, (_, index) =>
+      createBallMotionNode(`ball-${index + 1}`, index, 12, 100),
+    );
+    const transition = createFinalSettlingTransition(nodes, 100, 10);
+    const initialPositions = nodes.map(({ x, y, z }) => ({ x, y, z }));
+    let maximumFrameDisplacement = 0;
+    let previousPositions = initialPositions;
+
+    for (let frame = 0; frame <= 60; frame += 1) {
+      applyFinalSettlingTransition(
+        nodes,
+        transition,
+        frame / 60,
+        1_000,
+      );
+
+      maximumFrameDisplacement = Math.max(
+        maximumFrameDisplacement,
+        ...nodes.map((node, index) =>
+          Math.hypot(
+            node.x - previousPositions[index].x,
+            node.y - previousPositions[index].y,
+            node.z - previousPositions[index].z,
+          ),
+        ),
+      );
+      previousPositions = nodes.map(({ x, y, z }) => ({ x, y, z }));
+    }
+
+    expect(maximumFrameDisplacement).toBeLessThan(6);
+    nodes.forEach((node, index) => {
+      expect(node).toMatchObject(transition.targets[index]);
+      expect(Math.hypot(node.vx, node.vy, node.vz)).toBe(0);
+    });
   });
 
   it("완료 후 44개 공의 겹침을 해소하며 아래쪽에 쌓는다", () => {

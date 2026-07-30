@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App, { shouldMixMachine } from "./App";
+import { SoundController } from "./services/soundController";
 
 describe("machine motion state", () => {
   it("수동 준비·추첨 중에는 계속 혼합하고 완료 시 중단한다", () => {
@@ -274,6 +275,58 @@ describe("App setup", () => {
 });
 
 describe("manual draw flow", () => {
+  it("효과음 설정과 추첨 혼합·정착 상태에 맞춰 음향 수명을 전환한다", () => {
+    vi.useFakeTimers();
+    const startMixing = vi
+      .spyOn(SoundController.prototype, "startMixing")
+      .mockResolvedValue(undefined);
+    const finishMixing = vi
+      .spyOn(SoundController.prototype, "finishMixing")
+      .mockImplementation(() => undefined);
+    const stopMixing = vi
+      .spyOn(SoundController.prototype, "stopMixing")
+      .mockImplementation(() => undefined);
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("공 이름"), {
+      target: { value: "가, 나" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
+    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
+    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+
+    expect(startMixing).toHaveBeenCalledWith(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "효과음 켜짐" }));
+    expect(stopMixing).toHaveBeenCalled();
+
+    const startCountBeforeEnabling = startMixing.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
+    expect(startMixing.mock.calls.length).toBeGreaterThan(
+      startCountBeforeEnabling,
+    );
+
+    const finishCountBeforeCompletion = finishMixing.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
+    act(() => {
+      vi.advanceTimersByTime(2_400);
+    });
+
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(finishMixing.mock.calls.length).toBeGreaterThan(
+      finishCountBeforeCompletion,
+    );
+    expect(finishMixing).toHaveBeenLastCalledWith(1);
+
+    startMixing.mockRestore();
+    finishMixing.mockRestore();
+    stopMixing.mockRestore();
+    vi.useRealTimers();
+  });
+
   it("진행 중과 완료 후에도 설정 화면을 거치지 않고 재추첨한다", () => {
     vi.useFakeTimers();
     render(<App />);
