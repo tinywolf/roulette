@@ -9,13 +9,18 @@ import {
   type Lottery3dSceneLayer,
 } from "./lottery3dRenderer";
 import {
+  applyFinalSettlingTransition,
   advanceBallMotionNode,
   advanceSettlingBallMotionNodes,
   createBallMotionNode,
+  createFinalSettlingTransition,
   projectBallMotionNode,
   projectBallMotionNode3d,
   scaleBallMotionNode,
+  SETTLING_FINALIZATION_START_MS,
+  SETTLING_HARD_LIMIT_MS,
   type BallMotionNode,
+  type FinalSettlingTransition,
   type ProjectedBallNode,
 } from "./lotteryMotion";
 
@@ -890,6 +895,7 @@ export function LotteryMachine({
   }>({ ballId: null, startedAt: null });
   const renderer3dRef = useRef<Lottery3dRenderer | null>(null);
   const wakeAnimationRef = useRef<(() => void) | null>(null);
+  const settlingStartedAtRef = useRef<number | null>(null);
   const ballsRevisionRef = useRef(0);
   const ballsRef = useRef(balls);
   const allBallsRef = useRef(allBalls);
@@ -917,6 +923,10 @@ export function LotteryMachine({
 
   useEffect(() => {
     const ejection = ejectionRef.current;
+
+    if (!isSettling) {
+      settlingStartedAtRef.current = null;
+    }
 
     if (visualBall && visualBall.id !== ejection.ballId) {
       ejection.ballId = visualBall.id;
@@ -966,6 +976,11 @@ export function LotteryMachine({
     let settlingPositions = new Float64Array();
     let hasSettlingSnapshot = false;
     let settledFrameCount = 0;
+    let finalSettlingTransition: {
+      startedAtFrameTimeMs: number;
+      durationMs: number;
+      motion: FinalSettlingTransition;
+    } | null = null;
     let reusableEjectedBall: Lottery3dEjectedBall | undefined;
     let cached2dBase: CachedCanvasLayer | null = null;
     let cached2dSurface: CachedCanvasLayer | null = null;
@@ -1134,6 +1149,7 @@ export function LotteryMachine({
 
         hasSettlingSnapshot = false;
         settledFrameCount = 0;
+        finalSettlingTransition = null;
       }
 
       width = nextWidth;
@@ -1236,6 +1252,7 @@ export function LotteryMachine({
       syncedBallsRevision = ballsRevisionRef.current;
       hasSettlingSnapshot = false;
       settledFrameCount = 0;
+      finalSettlingTransition = null;
     };
 
     const measureSettlingDisplacement = () => {
@@ -1268,6 +1285,7 @@ export function LotteryMachine({
     function wakeAnimation() {
       settledFrameCount = 0;
       hasSettlingSnapshot = false;
+      finalSettlingTransition = null;
 
       if (animationFrame !== null) {
         return;
@@ -1300,15 +1318,51 @@ export function LotteryMachine({
               (Math.sqrt(Math.max(currentBalls.length, 5)) * 1.75),
           ),
         );
+        let settlingHardLimitReached = false;
 
         if (currentIsSettling) {
-          advanceSettlingBallMotionNodes(
-            nodeList,
-            delta,
-            chamberRadius,
-            ballRadius,
-          );
+          settlingStartedAtRef.current ??= now;
+          const settlingElapsedMs =
+            now - settlingStartedAtRef.current;
+
+          if (
+            settlingElapsedMs >= SETTLING_FINALIZATION_START_MS
+          ) {
+            if (!finalSettlingTransition) {
+              finalSettlingTransition = {
+                startedAtFrameTimeMs: now,
+                durationMs:
+                  SETTLING_HARD_LIMIT_MS -
+                  SETTLING_FINALIZATION_START_MS,
+                motion: createFinalSettlingTransition(
+                  nodeList,
+                  chamberRadius,
+                  ballRadius,
+                ),
+              };
+            }
+
+            const transitionProgress =
+              (now - finalSettlingTransition.startedAtFrameTimeMs) /
+              finalSettlingTransition.durationMs;
+            applyFinalSettlingTransition(
+              nodeList,
+              finalSettlingTransition.motion,
+              transitionProgress,
+              finalSettlingTransition.durationMs,
+            );
+            settlingHardLimitReached = transitionProgress >= 1;
+          } else {
+            advanceSettlingBallMotionNodes(
+              nodeList,
+              delta,
+              chamberRadius,
+              ballRadius,
+              settlingElapsedMs,
+            );
+          }
         } else {
+          settlingStartedAtRef.current = null;
           nodeList.forEach((node, index) => {
             advanceBallMotionNode(
               node,
@@ -1435,10 +1489,14 @@ export function LotteryMachine({
         let shouldContinue = true;
 
         if (currentIsSettling) {
-          const displacement = measureSettlingDisplacement();
-          settledFrameCount =
-            displacement <= 0.08 ? settledFrameCount + 1 : 0;
-          shouldContinue = settledFrameCount < 18;
+          if (settlingHardLimitReached) {
+            shouldContinue = false;
+          } else {
+            const displacement = measureSettlingDisplacement();
+            settledFrameCount =
+              displacement <= 0.08 ? settledFrameCount + 1 : 0;
+            shouldContinue = settledFrameCount < 18;
+          }
         } else {
           settledFrameCount = 0;
           hasSettlingSnapshot = false;

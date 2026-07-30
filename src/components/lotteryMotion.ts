@@ -17,7 +17,18 @@ export type ProjectedBallNode = {
   perspective: number;
 };
 
+/**
+ * 하드 리밋 직전 공의 현재 운동을 정착 목표로 부드럽게 연결하는 전환 정보다.
+ */
+export type FinalSettlingTransition = {
+  starts: BallMotionNode[];
+  targets: BallMotionNode[];
+};
+
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+export const SETTLING_SOFT_LIMIT_MS = 3_000;
+export const SETTLING_FINALIZATION_START_MS = 5_000;
+export const SETTLING_HARD_LIMIT_MS = 6_000;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -190,6 +201,7 @@ export function advanceSettlingBallMotionNodes(
   delta: number,
   chamberRadius: number,
   physicalRadius: number,
+  settlingElapsedMs = 0,
 ): void {
   const boundedDelta = Math.min(0.034, Math.max(0, delta));
   const boundary = Math.max(
@@ -197,7 +209,19 @@ export function advanceSettlingBallMotionNodes(
     chamberRadius - physicalRadius * 1.35 - 6,
   );
   const gravity = chamberRadius * 3.8;
-  const drag = Math.pow(0.988, boundedDelta * 60);
+  const settlingUrgency = clamp(
+    (settlingElapsedMs - SETTLING_SOFT_LIMIT_MS) /
+      (SETTLING_HARD_LIMIT_MS - SETTLING_SOFT_LIMIT_MS),
+    0,
+    1,
+  );
+  const drag = Math.pow(
+    0.988 - settlingUrgency * 0.028,
+    boundedDelta * 60,
+  );
+  const boundaryRestitution = 0.16 * (1 - settlingUrgency);
+  const collisionRestitution = 0.12 * (1 - settlingUrgency);
+  const boundaryFriction = 0.82 - settlingUrgency * 0.22;
 
   for (const node of nodes) {
     node.vy += gravity * boundedDelta;
@@ -207,12 +231,54 @@ export function advanceSettlingBallMotionNodes(
     node.x += node.vx * boundedDelta;
     node.y += node.vy * boundedDelta;
     node.z += node.vz * boundedDelta;
-    constrainNodeToChamber(node, boundary, 0.16, 0.82);
+    constrainNodeToChamber(
+      node,
+      boundary,
+      boundaryRestitution,
+      boundaryFriction,
+    );
   }
 
   const minimumDistance = physicalRadius * 2;
+  resolveSettlingCollisions(
+    nodes,
+    boundary,
+    minimumDistance,
+    collisionRestitution,
+    3,
+    0.78 - settlingUrgency * 0.18,
+  );
 
-  for (let iteration = 0; iteration < 3; iteration += 1) {
+  const sleepThreshold =
+    gravity * boundedDelta * (1.35 + settlingUrgency * 1.2) + 1;
+
+  nodes.forEach((node, index) => {
+    if (
+      isSettlingNodeSupported(
+        nodes,
+        index,
+        boundary,
+        minimumDistance,
+        physicalRadius,
+      ) &&
+      Math.hypot(node.vx, node.vy, node.vz) < sleepThreshold
+    ) {
+      node.vx = 0;
+      node.vy = 0;
+      node.vz = 0;
+    }
+  });
+}
+
+function resolveSettlingCollisions(
+  nodes: BallMotionNode[],
+  boundary: number,
+  minimumDistance: number,
+  restitution: number,
+  iterations: number,
+  boundaryFriction: number,
+): void {
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
     for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
       const first = nodes[firstIndex];
 
@@ -257,7 +323,7 @@ export function advanceSettlingBallMotionNodes(
           (second.vz - first.vz) * normalZ;
 
         if (relativeVelocity < 0) {
-          const impulse = (-(1 + 0.12) * relativeVelocity) / 2;
+          const impulse = (-(1 + restitution) * relativeVelocity) / 2;
           first.vx -= impulse * normalX;
           first.vy -= impulse * normalY;
           first.vz -= impulse * normalZ;
@@ -269,19 +335,184 @@ export function advanceSettlingBallMotionNodes(
     }
 
     for (const node of nodes) {
-      constrainNodeToChamber(node, boundary, 0.12, 0.78);
+      constrainNodeToChamber(
+        node,
+        boundary,
+        restitution,
+        boundaryFriction,
+      );
+    }
+  }
+}
+
+function isSettlingNodeSupported(
+  nodes: BallMotionNode[],
+  nodeIndex: number,
+  boundary: number,
+  minimumDistance: number,
+  physicalRadius: number,
+): boolean {
+  const node = nodes[nodeIndex];
+  const distanceFromCenter = Math.hypot(node.x, node.y, node.z);
+  const supportTolerance = Math.max(1, physicalRadius * 0.18);
+
+  if (
+    distanceFromCenter >= boundary - supportTolerance &&
+    node.y / Math.max(1, distanceFromCenter) > 0.25
+  ) {
+    return true;
+  }
+
+  for (let index = 0; index < nodes.length; index += 1) {
+    if (index === nodeIndex) {
+      continue;
+    }
+
+    const other = nodes[index];
+    const differenceY = other.y - node.y;
+
+    if (differenceY <= 0) {
+      continue;
+    }
+
+    const distance = Math.hypot(
+      other.x - node.x,
+      differenceY,
+      other.z - node.z,
+    );
+
+    if (
+      distance <= minimumDistance + supportTolerance &&
+      differenceY / Math.max(0.001, distance) > 0.2
+    ) {
+      return true;
     }
   }
 
-  const sleepThreshold = gravity * boundedDelta * 1.35 + 1;
+  return false;
+}
+
+/**
+ * 정착 하드 리밋에서 짧은 고감쇠 물리 단계를 적용해 공을 바닥에 모은 뒤 고정한다.
+ */
+export function forceSettleBallMotionNodes(
+  nodes: BallMotionNode[],
+  chamberRadius: number,
+  physicalRadius: number,
+): void {
+  for (let step = 0; step < 60; step += 1) {
+    advanceSettlingBallMotionNodes(
+      nodes,
+      0.034,
+      chamberRadius,
+      physicalRadius,
+      SETTLING_HARD_LIMIT_MS,
+    );
+  }
+
+  const boundary = Math.max(
+    chamberRadius * 0.2,
+    chamberRadius - physicalRadius * 1.35 - 6,
+  );
+  const minimumDistance = physicalRadius * 2;
+  resolveSettlingCollisions(
+    nodes,
+    boundary,
+    minimumDistance,
+    0,
+    8,
+    0.55,
+  );
 
   for (const node of nodes) {
-    if (Math.hypot(node.vx, node.vy, node.vz) < sleepThreshold) {
+    constrainNodeToChamber(node, boundary, 0, 0.55);
+    node.vx = 0;
+    node.vy = 0;
+    node.vz = 0;
+  }
+}
+
+/**
+ * 실제 노드를 즉시 옮기지 않고 최종 정착 위치를 별도의 복사본으로 계산한다.
+ */
+export function createFinalSettlingTransition(
+  nodes: BallMotionNode[],
+  chamberRadius: number,
+  physicalRadius: number,
+): FinalSettlingTransition {
+  const starts = nodes.map((node) => ({ ...node }));
+  const targets = nodes.map((node) => ({ ...node }));
+  forceSettleBallMotionNodes(targets, chamberRadius, physicalRadius);
+
+  return { starts, targets };
+}
+
+/**
+ * 시작 속도를 보존하는 3차 보간으로 공을 정착 목표까지 이동시킨다.
+ */
+export function applyFinalSettlingTransition(
+  nodes: BallMotionNode[],
+  transition: FinalSettlingTransition,
+  progress: number,
+  durationMs: number,
+): void {
+  const normalizedProgress = clamp(progress, 0, 1);
+  const progressSquared = normalizedProgress ** 2;
+  const progressCubed = progressSquared * normalizedProgress;
+  const startPositionWeight =
+    2 * progressCubed - 3 * progressSquared + 1;
+  const startVelocityWeight =
+    progressCubed - 2 * progressSquared + normalizedProgress;
+  const targetPositionWeight =
+    -2 * progressCubed + 3 * progressSquared;
+  const startPositionDerivative =
+    6 * progressSquared - 6 * normalizedProgress;
+  const startVelocityDerivative =
+    3 * progressSquared - 4 * normalizedProgress + 1;
+  const targetPositionDerivative =
+    -6 * progressSquared + 6 * normalizedProgress;
+  const durationSeconds = Math.max(0.001, durationMs / 1_000);
+  const interpolatePosition = (
+    startPosition: number,
+    startVelocity: number,
+    targetPosition: number,
+  ) =>
+    startPositionWeight * startPosition +
+    startVelocityWeight * durationSeconds * startVelocity +
+    targetPositionWeight * targetPosition;
+  const interpolateVelocity = (
+    startPosition: number,
+    startVelocity: number,
+    targetPosition: number,
+  ) =>
+    (startPositionDerivative * startPosition +
+      startVelocityDerivative * durationSeconds * startVelocity +
+      targetPositionDerivative * targetPosition) /
+    durationSeconds;
+
+  nodes.forEach((node, index) => {
+    const start = transition.starts[index];
+    const target = transition.targets[index];
+
+    if (!start || !target || start.id !== node.id || target.id !== node.id) {
+      return;
+    }
+
+    node.x = interpolatePosition(start.x, start.vx, target.x);
+    node.y = interpolatePosition(start.y, start.vy, target.y);
+    node.z = interpolatePosition(start.z, start.vz, target.z);
+
+    if (normalizedProgress >= 1) {
       node.vx = 0;
       node.vy = 0;
       node.vz = 0;
+      return;
     }
-  }
+
+    node.vx = interpolateVelocity(start.x, start.vx, target.x);
+    node.vy = interpolateVelocity(start.y, start.vy, target.y);
+    node.vz = interpolateVelocity(start.z, start.vz, target.z);
+  });
 }
 
 export function projectBallMotionNode(

@@ -70,14 +70,25 @@ function installAudioContextMock() {
   const filterNodes: Array<{
     disconnect: ReturnType<typeof vi.fn>;
   }> = [];
+  const filterParams: Array<{
+    setValueAtTime: ReturnType<typeof vi.fn>;
+    exponentialRampToValueAtTime: ReturnType<typeof vi.fn>;
+    cancelScheduledValues: ReturnType<typeof vi.fn>;
+  }> = [];
   const createBiquadFilter = vi.fn(() => {
+    const frequency = {
+      setValueAtTime: vi.fn(),
+      exponentialRampToValueAtTime: vi.fn(),
+      cancelScheduledValues: vi.fn(),
+    };
     const filter = {
       type: "lowpass",
-      frequency: { setValueAtTime: vi.fn() },
+      frequency,
       Q: { setValueAtTime: vi.fn() },
       connect: vi.fn(),
       disconnect: vi.fn(),
     };
+    filterParams.push(frequency);
     filterNodes.push(filter);
     return filter;
   });
@@ -126,6 +137,7 @@ function installAudioContextMock() {
     createBufferSource,
     createOscillator,
     filterNodes,
+    filterParams,
     gainNodes,
     gainParams,
     oscillatorNodes,
@@ -259,6 +271,63 @@ describe("SoundController", () => {
     vi.advanceTimersByTime(2_000);
 
     expect(createBufferSource).toHaveBeenCalledTimes(createdBeforeSingleBall);
+
+    controller.dispose();
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("정상 완료 후 바람과 잔여 충돌음을 단계적으로 감쇠한다", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const {
+      bufferSources,
+      createOscillator,
+      filterParams,
+      gainParams,
+    } = installAudioContextMock();
+    const controller = new SoundController();
+    controller.setEnabled(true);
+
+    await controller.startMixing(45);
+    controller.finishMixing(44);
+
+    expect(gainParams[0].linearRampToValueAtTime.mock.calls).toEqual([
+      [0.063 * 0.7, 0.35],
+      [0.0001, 2],
+    ]);
+    expect(
+      filterParams[0].exponentialRampToValueAtTime.mock.calls.at(-1),
+    ).toEqual([560, 2]);
+
+    vi.advanceTimersByTime(2_050);
+
+    expect(createOscillator).toHaveBeenCalledTimes(3);
+    expect(bufferSources[0].stop).toHaveBeenCalledTimes(1);
+
+    controller.dispose();
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("감쇠 도중 다시 혼합하면 기존 바람 소스를 정상 출력으로 복귀시킨다", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const { bufferSources, gainParams } = installAudioContextMock();
+    const controller = new SoundController();
+    controller.setEnabled(true);
+
+    await controller.startMixing(45);
+    controller.finishMixing(44);
+    vi.advanceTimersByTime(200);
+    await controller.startMixing(44);
+    vi.advanceTimersByTime(2_100);
+
+    expect(bufferSources.filter((source) => source.loop)).toHaveLength(1);
+    expect(bufferSources[0].stop).not.toHaveBeenCalled();
+    expect(
+      gainParams[0].exponentialRampToValueAtTime.mock.calls.at(-1),
+    ).toEqual([0.063, 0.18]);
 
     controller.dispose();
     randomSpy.mockRestore();

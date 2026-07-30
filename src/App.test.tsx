@@ -275,11 +275,14 @@ describe("App setup", () => {
 });
 
 describe("manual draw flow", () => {
-  it("효과음 설정과 추첨 혼합 상태에 맞춰 지속 음향을 시작하고 정지한다", () => {
+  it("효과음 설정과 추첨 혼합·정착 상태에 맞춰 음향 수명을 전환한다", () => {
     vi.useFakeTimers();
     const startMixing = vi
       .spyOn(SoundController.prototype, "startMixing")
       .mockResolvedValue(undefined);
+    const finishMixing = vi
+      .spyOn(SoundController.prototype, "finishMixing")
+      .mockImplementation(() => undefined);
     const stopMixing = vi
       .spyOn(SoundController.prototype, "stopMixing")
       .mockImplementation(() => undefined);
@@ -306,18 +309,20 @@ describe("manual draw flow", () => {
       startCountBeforeEnabling,
     );
 
-    const stopCountBeforeCompletion = stopMixing.mock.calls.length;
+    const finishCountBeforeCompletion = finishMixing.mock.calls.length;
     fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
     act(() => {
       vi.advanceTimersByTime(2_400);
     });
 
     expect(screen.getByText("1 / 1")).toBeInTheDocument();
-    expect(stopMixing.mock.calls.length).toBeGreaterThan(
-      stopCountBeforeCompletion,
+    expect(finishMixing.mock.calls.length).toBeGreaterThan(
+      finishCountBeforeCompletion,
     );
+    expect(finishMixing).toHaveBeenLastCalledWith(1);
 
     startMixing.mockRestore();
+    finishMixing.mockRestore();
     stopMixing.mockRestore();
     vi.useRealTimers();
   });

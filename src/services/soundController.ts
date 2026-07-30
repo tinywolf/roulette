@@ -9,6 +9,14 @@ const WIND_BUFFER_SECONDS = 2;
 const COLLISION_BUFFER_SECONDS = 0.045;
 const MAX_SOUND_BALL_COUNT = 45;
 const MASTER_VOLUME_MULTIPLIER = 1.5;
+const WIND_GAIN = 0.042 * MASTER_VOLUME_MULTIPLIER;
+const WIND_FILTER_FREQUENCY = 920;
+const WIND_DOWN_DURATION_MS = 2_000;
+const WIND_DOWN_INITIAL_DROP_MS = 350;
+const WIND_DOWN_INITIAL_GAIN_RATIO = 0.7;
+const WIND_DOWN_FILTER_FREQUENCY = 560;
+const WIND_DOWN_COLLISION_DELAYS = [140, 230, 330] as const;
+const WIND_DOWN_COLLISION_GAINS = [0.42, 0.24, 0.12] as const;
 
 /**
  * Web Audio로 단발성 결과음과 지속형 추첨기 혼합음을 생성한다.
@@ -21,6 +29,8 @@ export class SoundController {
 
   private mixing = false;
 
+  private windingDown = false;
+
   private mixingGeneration = 0;
 
   private mixingBallCount = 0;
@@ -29,11 +39,15 @@ export class SoundController {
 
   private windGain: GainNode | null = null;
 
+  private windFilter: BiquadFilterNode | null = null;
+
   private windBuffer: AudioBuffer | null = null;
 
   private collisionBuffer: AudioBuffer | null = null;
 
   private collisionTimer: number | null = null;
+
+  private windStopTimer: number | null = null;
 
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
@@ -98,6 +112,49 @@ export class SoundController {
       return;
     }
 
+    if (
+      this.windingDown &&
+      this.context &&
+      this.windSource &&
+      this.windFilter &&
+      this.windGain
+    ) {
+      const generation = ++this.mixingGeneration;
+      const now = this.context.currentTime;
+
+      if (this.windStopTimer !== null && typeof window !== "undefined") {
+        window.clearTimeout(this.windStopTimer);
+      }
+      if (this.collisionTimer !== null && typeof window !== "undefined") {
+        window.clearTimeout(this.collisionTimer);
+      }
+      this.windStopTimer = null;
+      this.collisionTimer = null;
+      this.windingDown = false;
+      this.mixing = true;
+
+      this.windGain.gain.cancelScheduledValues(now);
+      this.windGain.gain.setValueAtTime(0.0001, now);
+      this.windGain.gain.exponentialRampToValueAtTime(
+        WIND_GAIN,
+        now + 0.18,
+      );
+      this.windFilter.frequency.cancelScheduledValues(now);
+      this.windFilter.frequency.setValueAtTime(
+        WIND_DOWN_FILTER_FREQUENCY,
+        now,
+      );
+      this.windFilter.frequency.exponentialRampToValueAtTime(
+        WIND_FILTER_FREQUENCY,
+        now + 0.25,
+      );
+
+      if (this.mixingBallCount > 1) {
+        this.scheduleCollision(this.context, generation);
+      }
+      return;
+    }
+
     if (this.mixing) {
       if (
         this.mixingBallCount <= 1 &&
@@ -138,18 +195,37 @@ export class SoundController {
       windSource.buffer = this.windBuffer;
       windSource.loop = true;
       windFilter.type = "lowpass";
-      windFilter.frequency.setValueAtTime(920, now);
+      windFilter.frequency.setValueAtTime(WIND_FILTER_FREQUENCY, now);
       windFilter.Q.setValueAtTime(0.7, now);
       windGain.gain.setValueAtTime(0.0001, now);
       windGain.gain.exponentialRampToValueAtTime(
-        0.042 * MASTER_VOLUME_MULTIPLIER,
+        WIND_GAIN,
         now + 0.18,
       );
       windSource.connect(windFilter);
       windFilter.connect(windGain);
       windGain.connect(context.destination);
+      const windNodes: AudioNode[] = [
+        windSource,
+        windFilter,
+        windGain,
+      ];
+      windSource.addEventListener(
+        "ended",
+        () => {
+          for (const node of windNodes) {
+            try {
+              node.disconnect();
+            } catch {
+              // context 종료 등으로 이미 정리된 노드는 다시 해제할 필요가 없다.
+            }
+          }
+        },
+        { once: true },
+      );
 
       this.windSource = windSource;
+      this.windFilter = windFilter;
       this.windGain = windGain;
       this.mixing = true;
       windSource.start(now);
@@ -163,19 +239,112 @@ export class SoundController {
     }
   }
 
+  finishMixing(ballCount: number): void {
+    this.mixingBallCount = Math.max(
+      1,
+      Math.min(MAX_SOUND_BALL_COUNT, Math.round(ballCount)),
+    );
+
+    if (
+      !this.enabled ||
+      this.windingDown ||
+      !this.mixing ||
+      !this.context ||
+      !this.windSource ||
+      !this.windFilter ||
+      !this.windGain ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const generation = ++this.mixingGeneration;
+    const context = this.context;
+    const windSource = this.windSource;
+    const now = context.currentTime;
+
+    this.mixing = false;
+    this.windingDown = true;
+    if (this.collisionTimer !== null) {
+      window.clearTimeout(this.collisionTimer);
+    }
+    this.collisionTimer = null;
+
+    this.windGain.gain.cancelScheduledValues(now);
+    this.windGain.gain.setValueAtTime(WIND_GAIN, now);
+    this.windGain.gain.linearRampToValueAtTime(
+      WIND_GAIN * WIND_DOWN_INITIAL_GAIN_RATIO,
+      now + WIND_DOWN_INITIAL_DROP_MS / 1_000,
+    );
+    this.windGain.gain.linearRampToValueAtTime(
+      0.0001,
+      now + WIND_DOWN_DURATION_MS / 1_000,
+    );
+    this.windFilter.frequency.cancelScheduledValues(now);
+    this.windFilter.frequency.setValueAtTime(
+      WIND_FILTER_FREQUENCY,
+      now,
+    );
+    this.windFilter.frequency.exponentialRampToValueAtTime(
+      WIND_DOWN_FILTER_FREQUENCY,
+      now + WIND_DOWN_DURATION_MS / 1_000,
+    );
+
+    if (this.mixingBallCount > 1) {
+      const collisionCount = Math.min(
+        WIND_DOWN_COLLISION_DELAYS.length,
+        Math.max(1, Math.ceil(this.mixingBallCount / 15)),
+      );
+      this.scheduleWindDownCollision(
+        context,
+        generation,
+        0,
+        collisionCount,
+      );
+    }
+
+    this.windStopTimer = window.setTimeout(() => {
+      if (
+        generation !== this.mixingGeneration ||
+        !this.windingDown ||
+        this.windSource !== windSource
+      ) {
+        return;
+      }
+
+      this.windStopTimer = null;
+      this.windingDown = false;
+      this.windSource = null;
+      this.windFilter = null;
+      this.windGain = null;
+
+      try {
+        windSource.stop();
+      } catch {
+        // 이미 정지된 소스라면 추가 정리가 필요하지 않다.
+      }
+    }, WIND_DOWN_DURATION_MS + 50);
+  }
+
   stopMixing(): void {
     this.mixingGeneration += 1;
     this.mixing = false;
+    this.windingDown = false;
 
     if (this.collisionTimer !== null && typeof window !== "undefined") {
       window.clearTimeout(this.collisionTimer);
     }
+    if (this.windStopTimer !== null && typeof window !== "undefined") {
+      window.clearTimeout(this.windStopTimer);
+    }
     this.collisionTimer = null;
+    this.windStopTimer = null;
 
     const context = this.context;
     const windSource = this.windSource;
     const windGain = this.windGain;
     this.windSource = null;
+    this.windFilter = null;
     this.windGain = null;
 
     if (!context || !windSource || !windGain) {
@@ -301,7 +470,58 @@ export class SoundController {
     }, delay);
   }
 
-  private playCollision(context: AudioContext): void {
+  private scheduleWindDownCollision(
+    context: AudioContext,
+    generation: number,
+    step: number,
+    collisionCount: number,
+  ): void {
+    if (
+      !this.windingDown ||
+      !this.enabled ||
+      generation !== this.mixingGeneration ||
+      this.mixingBallCount <= 1 ||
+      step >= collisionCount ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const jitter = 0.8 + Math.random() * 0.4;
+    const delay = Math.round(WIND_DOWN_COLLISION_DELAYS[step] * jitter);
+
+    this.collisionTimer = window.setTimeout(() => {
+      if (
+        !this.windingDown ||
+        !this.enabled ||
+        generation !== this.mixingGeneration
+      ) {
+        return;
+      }
+
+      this.collisionTimer = null;
+      try {
+        this.playCollision(
+          context,
+          WIND_DOWN_COLLISION_GAINS[step],
+        );
+      } catch {
+        // 잔여 충돌음 실패는 바람 감쇠와 추첨 완료 상태에 영향을 주지 않는다.
+      }
+
+      this.scheduleWindDownCollision(
+        context,
+        generation,
+        step + 1,
+        collisionCount,
+      );
+    }, delay);
+  }
+
+  private playCollision(
+    context: AudioContext,
+    volumeScale = 1,
+  ): void {
     if (!this.collisionBuffer) {
       return;
     }
@@ -320,7 +540,9 @@ export class SoundController {
     resonance.type = "triangle";
     resonance.frequency.setValueAtTime(190 + Math.random() * 150, now);
     gain.gain.setValueAtTime(
-      (0.025 + Math.random() * 0.024) * MASTER_VOLUME_MULTIPLIER,
+      (0.025 + Math.random() * 0.024) *
+        MASTER_VOLUME_MULTIPLIER *
+        volumeScale,
       now,
     );
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);

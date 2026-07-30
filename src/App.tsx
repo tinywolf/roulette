@@ -104,6 +104,8 @@ function App() {
     return session.balls.filter((ball) => remainingIds.has(ball.id));
   }, [session?.balls, session?.remainingBallIds]);
   const isMachineMixing = session ? shouldMixMachine(session) : false;
+  const isMachineSettling =
+    session?.phase === "completed" && remainingBalls.length > 0;
 
   const handleCanvasError = useCallback((message: string) => {
     setNotice((current) =>
@@ -267,10 +269,17 @@ function App() {
   useEffect(() => {
     if (soundEnabled && isMachineMixing) {
       void soundController.current?.startMixing(remainingBalls.length);
+    } else if (soundEnabled && isMachineSettling) {
+      soundController.current?.finishMixing(remainingBalls.length);
     } else {
       soundController.current?.stopMixing();
     }
-  }, [isMachineMixing, remainingBalls.length, soundEnabled]);
+  }, [
+    isMachineMixing,
+    isMachineSettling,
+    remainingBalls.length,
+    soundEnabled,
+  ]);
 
   useEffect(() => {
     // 복원 직후에는 같은 값을 다시 쓰지 않고 사용자가 옵션을 바꾼 뒤부터 저장한다.
@@ -502,9 +511,7 @@ function App() {
                 allBalls={session.balls}
                 renderMode={renderMode}
                 isMixing={isMachineMixing}
-                isSettling={
-                  session.phase === "completed" && remainingBalls.length > 0
-                }
+                isSettling={isMachineSettling}
                 visualBall={
                   session.balls.find(
                     (ball) => ball.id === visualResult?.ballId,
