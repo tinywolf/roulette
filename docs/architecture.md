@@ -1,6 +1,6 @@
 ---
-revision: 1db9a06
-updated_at: 2026-07-29T12:06:00+09:00
+revision: a3eb60a
+updated_at: 2026-07-30T11:06:31+09:00
 ---
 
 # Architecture
@@ -102,7 +102,7 @@ React의 `App`이 화면 상태와 브라우저 수명주기를 조정한다. �
 | `domain/drawEngine.ts` | 수동·자동 상태 전이와 비복원 결과 | `DrawSession`, 현재 시각 | 새 `DrawSession` | `random.ts`, `types.ts` |
 | `services/nameStorage.ts` | 입력 원문 저장·복원·삭제 | 원문, Storage 어댑터 | 값과 경고를 포함한 결과 | `localStorage` |
 | `services/setupOptionsStorage.ts` | 추첨·개수·효과음·렌더링 설정 저장·검증·복원 | `SetupOptions`, Storage 어댑터 | 설정값과 경고를 포함한 결과 | `localStorage`, `types.ts` |
-| `services/soundController.ts` | 음소거 상태와 효과음 재생 | 사운드 이벤트 | Web Audio 출력 | AudioContext |
+| `services/soundController.ts` | 음소거, 단발 결과음과 지속형 바람·충돌음 수명 관리 | 사운드 이벤트, 혼합 여부, 남은 공 수 | Web Audio 노드·충돌 타이머 | AudioContext |
 | `components/lotteryMotion.ts` | 3축 초기 배치·구형 경계·회전 난류·중앙 횡단·중력 적층·2D/3D 투영 | 공 목록, 상태, 시각, 구 반지름 | 운동 노드, 투영 좌표 | 없음 |
 | `components/lottery3dRenderer.ts` | 세션 공 아틀라스와 경계 패킹 정적 장면을 재사용 정점 버퍼·한 draw call로 합성 | 전체 공, 3D 투영·배출 좌표, 장면 페인터·경계 | 단일 WebGL 프레임 | Canvas 2D, WebGL |
 | `components/LotteryMachine.tsx` | 지속형 렌더러와 공통 운동 노드, 2D 정적 캐시, 유휴 중단, 실패 대체 연출 조정 | 남은 공·전체 공, 렌더링 모드, 혼합·정착 상태, 배출 공 | Canvas 2D 또는 WebGL 프레임 | `lotteryMotion.ts`, `lottery3dRenderer.ts` |
@@ -145,6 +145,12 @@ sequenceDiagram
 5. 한 번에 여러 공이 복구되면 놓친 배출 연출과 소리는 재생하지 않는다.
 
 `reconcileScheduledDraws`는 이미 결과에 포함된 공 ID를 제외하므로 반복 호출해도 결과가 중복되지 않는다.
+
+### 혼합 효과음
+
+`App`은 Canvas와 같은 `shouldMixMachine` 판정을 사용해 효과음이 활성화된 수동 `ready`·`mixing` 또는 자동 `running` 상태에서 `SoundController.startMixing(remainingBallCount)`을 호출한다. 완료·오류·설정 복귀와 음소거에서는 `stopMixing()`으로 전환한다. 공 하나가 빠질 때마다 남은 공 수만 갱신하고 이미 실행 중인 바람 루프를 다시 만들지 않는다.
+
+`SoundController`는 저주파 노이즈 버퍼를 필터링한 바람음을 하나의 반복 `AudioBufferSourceNode`로 유지한다. 짧은 노이즈와 삼각파 공명을 조합한 충돌음은 별도 타이머로 불규칙하게 생성하며, 남은 공이 많을수록 평균 간격을 줄인다. 이 타이머에서 사용하는 `Math.random()`은 음향 변화에만 쓰고 `DrawEngine`, Web Crypto 난수와 자동 일정에는 전달하지 않는다.
 
 ### 재추첨과 설정 복귀
 
@@ -207,7 +213,7 @@ flowchart TD
 - WebGL 생성·렌더링·context 유실은 경고와 Canvas 대체 연출로 격리한다.
 - 입력 또는 설정 저장 실패는 현재 메모리 상태를 유지한 채 경고한다.
 - Clipboard 실패는 오류 알림만 표시한다.
-- Web Audio 실패는 소리 없이 추첨을 계속한다.
+- Web Audio 생성·재개·노드 실패는 바람·충돌 타이머를 정리하고 소리 없이 추첨을 계속한다.
 
 ## 외부 의존성
 
