@@ -8,6 +8,7 @@ type BrowserWindow = Window &
 const WIND_BUFFER_SECONDS = 2;
 const COLLISION_BUFFER_SECONDS = 0.045;
 const MAX_SOUND_BALL_COUNT = 45;
+const MASTER_VOLUME_MULTIPLIER = 1.5;
 
 /**
  * Web Audio로 단발성 결과음과 지속형 추첨기 혼합음을 생성한다.
@@ -70,7 +71,10 @@ export class SoundController {
         oscillator.type = "sine";
         oscillator.frequency.setValueAtTime(tone.frequency, start);
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.13, start + 0.015);
+        gain.gain.exponentialRampToValueAtTime(
+          0.13 * MASTER_VOLUME_MULTIPLIER,
+          start + 0.015,
+        );
         gain.gain.exponentialRampToValueAtTime(0.0001, end);
         oscillator.connect(gain);
         gain.connect(context.destination);
@@ -115,7 +119,10 @@ export class SoundController {
       windFilter.frequency.setValueAtTime(920, now);
       windFilter.Q.setValueAtTime(0.7, now);
       windGain.gain.setValueAtTime(0.0001, now);
-      windGain.gain.exponentialRampToValueAtTime(0.042, now + 0.18);
+      windGain.gain.exponentialRampToValueAtTime(
+        0.042 * MASTER_VOLUME_MULTIPLIER,
+        now + 0.18,
+      );
       windSource.connect(windFilter);
       windFilter.connect(windGain);
       windGain.connect(context.destination);
@@ -282,7 +289,10 @@ export class SoundController {
     filter.Q.setValueAtTime(1.8 + Math.random() * 1.4, now);
     resonance.type = "triangle";
     resonance.frequency.setValueAtTime(190 + Math.random() * 150, now);
-    gain.gain.setValueAtTime(0.025 + Math.random() * 0.024, now);
+    gain.gain.setValueAtTime(
+      (0.025 + Math.random() * 0.024) * MASTER_VOLUME_MULTIPLIER,
+      now,
+    );
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
     noiseSource.connect(filter);

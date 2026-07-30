@@ -18,15 +18,26 @@ function installAudioContextMock() {
     start,
     stop: vi.fn(),
   }));
-  const createGain = vi.fn(() => ({
-    gain: {
+  const gainParams: Array<{
+    setValueAtTime: ReturnType<typeof vi.fn>;
+    exponentialRampToValueAtTime: ReturnType<typeof vi.fn>;
+    linearRampToValueAtTime: ReturnType<typeof vi.fn>;
+    cancelScheduledValues: ReturnType<typeof vi.fn>;
+  }> = [];
+  const createGain = vi.fn(() => {
+    const gain = {
       setValueAtTime: vi.fn(),
       exponentialRampToValueAtTime: vi.fn(),
       linearRampToValueAtTime: vi.fn(),
       cancelScheduledValues: vi.fn(),
-    },
-    connect: vi.fn(),
-  }));
+    };
+    gainParams.push(gain);
+
+    return {
+      gain,
+      connect: vi.fn(),
+    };
+  });
   const createBufferSource = vi.fn(() => {
     const source = {
       buffer: null as AudioBuffer | null,
@@ -87,6 +98,7 @@ function installAudioContextMock() {
     close,
     createBufferSource,
     createOscillator,
+    gainParams,
     start,
   };
 }
@@ -112,6 +124,30 @@ describe("SoundController", () => {
     expect(createOscillator).toHaveBeenCalledTimes(3);
     expect(start).toHaveBeenCalledTimes(3);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("모든 효과음에 동일한 마스터 볼륨 배율을 적용한다", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const { gainParams } = installAudioContextMock();
+    const controller = new SoundController();
+    controller.setEnabled(true);
+
+    await controller.play("draw");
+    await controller.startMixing(45);
+    vi.advanceTimersByTime(150);
+
+    expect(
+      gainParams[0].exponentialRampToValueAtTime.mock.calls[0][0],
+    ).toBeCloseTo(0.195);
+    expect(
+      gainParams[1].exponentialRampToValueAtTime.mock.calls[0][0],
+    ).toBeCloseTo(0.063);
+    expect(gainParams[2].setValueAtTime.mock.calls[0][0]).toBeCloseTo(0.0555);
+
+    controller.dispose();
+    randomSpy.mockRestore();
+    vi.useRealTimers();
   });
 
   it("혼합 중 바람 루프와 불규칙한 공 충돌음을 재생한다", async () => {
