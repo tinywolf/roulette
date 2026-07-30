@@ -29,6 +29,8 @@ export class SoundController {
 
   private windGain: GainNode | null = null;
 
+  private windBuffer: AudioBuffer | null = null;
+
   private collisionBuffer: AudioBuffer | null = null;
 
   private collisionTimer: number | null = null;
@@ -92,7 +94,25 @@ export class SoundController {
       Math.min(MAX_SOUND_BALL_COUNT, Math.round(ballCount)),
     );
 
-    if (!this.enabled || this.mixing) {
+    if (!this.enabled) {
+      return;
+    }
+
+    if (this.mixing) {
+      if (
+        this.mixingBallCount <= 1 &&
+        this.collisionTimer !== null &&
+        typeof window !== "undefined"
+      ) {
+        window.clearTimeout(this.collisionTimer);
+        this.collisionTimer = null;
+      } else if (
+        this.mixingBallCount > 1 &&
+        this.collisionTimer === null &&
+        this.context
+      ) {
+        this.scheduleCollision(this.context, this.mixingGeneration);
+      }
       return;
     }
 
@@ -113,7 +133,9 @@ export class SoundController {
       const windFilter = context.createBiquadFilter();
       const windGain = context.createGain();
 
-      windSource.buffer = this.createWindBuffer(context);
+      this.windBuffer ??= this.createWindBuffer(context);
+      this.collisionBuffer ??= this.createCollisionBuffer(context);
+      windSource.buffer = this.windBuffer;
       windSource.loop = true;
       windFilter.type = "lowpass";
       windFilter.frequency.setValueAtTime(920, now);
@@ -127,12 +149,13 @@ export class SoundController {
       windFilter.connect(windGain);
       windGain.connect(context.destination);
 
-      this.collisionBuffer = this.createCollisionBuffer(context);
       this.windSource = windSource;
       this.windGain = windGain;
       this.mixing = true;
       windSource.start(now);
-      this.scheduleCollision(context, generation);
+      if (this.mixingBallCount > 1) {
+        this.scheduleCollision(context, generation);
+      }
     } catch {
       if (generation === this.mixingGeneration) {
         this.stopMixing();
@@ -148,7 +171,6 @@ export class SoundController {
       window.clearTimeout(this.collisionTimer);
     }
     this.collisionTimer = null;
-    this.collisionBuffer = null;
 
     const context = this.context;
     const windSource = this.windSource;
@@ -174,6 +196,8 @@ export class SoundController {
     this.stopMixing();
     void this.context?.close().catch(() => undefined);
     this.context = null;
+    this.windBuffer = null;
+    this.collisionBuffer = null;
   }
 
   private async getReadyContext(): Promise<AudioContext | null> {
@@ -241,6 +265,7 @@ export class SoundController {
       !this.mixing ||
       !this.enabled ||
       generation !== this.mixingGeneration ||
+      this.mixingBallCount <= 1 ||
       typeof window === "undefined"
     ) {
       return;
@@ -258,6 +283,11 @@ export class SoundController {
         !this.enabled ||
         generation !== this.mixingGeneration
       ) {
+        return;
+      }
+
+      this.collisionTimer = null;
+      if (this.mixingBallCount <= 1) {
         return;
       }
 
@@ -299,6 +329,26 @@ export class SoundController {
     filter.connect(gain);
     resonance.connect(gain);
     gain.connect(context.destination);
+    const collisionNodes: AudioNode[] = [
+      noiseSource,
+      filter,
+      resonance,
+      gain,
+    ];
+    noiseSource.addEventListener(
+      "ended",
+      () => {
+        // 짧은 충돌마다 생성한 그래프를 즉시 끊어 장시간 혼합 시 GC 부담을 줄인다.
+        for (const node of collisionNodes) {
+          try {
+            node.disconnect();
+          } catch {
+            // context 종료 등으로 이미 정리된 노드는 다시 해제할 필요가 없다.
+          }
+        }
+      },
+      { once: true },
+    );
     noiseSource.start(now);
     resonance.start(now);
     noiseSource.stop(now + duration);

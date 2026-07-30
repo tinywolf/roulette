@@ -7,22 +7,35 @@ function installAudioContextMock() {
   const bufferSources: Array<{
     buffer: AudioBuffer | null;
     loop: boolean;
+    addEventListener: ReturnType<typeof vi.fn>;
     connect: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
     start: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
   }> = [];
-  const createOscillator = vi.fn(() => ({
-    type: "sine",
-    frequency: { setValueAtTime: vi.fn() },
-    connect: vi.fn(),
-    start,
-    stop: vi.fn(),
-  }));
+  const oscillatorNodes: Array<{
+    disconnect: ReturnType<typeof vi.fn>;
+  }> = [];
+  const createOscillator = vi.fn(() => {
+    const oscillator = {
+      type: "sine",
+      frequency: { setValueAtTime: vi.fn() },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      start,
+      stop: vi.fn(),
+    };
+    oscillatorNodes.push(oscillator);
+    return oscillator;
+  });
   const gainParams: Array<{
     setValueAtTime: ReturnType<typeof vi.fn>;
     exponentialRampToValueAtTime: ReturnType<typeof vi.fn>;
     linearRampToValueAtTime: ReturnType<typeof vi.fn>;
     cancelScheduledValues: ReturnType<typeof vi.fn>;
+  }> = [];
+  const gainNodes: Array<{
+    disconnect: ReturnType<typeof vi.fn>;
   }> = [];
   const createGain = vi.fn(() => {
     const gain = {
@@ -33,28 +46,41 @@ function installAudioContextMock() {
     };
     gainParams.push(gain);
 
-    return {
+    const node = {
       gain,
       connect: vi.fn(),
+      disconnect: vi.fn(),
     };
+    gainNodes.push(node);
+    return node;
   });
   const createBufferSource = vi.fn(() => {
     const source = {
       buffer: null as AudioBuffer | null,
       loop: false,
+      addEventListener: vi.fn(),
       connect: vi.fn(),
+      disconnect: vi.fn(),
       start: vi.fn(),
       stop: vi.fn(),
     };
     bufferSources.push(source);
     return source;
   });
-  const createBiquadFilter = vi.fn(() => ({
-    type: "lowpass",
-    frequency: { setValueAtTime: vi.fn() },
-    Q: { setValueAtTime: vi.fn() },
-    connect: vi.fn(),
-  }));
+  const filterNodes: Array<{
+    disconnect: ReturnType<typeof vi.fn>;
+  }> = [];
+  const createBiquadFilter = vi.fn(() => {
+    const filter = {
+      type: "lowpass",
+      frequency: { setValueAtTime: vi.fn() },
+      Q: { setValueAtTime: vi.fn() },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    };
+    filterNodes.push(filter);
+    return filter;
+  });
   const createBuffer = vi.fn(
     (_channels: number, frameCount: number) => {
       const channel = new Float32Array(frameCount);
@@ -96,9 +122,13 @@ function installAudioContextMock() {
   return {
     bufferSources,
     close,
+    createBuffer,
     createBufferSource,
     createOscillator,
+    filterNodes,
+    gainNodes,
     gainParams,
+    oscillatorNodes,
     start,
   };
 }
@@ -182,6 +212,86 @@ describe("SoundController", () => {
     vi.advanceTimersByTime(2_000);
     expect(createBufferSource).toHaveBeenCalledTimes(createdBeforeMute);
 
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("혼합을 다시 시작해도 기존 노이즈 버퍼를 재사용한다", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const { createBuffer } = installAudioContextMock();
+    const controller = new SoundController();
+    controller.setEnabled(true);
+
+    await controller.startMixing(45);
+    controller.stopMixing();
+    await controller.startMixing(20);
+
+    expect(createBuffer).toHaveBeenCalledTimes(2);
+
+    controller.dispose();
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("공이 1개 이하이면 충돌음을 멈추고 2개 이상에서 재개한다", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const { createBufferSource, createOscillator } =
+      installAudioContextMock();
+    const controller = new SoundController();
+    controller.setEnabled(true);
+
+    await controller.startMixing(1);
+    vi.advanceTimersByTime(2_000);
+
+    expect(createBufferSource).toHaveBeenCalledTimes(1);
+    expect(createOscillator).not.toHaveBeenCalled();
+
+    await controller.startMixing(2);
+    vi.advanceTimersByTime(600);
+
+    expect(createBufferSource.mock.calls.length).toBeGreaterThan(1);
+    expect(createOscillator).toHaveBeenCalled();
+
+    const createdBeforeSingleBall = createBufferSource.mock.calls.length;
+    await controller.startMixing(1);
+    vi.advanceTimersByTime(2_000);
+
+    expect(createBufferSource).toHaveBeenCalledTimes(createdBeforeSingleBall);
+
+    controller.dispose();
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("충돌음이 끝나면 관련 AudioNode 연결을 모두 해제한다", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const {
+      bufferSources,
+      filterNodes,
+      gainNodes,
+      oscillatorNodes,
+    } = installAudioContextMock();
+    const controller = new SoundController();
+    controller.setEnabled(true);
+
+    await controller.startMixing(45);
+    vi.advanceTimersByTime(150);
+
+    const collisionSource = bufferSources[1];
+    const endedListener = collisionSource.addEventListener.mock.calls[0][1] as (
+      event: Event,
+    ) => void;
+    endedListener(new Event("ended"));
+
+    expect(collisionSource.disconnect).toHaveBeenCalledTimes(1);
+    expect(filterNodes[1].disconnect).toHaveBeenCalledTimes(1);
+    expect(oscillatorNodes[0].disconnect).toHaveBeenCalledTimes(1);
+    expect(gainNodes[1].disconnect).toHaveBeenCalledTimes(1);
+
+    controller.dispose();
     randomSpy.mockRestore();
     vi.useRealTimers();
   });

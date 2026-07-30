@@ -1,6 +1,6 @@
 ---
 revision: a3eb60a
-updated_at: 2026-07-30T11:06:31+09:00
+updated_at: 2026-07-30T13:22:11+09:00
 ---
 
 # Architecture
@@ -150,7 +150,7 @@ sequenceDiagram
 
 `App`은 Canvas와 같은 `shouldMixMachine` 판정을 사용해 효과음이 활성화된 수동 `ready`·`mixing` 또는 자동 `running` 상태에서 `SoundController.startMixing(remainingBallCount)`을 호출한다. 완료·오류·설정 복귀와 음소거에서는 `stopMixing()`으로 전환한다. 공 하나가 빠질 때마다 남은 공 수만 갱신하고 이미 실행 중인 바람 루프를 다시 만들지 않는다.
 
-`SoundController`는 저주파 노이즈 버퍼를 필터링한 바람음을 하나의 반복 `AudioBufferSourceNode`로 유지한다. 짧은 노이즈와 삼각파 공명을 조합한 충돌음은 별도 타이머로 불규칙하게 생성하며, 남은 공이 많을수록 평균 간격을 줄인다. 이 타이머에서 사용하는 `Math.random()`은 음향 변화에만 쓰고 `DrawEngine`, Web Crypto 난수와 자동 일정에는 전달하지 않는다.
+`SoundController`는 저주파 노이즈 버퍼를 필터링한 바람음을 하나의 반복 `AudioBufferSourceNode`로 유지한다. 바람·충돌 노이즈 버퍼는 같은 `AudioContext` 수명 동안 재사용한다. 짧은 노이즈와 삼각파 공명을 조합한 충돌음은 별도 타이머로 불규칙하게 생성하며, 남은 공이 많을수록 평균 간격을 줄인다. 남은 공이 1개 이하이면 예약된 충돌 타이머를 취소하고 2개 이상으로 늘어나면 다시 예약한다. 각 충돌이 끝나면 해당 소스·필터·공명·게인 노드 연결을 즉시 해제해 장시간 혼합의 GC 부담을 제한한다. 이 타이머에서 사용하는 `Math.random()`은 음향 변화에만 쓰고 `DrawEngine`, Web Crypto 난수와 자동 일정에는 전달하지 않는다.
 
 ### 재추첨과 설정 복귀
 
