@@ -27,8 +27,8 @@ export type FinalSettlingTransition = {
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 export const SETTLING_SOFT_LIMIT_MS = 3_000;
-export const SETTLING_FINALIZATION_START_MS = 5_000;
-export const SETTLING_HARD_LIMIT_MS = 6_000;
+export const SETTLING_FINALIZATION_START_MS = 4_000;
+export const SETTLING_HARD_LIMIT_MS = 5_000;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
