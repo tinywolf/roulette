@@ -45,3 +45,8 @@ Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
 
 vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
 vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+Object.defineProperty(Element.prototype, "scrollIntoView", {
+  configurable: true,
+  value: vi.fn(),
+});

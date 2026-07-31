@@ -26,6 +26,8 @@ describe("App setup", () => {
   });
 
   it("입력 검증 후 추첨을 시작한다", () => {
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
     render(<App />);
     const startButton = screen.getByRole("button", { name: /추첨 시작/ });
     const input = screen.getByLabelText("공 이름");
@@ -55,6 +57,11 @@ describe("App setup", () => {
     )
       .toBeInTheDocument();
     expect(screen.getByText("0 / 2")).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "auto",
+      block: "start",
+    });
   });
 
   it("입력 원문을 저장하고 입력만 비운다", () => {

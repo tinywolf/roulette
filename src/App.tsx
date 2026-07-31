@@ -81,6 +81,7 @@ function App() {
   const [visualResult, setVisualResult] = useState<DrawResult | null>(null);
   const previousResultCount = useRef(0);
   const hasMountedSetupOptions = useRef(false);
+  const drawPageRef = useRef<HTMLDivElement>(null);
   const soundController = useRef<SoundController | null>(null);
   soundController.current ??= new SoundController();
 
@@ -106,6 +107,17 @@ function App() {
   const isMachineMixing = session ? shouldMixMachine(session) : false;
   const isMachineSettling =
     session?.phase === "completed" && remainingBalls.length > 0;
+
+  useEffect(() => {
+    if (isSetup) {
+      return;
+    }
+
+    drawPageRef.current?.scrollIntoView({
+      behavior: "auto",
+      block: "start",
+    });
+  }, [isSetup]);
 
   const handleCanvasError = useCallback((message: string) => {
     setNotice((current) =>
@@ -477,7 +489,7 @@ function App() {
           />
         </div>
       ) : (
-        <div className="draw-page">
+        <div className="draw-page" ref={drawPageRef}>
           <div className="draw-page-heading">
             <div>
               <p className="section-kicker">
