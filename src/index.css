@@ -1115,15 +1115,62 @@ input:focus-visible {
   margin: 0;
 }
 
+.result-actions {
+  display: grid;
+  margin-top: auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .button--copy {
   width: 100%;
-  margin-top: auto;
   background: var(--navy);
   color: #fff;
 }
 
 .button--copy:not(:disabled):hover {
   background: #18243b;
+}
+
+.button--image-save {
+  width: 100%;
+  border: 1px solid var(--navy);
+  background: #fff;
+  color: var(--navy);
+}
+
+.button--image-save:not(:disabled):hover {
+  background: #f0f3f8;
+}
+
+.result-capture-host {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  pointer-events: none;
+}
+
+.results-card--capture {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: #fff;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.results-card--capture .result-list {
+  overflow: visible;
+  max-height: none;
+  flex: none;
+}
+
+.results-card--capture .result-item {
+  animation: none;
+}
+
+.results-card--capture .result-actions {
+  display: none;
 }
 
 @keyframes pulse {

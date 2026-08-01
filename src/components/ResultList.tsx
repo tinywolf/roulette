@@ -1,5 +1,6 @@
-import type { CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import type { Ball, DrawResult } from "../domain/types";
+import { downloadResultImage } from "../services/resultImage";
 
 type ResultListProps = {
   results: DrawResult[];
@@ -8,6 +9,7 @@ type ResultListProps = {
   candidateCount: number;
   completed: boolean;
   onCopy: () => void;
+  onImageSaveResult: (succeeded: boolean) => void;
 };
 
 /** 추첨 순서와 실제 공의 색상을 함께 보여주는 결과 목록이다. */
@@ -18,11 +20,40 @@ export function ResultList({
   candidateCount,
   completed,
   onCopy,
+  onImageSaveResult,
 }: ResultListProps) {
+  const cardRef = useRef<HTMLElement>(null);
+  const [isSavingImage, setIsSavingImage] = useState(false);
   const ballColorById = new Map(balls.map((ball) => [ball.id, ball.color]));
 
+  const handleImageSave = async () => {
+    if (
+      !cardRef.current ||
+      !completed ||
+      results.length === 0 ||
+      isSavingImage
+    ) {
+      return;
+    }
+
+    setIsSavingImage(true);
+
+    try {
+      await downloadResultImage(cardRef.current);
+      onImageSaveResult(true);
+    } catch {
+      onImageSaveResult(false);
+    } finally {
+      setIsSavingImage(false);
+    }
+  };
+
   return (
-    <section className="results-card" aria-labelledby="results-title">
+    <section
+      className="results-card"
+      aria-labelledby="results-title"
+      ref={cardRef}
+    >
       <div className="results-heading">
         <div>
           <p className="section-kicker">DRAW ORDER</p>
@@ -71,14 +102,25 @@ export function ResultList({
         </div>
       ) : null}
 
-      <button
-        className="button button--copy"
-        type="button"
-        onClick={onCopy}
-        disabled={results.length === 0}
-      >
-        결과 복사
-      </button>
+      <div className="result-actions">
+        <button
+          className="button button--copy"
+          type="button"
+          onClick={onCopy}
+          disabled={!completed || results.length === 0}
+        >
+          결과 복사
+        </button>
+        <button
+          className="button button--image-save"
+          type="button"
+          onClick={() => void handleImageSave()}
+          disabled={!completed || results.length === 0 || isSavingImage}
+          aria-busy={isSavingImage}
+        >
+          {isSavingImage ? "이미지 만드는 중…" : "이미지 저장"}
+        </button>
+      </div>
     </section>
   );
 }

@@ -258,7 +258,11 @@ function App() {
   };
 
   const handleCopy = async () => {
-    if (!session || session.results.length === 0) {
+    if (
+      !session ||
+      session.phase !== "completed" ||
+      session.results.length === 0
+    ) {
       return;
     }
 
@@ -272,6 +276,14 @@ function App() {
     } catch {
       setNotice({ type: "error", text: "결과를 복사하지 못했습니다." });
     }
+  };
+
+  const handleImageSaveResult = (succeeded: boolean) => {
+    setNotice(
+      succeeded
+        ? { type: "success", text: "추첨 결과 이미지를 저장했습니다." }
+        : { type: "error", text: "결과 이미지를 저장하지 못했습니다." },
+    );
   };
 
   useEffect(() => {
@@ -545,6 +557,7 @@ function App() {
               candidateCount={session.balls.length}
               completed={session.phase === "completed"}
               onCopy={handleCopy}
+              onImageSaveResult={handleImageSaveResult}
             />
           </div>
         </div>

@@ -470,6 +470,8 @@ describe("manual draw flow", () => {
     });
 
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "결과 복사" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "이미지 저장" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
     expect(screen.getByRole("heading", { name: "어떤 공을 넣어볼까요?" }))
       .toBeInTheDocument();
@@ -487,6 +489,10 @@ describe("manual draw flow", () => {
     render(<App />);
     fireEvent.change(screen.getByLabelText("공 이름"), {
       target: { value: "민지, 준호" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
+    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
+      target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
     fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
@@ -535,6 +541,8 @@ describe("manual draw flow", () => {
       .toBeInTheDocument();
     expect(screen.getByText("선택한 1개의 공을 모두 뽑았어요."))
       .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "결과 복사" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "이미지 저장" })).toBeEnabled();
     expect(screen.getAllByLabelText(/남은 공 2개/)).toHaveLength(2);
     vi.useRealTimers();
   });
@@ -544,6 +552,10 @@ describe("manual draw flow", () => {
     render(<App />);
     fireEvent.change(screen.getByLabelText("공 이름"), {
       target: { value: "민지, 준호" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
+    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
+      target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
     fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
