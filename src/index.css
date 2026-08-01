@@ -1051,9 +1051,9 @@ input:focus-visible {
 
 .result-item {
   display: flex;
-  min-height: 54px;
+  min-height: 68px;
   margin-bottom: 8px;
-  padding: 9px 12px;
+  padding: 7px 12px;
   border: 1px solid #e5e9f1;
   border-radius: 14px;
   align-items: center;
@@ -1076,17 +1076,39 @@ input:focus-visible {
   place-items: center;
 }
 
-.result-name {
+.result-ball {
+  display: grid;
   overflow: hidden;
-  flex: 1;
-  color: #344056;
-  font-size: 0.88rem;
-  font-weight: 700;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border: 2px solid rgb(255 255 255 / 72%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 25%,
+    #fff 0%,
+    var(--result-ball-color) 22%,
+    var(--result-ball-color) 100%
+  );
+  box-shadow: 0 4px 9px rgb(25 35 60 / 24%);
+  place-items: center;
+}
+
+.result-ball__name {
+  display: block;
+  overflow: hidden;
+  width: 72%;
+  color: #172033;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .result-latest {
+  margin-left: auto;
   padding: 3px 6px;
   border-radius: 999px;
   background: #ffe8e7;

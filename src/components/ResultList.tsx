@@ -1,20 +1,26 @@
-import type { DrawResult } from "../domain/types";
+import type { CSSProperties } from "react";
+import type { Ball, DrawResult } from "../domain/types";
 
 type ResultListProps = {
   results: DrawResult[];
+  balls: Ball[];
   totalCount: number;
   candidateCount: number;
   completed: boolean;
   onCopy: () => void;
 };
 
+/** 추첨 순서와 실제 공의 색상을 함께 보여주는 결과 목록이다. */
 export function ResultList({
   results,
+  balls,
   totalCount,
   candidateCount,
   completed,
   onCopy,
 }: ResultListProps) {
+  const ballColorById = new Map(balls.map((ball) => [ball.id, ball.color]));
+
   return (
     <section className="results-card" aria-labelledby="results-title">
       <div className="results-heading">
@@ -37,7 +43,17 @@ export function ResultList({
           {results.map((result) => (
             <li key={result.ballId} className="result-item">
               <span className="result-order">{result.order}</span>
-              <span className="result-name">{result.name}</span>
+              <span
+                className="result-ball"
+                style={
+                  {
+                    "--result-ball-color": ballColorById.get(result.ballId),
+                  } as CSSProperties
+                }
+                title={result.name}
+              >
+                <span className="result-ball__name">{result.name}</span>
+              </span>
               {result.order === results.length && !completed ? (
                 <span className="result-latest">NEW</span>
               ) : null}

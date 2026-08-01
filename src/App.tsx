@@ -540,6 +540,7 @@ function App() {
             </section>
             <ResultList
               results={session.results}
+              balls={session.balls}
               totalCount={session.drawCount}
               candidateCount={session.balls.length}
               completed={session.phase === "completed"}
