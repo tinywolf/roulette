@@ -41,19 +41,17 @@ export function ResultList({
       ) : (
         <ol className="result-list">
           {results.map((result) => (
-            <li key={result.ballId} className="result-item">
+            <li
+              key={result.ballId}
+              className="result-item"
+              style={
+                {
+                  "--result-color": ballColorById.get(result.ballId),
+                } as CSSProperties
+              }
+            >
               <span className="result-order">{result.order}</span>
-              <span
-                className="result-ball"
-                style={
-                  {
-                    "--result-ball-color": ballColorById.get(result.ballId),
-                  } as CSSProperties
-                }
-                title={result.name}
-              >
-                <span className="result-ball__name">{result.name}</span>
-              </span>
+              <span className="result-name">{result.name}</span>
               {result.order === results.length && !completed ? (
                 <span className="result-latest">NEW</span>
               ) : null}

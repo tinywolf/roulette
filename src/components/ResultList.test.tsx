@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ResultList } from "./ResultList";
 
 describe("ResultList", () => {
-  it("추첨된 이름을 실제 공 색상의 공 스타일로 표시한다", () => {
+  it("개별 결과 테두리에 실제 공 색상을 적용한다", () => {
     const { container } = render(
       <ResultList
         results={[
@@ -25,12 +25,13 @@ describe("ResultList", () => {
       />,
     );
 
-    const resultBall = container.querySelector<HTMLElement>(".result-ball");
+    const resultItem = container.querySelector<HTMLElement>(".result-item");
 
-    expect(resultBall).toHaveTextContent("준호");
-    expect(resultBall?.style.getPropertyValue("--result-ball-color")).toBe(
+    expect(resultItem).toHaveTextContent("준호");
+    expect(resultItem?.style.getPropertyValue("--result-color")).toBe(
       "#4dabf7",
     );
+    expect(container.querySelector(".result-ball")).not.toBeInTheDocument();
     expect(screen.queryByText("민지")).not.toBeInTheDocument();
   });
 });
