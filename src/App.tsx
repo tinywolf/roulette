@@ -6,6 +6,11 @@ import { ResultList } from "./components/ResultList";
 import { SetupPanel } from "./components/SetupPanel";
 import { SoundToggle } from "./components/SoundToggle";
 import {
+  ToastStack,
+  type ToastMessage,
+  type ToastType,
+} from "./components/ToastStack";
+import {
   beginManualDraw,
   completeManualDraw,
   createDrawSession,
@@ -35,12 +40,25 @@ import {
 } from "./services/setupOptionsStorage";
 import { SoundController } from "./services/soundController";
 
-type Notice = {
-  type: "success" | "warning" | "error";
-  text: string;
-};
-
 const MANUAL_DRAW_DURATION = 2_400;
+const TOAST_DURATION = 3_000;
+const TOAST_KEYS = {
+  nameLoad: "name-storage-load",
+  nameSave: "name-storage-save",
+  setupLoad: "setup-storage-load",
+  setupSave: "setup-storage-save",
+  canvas: "canvas-renderer",
+  drawError: "draw-error",
+  copy: "copy-result",
+  image: "save-result-image",
+} as const;
+
+type ToastInput = {
+  key: string;
+  type: ToastType;
+  text: string;
+  duration: number | null;
+};
 
 export function shouldMixMachine(
   session: Pick<DrawSession, "mode" | "phase">,
@@ -55,8 +73,10 @@ export function shouldMixMachine(
 function App() {
   const [initialNameStorage] = useState(() => loadRawInput());
   const [initialOptionsStorage] = useState(() => loadSetupOptions());
-  const initialWarning =
-    initialNameStorage.warning ?? initialOptionsStorage.warning;
+  const initialToastCount =
+    Number(Boolean(initialNameStorage.warning)) +
+    Number(Boolean(initialOptionsStorage.warning));
+  const nextToastId = useRef(initialToastCount + 1);
   const [rawInput, setRawInput] = useState(initialNameStorage.value);
   const [mode, setMode] = useState<DrawMode>(
     initialOptionsStorage.value.mode,
@@ -73,11 +93,31 @@ function App() {
   const [renderMode, setRenderMode] = useState<RenderMode>(
     initialOptionsStorage.value.renderMode,
   );
-  const [notice, setNotice] = useState<Notice | null>(() =>
-    initialWarning
-      ? { type: "warning", text: initialWarning }
-      : null,
-  );
+  const [toasts, setToasts] = useState<ToastMessage[]>(() => {
+    const initialToasts: ToastMessage[] = [];
+
+    if (initialNameStorage.warning) {
+      initialToasts.push({
+        id: initialToasts.length + 1,
+        key: TOAST_KEYS.nameLoad,
+        type: "warning",
+        text: initialNameStorage.warning,
+        duration: null,
+      });
+    }
+
+    if (initialOptionsStorage.warning) {
+      initialToasts.push({
+        id: initialToasts.length + 1,
+        key: TOAST_KEYS.setupLoad,
+        type: "warning",
+        text: initialOptionsStorage.warning,
+        duration: null,
+      });
+    }
+
+    return initialToasts;
+  });
   const [visualResult, setVisualResult] = useState<DrawResult | null>(null);
   const previousResultCount = useRef(0);
   const hasMountedSetupOptions = useRef(false);
@@ -108,6 +148,27 @@ function App() {
   const isMachineSettling =
     session?.phase === "completed" && remainingBalls.length > 0;
 
+  const showToast = useCallback((toast: ToastInput) => {
+    const nextToast: ToastMessage = {
+      ...toast,
+      id: nextToastId.current,
+    };
+    nextToastId.current += 1;
+
+    setToasts((current) => [
+      ...current.filter((item) => item.key !== toast.key),
+      nextToast,
+    ]);
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }, []);
+
+  const dismissToastByKey = useCallback((key: string) => {
+    setToasts((current) => current.filter((toast) => toast.key !== key));
+  }, []);
+
   useEffect(() => {
     if (isSetup) {
       return;
@@ -119,20 +180,31 @@ function App() {
     });
   }, [isSetup]);
 
-  const handleCanvasError = useCallback((message: string) => {
-    setNotice((current) =>
-      current?.text === message ? current : { type: "warning", text: message },
-    );
-  }, []);
+  const handleCanvasError = useCallback(
+    (message: string) => {
+      showToast({
+        key: TOAST_KEYS.canvas,
+        type: "warning",
+        text: message,
+        duration: null,
+      });
+    },
+    [showToast],
+  );
 
   const handleRawInputChange = (value: string) => {
     setRawInput(value);
     const result = saveRawInput(value);
 
     if (result.warning) {
-      setNotice({ type: "warning", text: result.warning });
-    } else if (notice?.type === "warning") {
-      setNotice(null);
+      showToast({
+        key: TOAST_KEYS.nameSave,
+        type: "warning",
+        text: result.warning,
+        duration: null,
+      });
+    } else {
+      dismissToastByKey(TOAST_KEYS.nameSave);
     }
   };
 
@@ -140,9 +212,16 @@ function App() {
     setRawInput("");
     const result = clearRawInput();
 
-    setNotice(
-      result.warning ? { type: "warning", text: result.warning } : null,
-    );
+    if (result.warning) {
+      showToast({
+        key: TOAST_KEYS.nameSave,
+        type: "warning",
+        text: result.warning,
+        duration: null,
+      });
+    } else {
+      dismissToastByKey(TOAST_KEYS.nameSave);
+    }
   };
 
   const handleStart = () => {
@@ -165,10 +244,15 @@ function App() {
 
     if (nextSession.error) {
       soundController.current?.stopMixing();
-      setNotice({ type: "error", text: nextSession.error });
+      showToast({
+        key: TOAST_KEYS.drawError,
+        type: "error",
+        text: nextSession.error,
+        duration: null,
+      });
     } else {
       void soundController.current?.startMixing(nextSession.balls.length);
-      setNotice(null);
+      dismissToastByKey(TOAST_KEYS.drawError);
     }
   };
 
@@ -222,7 +306,8 @@ function App() {
     setSession(resetDrawSession());
     setVisualResult(null);
     previousResultCount.current = 0;
-    setNotice(null);
+    dismissToastByKey(TOAST_KEYS.drawError);
+    dismissToastByKey(TOAST_KEYS.canvas);
   };
 
   const handleRedraw = useCallback(() => {
@@ -234,12 +319,30 @@ function App() {
     previousResultCount.current = 0;
     setVisualResult(null);
     setSession(nextSession);
-    setNotice(
-      nextSession.error
-        ? { type: "error", text: nextSession.error }
-        : null,
-    );
-  }, [session]);
+    dismissToastByKey(TOAST_KEYS.canvas);
+
+    if (nextSession.error) {
+      showToast({
+        key: TOAST_KEYS.drawError,
+        type: "error",
+        text: nextSession.error,
+        duration: null,
+      });
+    } else {
+      dismissToastByKey(TOAST_KEYS.drawError);
+    }
+  }, [dismissToastByKey, session, showToast]);
+
+  const handleRenderModeChange = useCallback(
+    (nextMode: RenderMode) => {
+      setRenderMode(nextMode);
+
+      if (nextMode === "2d") {
+        dismissToastByKey(TOAST_KEYS.canvas);
+      }
+    },
+    [dismissToastByKey],
+  );
 
   const handleSoundToggle = () => {
     setSoundEnabled((enabled) => {
@@ -272,18 +375,31 @@ function App() {
       }
 
       await navigator.clipboard.writeText(formatResults(session.results));
-      setNotice({ type: "success", text: "추첨 결과를 복사했습니다." });
+      showToast({
+        key: TOAST_KEYS.copy,
+        type: "success",
+        text: "추첨 결과를 복사했습니다.",
+        duration: TOAST_DURATION,
+      });
     } catch {
-      setNotice({ type: "error", text: "결과를 복사하지 못했습니다." });
+      showToast({
+        key: TOAST_KEYS.copy,
+        type: "error",
+        text: "결과를 복사하지 못했습니다.",
+        duration: TOAST_DURATION,
+      });
     }
   };
 
   const handleImageSaveResult = (succeeded: boolean) => {
-    setNotice(
-      succeeded
-        ? { type: "success", text: "추첨 결과 이미지를 저장했습니다." }
-        : { type: "error", text: "결과 이미지를 저장하지 못했습니다." },
-    );
+    showToast({
+      key: TOAST_KEYS.image,
+      type: succeeded ? "success" : "error",
+      text: succeeded
+        ? "추첨 결과 이미지를 저장했습니다."
+        : "결과 이미지를 저장하지 못했습니다.",
+      duration: TOAST_DURATION,
+    });
   };
 
   useEffect(() => {
@@ -321,9 +437,24 @@ function App() {
     });
 
     if (result.warning) {
-      setNotice({ type: "warning", text: result.warning });
+      showToast({
+        key: TOAST_KEYS.setupSave,
+        type: "warning",
+        text: result.warning,
+        duration: null,
+      });
+    } else {
+      dismissToastByKey(TOAST_KEYS.setupSave);
     }
-  }, [customDrawCount, drawCountMode, mode, renderMode, soundEnabled]);
+  }, [
+    customDrawCount,
+    dismissToastByKey,
+    drawCountMode,
+    mode,
+    renderMode,
+    showToast,
+    soundEnabled,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -414,9 +545,14 @@ function App() {
 
   useEffect(() => {
     if (session?.phase === "error" && session.error) {
-      setNotice({ type: "error", text: session.error });
+      showToast({
+        key: TOAST_KEYS.drawError,
+        type: "error",
+        text: session.error,
+        duration: null,
+      });
     }
-  }, [session]);
+  }, [session, showToast]);
 
   return (
     <main className={isSetup ? "app-shell app-shell--setup" : "app-shell"}>
@@ -431,28 +567,14 @@ function App() {
           <div className="utility-controls">
             <RenderModeToggle
               mode={renderMode}
-              onChange={setRenderMode}
+              onChange={handleRenderModeChange}
             />
             <SoundToggle enabled={soundEnabled} onToggle={handleSoundToggle} />
           </div>
         ) : null}
       </header>
 
-      {notice ? (
-        <div
-          className={`notice notice--${notice.type}`}
-          role={notice.type === "error" ? "alert" : "status"}
-        >
-          <span aria-hidden="true">
-            {notice.type === "success"
-              ? "✓"
-              : notice.type === "warning"
-                ? "!"
-                : "×"}
-          </span>
-          {notice.text}
-        </div>
-      ) : null}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
       {isSetup ? (
         <div className="setup-layout">
@@ -495,7 +617,7 @@ function App() {
             onDrawCountModeChange={setDrawCountMode}
             onCustomDrawCountChange={setCustomDrawCount}
             onSoundToggle={handleSoundToggle}
-            onRenderModeChange={setRenderMode}
+            onRenderModeChange={handleRenderModeChange}
             onClear={handleClear}
             onStart={handleStart}
           />

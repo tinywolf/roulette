@@ -279,6 +279,29 @@ describe("App setup", () => {
       .toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByLabelText("뽑을 공 개수")).not.toBeInTheDocument();
   });
+
+  it("서로 다른 시스템 경고를 쌓아 두고 개별적으로 닫는다", () => {
+    localStorage.setItem("lottery-draw:names:v1", "{bad json");
+    localStorage.setItem("lottery-draw:setup-options:v1", "{bad json");
+    render(<App />);
+
+    expect(screen.getAllByRole("status")).toHaveLength(2);
+    expect(screen.getByText("저장된 이름 목록을 불러오지 못했습니다."))
+      .toBeInTheDocument();
+    expect(screen.getByText("저장된 설정을 불러오지 못했습니다."))
+      .toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "저장된 이름 목록을 불러오지 못했습니다. 알림 닫기",
+      }),
+    );
+
+    expect(screen.queryByText("저장된 이름 목록을 불러오지 못했습니다."))
+      .not.toBeInTheDocument();
+    expect(screen.getByText("저장된 설정을 불러오지 못했습니다."))
+      .toBeInTheDocument();
+  });
 });
 
 describe("manual draw flow", () => {
@@ -511,9 +534,10 @@ describe("manual draw flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "결과 복사" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "결과를 복사하지 못했습니다.",
-      );
+      const toast = screen.getByRole("alert");
+
+      expect(toast).toHaveTextContent("결과를 복사하지 못했습니다.");
+      expect(toast).toHaveClass("toast", "toast--error");
     });
     expect(screen.queryByRole("textbox", { name: /수동 복사/ })).not
       .toBeInTheDocument();
@@ -573,9 +597,12 @@ describe("manual draw flow", () => {
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/^1\. /));
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "추첨 결과를 복사했습니다.",
-      );
+      const toast = screen
+        .getByText("추첨 결과를 복사했습니다.")
+        .closest(".toast");
+
+      expect(toast).toHaveTextContent("추첨 결과를 복사했습니다.");
+      expect(toast).toHaveClass("toast", "toast--success");
     });
   });
 });
