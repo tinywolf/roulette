@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { handleMcpRequest } from "../../api/mcp.js";
 
 const HOST = "127.0.0.1";
-const PORT = 3_000;
+const PORT = Number.parseInt(process.env.MCP_PORT ?? "3000", 10);
 
 /** Vercel의 Web Request 진입점을 배포 없이 HTTP로 검증하는 최소 로컬 어댑터다. */
 const server = createServer(async (incoming, outgoing) => {

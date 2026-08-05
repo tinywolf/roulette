@@ -3,7 +3,7 @@
 같은 추첨 규칙을 두 가지 방식으로 제공하는 프로젝트입니다.
 
 - 정적 웹앱: 브라우저에서 2D·3D 애니메이션과 함께 수동 또는 자동 추첨
-- Remote MCP: 에이전트가 옵션을 모두 확인한 뒤 텍스트 결과를 즉시 반환하는 공개·stateless 도구
+- Remote MCP: 에이전트가 옵션을 모두 확인한 뒤 텍스트 결과와, 지원 호스트에서는 룰렛 UI를 반환하는 공개·stateless 도구
 
 추첨 결과는 Web Crypto API와 거부 샘플링을 이용한 Fisher–Yates 순열로 결정합니다. 웹 애니메이션은 이미 결정된 결과의 표현만 담당합니다.
 
@@ -16,7 +16,7 @@
 - 전체 또는 지정 개수 비복원 추첨
 - 웹의 수동·자동 추첨, 2D Canvas·3D WebGL 연출, 효과음과 결과 복사
 - 웹 입력·설정을 브라우저 `localStorage`에 보존
-- MCP `draw_roulette` 도구의 텍스트 및 구조화 결과
+- MCP `draw_roulette` 도구의 텍스트·구조화 결과와 MCP Apps 룰렛 애니메이션
 - 웹·MCP 목적별 빌드와 테스트 격리
 
 ## 입력 예시
@@ -40,7 +40,7 @@
 |---|---|
 | 공통 코어 | TypeScript, Web Crypto API |
 | 정적 웹 | React 19, Vite, Canvas 2D, WebGL, Web Audio |
-| Remote MCP | MCP TypeScript SDK 2, `mcp-handler`, Zod, Vercel Function |
+| Remote MCP | MCP TypeScript SDK 2, MCP Apps, MCP-UI, `mcp-handler`, Zod, Vercel Function |
 | 테스트 | Vitest, Testing Library, jsdom |
 | 웹 저장 | 브라우저 `localStorage` |
 
@@ -74,6 +74,12 @@ npm exec -- vite preview
 npm run dev:mcp
 ```
 
+이 명령은 자체 포함 MCP App 리소스를 먼저 빌드한 뒤 서버를 실행합니다. 3000번 포트를 사용 중이면 다른 포트를 지정할 수 있습니다.
+
+```bash
+MCP_PORT=3100 npm run dev:mcp
+```
+
 서버가 준비되면 다음 주소가 출력됩니다.
 
 ```text
@@ -104,6 +110,8 @@ codex mcp list
 
 등록 후 Codex 앱·CLI·IDE 확장을 재시작하거나 새 작업을 시작합니다. `127.0.0.1`은 같은 컴퓨터에서 실행되는 에이전트만 접근할 수 있으며, Codex Cloud나 별도 컨테이너에서는 이 주소로 호스트의 MCP 서버에 연결할 수 없습니다.
 
+MCP Apps 확장을 지원하는 호스트는 같은 `draw_roulette` 호출에서 룰렛 애니메이션을 렌더링합니다. 확장을 지원하지 않는 호스트도 텍스트와 `structuredContent` 결과를 그대로 받으므로 추첨 기능은 유지됩니다. Codex는 현재 공개 호환 호스트 목록에 포함되어 있지 않아 로컬 등록 시 텍스트 결과가 표시되는 것을 정상 fallback으로 봅니다.
+
 ## 테스트와 검증
 
 전체 제품 경계와 회귀를 한 번에 검증합니다.
@@ -117,13 +125,14 @@ npm run verify
 ```bash
 npm run test:core
 npm run test:web
+npm run test:mcp-app
 npm run test:mcp
 npm run build:web
 npm run build:mcp
 npm run verify:boundaries
 ```
 
-`verify:boundaries`는 공통 코어의 역방향 의존, 웹과 MCP의 교차 import, 안전하지 않은 난수, MCP 애플리케이션 로그와 웹 번들의 MCP 코드 혼입을 검사합니다.
+`verify:boundaries`는 공통 코어의 역방향 의존, 웹·MCP App·MCP의 교차 import, 안전하지 않은 난수, MCP 계층의 로그·외부 요청과 웹 번들의 MCP 코드 혼입을 검사합니다.
 
 Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](docs/feature/remote-mcp/DEVELOPMENT.md)를 따릅니다. 이번 작업 범위에는 Vercel Preview·Production 배포가 포함되지 않습니다.
 
@@ -140,16 +149,18 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 ├── src/
 │   ├── core/                    # 양쪽에서 재사용하는 파싱·난수·즉시 추첨
 │   ├── web/                     # React·렌더링·저장·오디오 전용 코드
-│   └── mcp/                     # 도구 계약·HTTP 정책·오류·텍스트 표현
+│   ├── mcp-apps/                # MCP Apps 전용 UI와 생성 리소스
+│   └── mcp/                     # 도구 계약·UI 리소스 등록·HTTP 정책·표현
 ├── tools/remote-mcp/            # 로컬 서버와 경계·Vercel 검증 도구
 ├── vercel-static/               # Vercel에 웹앱을 싣지 않는 빈 정적 출력
 ├── tsconfig.web.json
 ├── tsconfig.mcp.json
+├── tsconfig.mcp-app.json
 ├── vercel.json
 └── vite.config.ts
 ```
 
-의존성 방향은 `web → core ← mcp ← api`입니다. `web`과 `mcp`는 서로 import하지 않으며 `core`는 React, DOM, MCP SDK 또는 Vercel API를 참조하지 않습니다.
+의존성 방향은 `web → core ← mcp ← api`이며 MCP App UI는 별도로 빌드됩니다. MCP 서버는 생성된 단일 HTML 리소스만 포함하고 UI 런타임 소스는 import하지 않습니다. `web`과 `mcp`는 서로 import하지 않으며 `core`는 React, DOM, MCP SDK 또는 Vercel API를 참조하지 않습니다.
 
 ## 데이터와 개인정보
 
@@ -170,6 +181,6 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 ## 현재 제한사항
 
 - 후보는 최대 45개입니다.
-- MCP 1차 버전은 텍스트 결과만 제공하며 MCP Apps 애니메이션은 후속 범위입니다.
+- MCP Apps UI는 호스트가 확장을 구현한 경우에만 표시되며, 나머지 호스트는 텍스트 결과를 사용합니다.
 - MCP는 인증, 상태 저장, 결과 복구와 재현 가능한 난수 시드를 제공하지 않습니다.
 - 실제 Vercel 배포와 배포 후 원격 클라이언트 검증은 별도 작업입니다.

@@ -4,8 +4,8 @@
 
 - 문서 경로: `docs/feature/remote-mcp/SPEC.md`
 - 대상 브랜치: `feature/remote-mcp`
-- 상태: 1차 텍스트 구현 및 로컬 검증 완료, 배포 전
-- 문서 목적: 기존 룰렛의 핵심 입력·추첨 규칙을 재사용하면서 범용 MCP 클라이언트가 호출할 수 있는 공개 원격 MCP 서버의 1차 요구사항과 기술 경계를 정의한다.
+- 상태: 1차 텍스트 및 2차 MCP Apps UI 구현·로컬 검증 완료, 배포 전
+- 문서 목적: 기존 룰렛의 핵심 입력·추첨 규칙을 재사용하면서 범용 MCP 클라이언트가 호출할 수 있는 공개 원격 MCP 서버의 텍스트 계약과 선택적 MCP Apps UI의 기술 경계를 정의한다.
 - 기존 제품 스펙: `docs/SPEC.md`
 
 이 문서는 기존 정적 웹앱 스펙을 대체하거나 변경하지 않는다. 기존 정적 웹앱과 원격 MCP 서버가 공유할 순수 도메인 규칙만 분리하며, 각 제품의 런타임·표현·배포 코드는 독립적으로 유지한다.
@@ -27,6 +27,8 @@
 - 기존 웹앱과 MCP 서버가 순수 핵심 로직만 공유하고 목적별 코드는 서로의 빌드에 포함하지 않는다.
 - 인증 없이 사용할 수 있는 공개 MCP로 운영하되 후보와 결과를 애플리케이션 로그나 저장소에 남기지 않는다.
 - 개인·비상업 용도의 Vercel Hobby 배포를 1차 운영 환경으로 사용한다.
+- 2차 개선에서 MCP Apps 호환 호스트에는 서버가 확정한 결과를 룰렛 애니메이션으로 제공한다.
+- MCP Apps를 렌더링하지 않는 호스트에서도 기존 텍스트 결과만으로 동일한 추첨을 완료한다.
 
 ### 2.3 성공 기준
 
@@ -38,6 +40,7 @@
 - 웹 빌드에 MCP 서버·Vercel 런타임 코드가 포함되지 않고, MCP 빌드에 React·Canvas·WebGL·브라우저 저장 코드가 포함되지 않는다.
 - 정상·오류 요청 모두 후보 원문과 추첨 결과를 애플리케이션 로그에 기록하지 않는다.
 - MCP Apps를 지원하지 않는 표준 MCP 클라이언트에서도 텍스트만으로 전체 흐름을 완료할 수 있다.
+- MCP Apps 호환 호스트는 `draw_roulette`와 연결된 `ui://` 리소스를 조회해 서버의 동일한 결과를 애니메이션으로 표시할 수 있다.
 
 ## 3. 범위
 
@@ -75,13 +78,27 @@
 - 상업적 운영과 Vercel Pro 전환
 - 기존 정적 웹앱의 기능·배포 방식 변경
 
+### 3.3 2차 MCP Apps UI 범위
+
+- 공식 MCP Apps 확장 표준의 `_meta.ui.resourceUri` 도구 메타데이터
+- `text/html;profile=mcp-app` MIME의 버전이 포함된 `ui://` 리소스
+- MCP-UI TypeScript 서버 패키지를 사용한 자체 포함 UI 리소스 생성
+- `draw_roulette`의 최종 `structuredContent`를 입력으로 받는 룰렛 애니메이션
+- UI 비지원 호스트를 위한 기존 텍스트·구조화 결과 fallback
+- 별도 `src/mcp-apps/roulette/` 소스와 독립 타입 검사·빌드·테스트
+- 외부 네트워크, 영속 저장소, 분석, 후보·결과 로깅이 없는 sandbox UI
+- 애니메이션 감소 설정과 작은 iframe 화면을 고려한 접근성·반응형 표현
+
+2차 범위에도 수동 재추첨, UI에서의 도구 호출, 결과 수정, 오디오, 외부 자산 로드, 사용자 상태 저장은 포함하지 않는다.
+
 ## 4. 우선순위
 
 | 우선순위 | 의미 | 요구사항 |
 |---|---|---|
 | P0 | 1차 출시 필수 | 공통 코어 격리, Streamable HTTP, `draw_roulette`, 대화 입력 계약, 기존 문법·제한, Web Crypto 비복원 추첨, 텍스트·구조화 결과, 오류 코드, 무로그 정책, 독립 빌드·테스트와 번들 격리 검증, Vercel 배포 |
 | P1 | 출시 안정화 | 복수 MCP 클라이언트 호환성 확대, 비식별 운영 메타데이터 모니터링, 공개 엔드포인트 남용 대응 정책 |
-| 후속 | 별도 스펙 필요 | MCP Apps 애니메이션, 인증, 감사·재현 가능한 추첨, 상업 운영, 사용자별 제한과 영속 상태 |
+| P0(2차) | MCP Apps 개선 필수 | 표준 UI 리소스, 결과 애니메이션, 텍스트 fallback, UI 빌드 격리와 로컬 호스트 검증 |
+| 후속 | 별도 스펙 필요 | 인증, 감사·재현 가능한 추첨, 상업 운영, 사용자별 제한과 영속 상태 |
 
 ## 5. 기능 요구사항
 
@@ -152,8 +169,21 @@
 - 일부 추첨에서는 미추첨 후보 이름을 반환하지 않고 전체 후보 수와 미추첨 수만 반환한다.
 - 기계 판독과 후속 MCP Apps 확장을 위해 같은 결과를 `structuredContent`로 반환한다.
 - `structuredContent`는 텍스트 UX를 대체하지 않으며 1차 버전에 사용자 인터페이스 리소스를 연결하지 않는다.
+- 2차 버전에서도 텍스트와 `structuredContent`를 유지하며, 호환 호스트만 같은 결과를 UI에 전달한다.
 - 정상 결과에 전체 후보 원문, 미추첨 후보 목록, 내부 난수 값 또는 스택 정보를 포함하지 않는다.
 - Streamable HTTP 연결을 사용하더라도 1차 도구 결과는 부분 당첨자 스트림이 아닌 단일 최종 결과다.
+
+### 5.7 MCP Apps 룰렛 UI
+
+- UI는 기존 `draw_roulette` 도구에 직접 연결한다. 별도 렌더 도구를 두지 않아 모든 옵션이 준비된 뒤 한 번의 도구 호출로 결과 확정과 표시가 이어지게 한다.
+- 서버의 `structuredContent`가 추첨 결과의 유일한 원본이다.
+- UI는 난수 생성, 후보 파싱, 결과 변경 또는 `draw_roulette` 재호출을 수행하지 않는다.
+- UI는 도구 결과 통지를 받은 뒤 당첨자를 순서대로 공개하는 연출만 담당한다.
+- 동일한 tool result를 다시 렌더링하더라도 결과 순서와 내용은 변하지 않는다.
+- 후보 이름은 HTML로 삽입하지 않고 DOM의 텍스트 값으로만 표현한다.
+- 결과 데이터가 스키마와 맞지 않으면 안전한 오류 상태를 보여주고 임의의 후보나 결과를 만들지 않는다.
+- `prefers-reduced-motion: reduce` 환경에서는 장시간 회전 없이 결과를 즉시 또는 짧은 전환으로 표시한다.
+- UI는 외부 URL, 폰트, 이미지, 분석 SDK 또는 네트워크 API를 호출하지 않는다.
 
 ### 5.6 오류 반환
 
@@ -211,6 +241,17 @@ type DrawRouletteOutput = {
   - `destructiveHint: false`
   - `openWorldHint: false`
 - `readOnlyHint`는 외부 상태를 변경하지 않는다는 의미이며 같은 입력의 결과가 항상 같다는 의미가 아니다.
+- 2차 버전에서 도구 정의의 `_meta.ui.resourceUri`는 `ui://roulette/roulette-v1.html`을 가리킨다.
+- ChatGPT 호환성을 위해 같은 리소스 URI를 `openai/outputTemplate` alias에도 제공할 수 있으나 표준 `ui.resourceUri`를 원본 계약으로 사용한다.
+
+### 6.3 MCP Apps UI 리소스
+
+- 리소스 URI: `ui://roulette/roulette-v1.html`
+- MIME type: `text/html;profile=mcp-app`
+- 리소스는 HTML, CSS, JavaScript를 하나의 문서에 포함한다.
+- 리소스 등록 정보는 외부 origin 접근을 허용하지 않는 최소 CSP를 사용한다.
+- 리소스 내용과 tool result는 캐시·저장·로그 대상으로 사용하지 않는다.
+- URI의 `v1`은 호스트 캐시 키 역할을 하며 호환성이 깨지는 UI 변경 시 새 버전으로 올린다.
 
 ## 7. 아키텍처와 코드 격리
 
@@ -220,8 +261,12 @@ type DrawRouletteOutput = {
 flowchart LR
     Web["정적 웹앱"] --> Core["공통 코어"]
     Mcp["MCP 서버"] --> Core
+    McpApp["MCP Apps 룰렛 UI"] -->|"표현만"| McpResult["draw_roulette 결과"]
+    Mcp --> McpResult
     Web -. 참조 금지 .-> Mcp
     Mcp -. 참조 금지 .-> Web
+    Web -. 참조 금지 .-> McpApp
+    McpApp -. 추첨 로직 참조 금지 .-> Core
     Core -. 참조 금지 .-> Web
     Core -. 참조 금지 .-> Mcp
 ```
@@ -250,6 +295,10 @@ flowchart LR
 │   │   ├── services/             # 저장·오디오·이미지
 │   │   ├── App.tsx
 │   │   └── main.tsx
+│   ├── mcp-apps/                 # MCP Apps iframe UI 전용
+│   │   └── roulette/
+│   │       ├── index.html
+│   │       └── app.ts
 │   └── mcp/                      # MCP 서버 전용
 │       ├── server.ts
 │       ├── tools/
@@ -257,6 +306,7 @@ flowchart LR
 │       └── presentation/
 │           └── textResult.ts
 ├── tsconfig.base.json
+├── tsconfig.mcp-app.json
 ├── tsconfig.web.json
 └── tsconfig.mcp.json
 ```
@@ -301,12 +351,14 @@ test:mcp
 - 기존 정적 웹앱의 배포 방식은 MCP 서버 배포를 위해 변경하지 않는다.
 - Vercel 프로젝트는 원격 MCP Function 배포를 목적으로 구성한다.
 
-### 7.5 향후 MCP Apps 경계
+### 7.5 MCP Apps 경계
 
-- MCP Apps는 1차 MCP 서버나 기존 웹앱 번들에 미리 포함하지 않는다.
-- 후속 구현 시 별도의 `src/mcp-apps/` UI 진입점과 독립 빌드를 추가한다.
+- MCP Apps는 기존 정적 웹앱 번들에 포함하지 않는다.
+- 별도의 `src/mcp-apps/` UI 진입점과 독립 빌드를 사용한다.
 - MCP Apps UI는 서버가 확정한 결과만 애니메이션으로 표현하며 결과 난수 생성에 관여하지 않는다.
-- 후속 UI도 공통 코어를 직접 실행해 결과를 다시 뽑지 않고 MCP 도구 결과를 입력으로 받는다.
+- UI는 공통 코어를 직접 실행해 결과를 다시 뽑지 않고 MCP 도구 결과를 입력으로 받는다.
+- MCP Function은 UI 리소스를 제공하기 위해 빌드된 단일 HTML만 포함하며 UI 소스 모듈을 서버 로직으로 실행하지 않는다.
+- 정적 웹, MCP App, MCP Function은 각각의 진입점에서 도달 가능한 코드만 빌드한다.
 
 ## 8. 실행 흐름과 상태
 
@@ -329,7 +381,13 @@ sequenceDiagram
     C->>C: Web Crypto 순열과 결과 확정
     C-->>M: 최종 결과
     M-->>A: 텍스트 + structuredContent
-    A-->>U: 추첨 결과 응답
+    alt MCP Apps UI 지원 호스트
+        A->>M: ui:// 리소스 조회
+        M-->>A: 자체 포함 룰렛 UI
+        A-->>U: 결과 애니메이션 + 텍스트 fallback
+    else UI 비지원 호스트
+        A-->>U: 텍스트 추첨 결과
+    end
 ```
 
 ### 8.2 서버 상태
@@ -377,9 +435,12 @@ sequenceDiagram
 
 ### 10.3 호환성
 
-- 특정 모델, ChatGPT 전용 메타데이터 또는 MCP Apps 확장에 의존하지 않는다.
+- 핵심 추첨 흐름은 특정 모델, ChatGPT 전용 메타데이터 또는 MCP Apps 확장에 의존하지 않는다.
 - 표준 Streamable HTTP와 MCP 도구·콘텐츠 규격을 구현한다.
 - MCP Apps를 협상하지 않는 클라이언트에서도 텍스트 결과를 사용할 수 있다.
+- MCP Apps UI는 코어 MCP가 아닌 선택적 확장 기능이며 호스트별 렌더링 지원 차이를 허용한다.
+- 표준 `_meta.ui.resourceUri`를 우선하고 ChatGPT 호환 alias는 보조 정보로만 제공한다.
+- 현재 공개 호환 목록에 없는 Codex에서는 텍스트 fallback을 검증 대상으로 삼고 UI 렌더링을 완료 조건으로 간주하지 않는다.
 - MCP Inspector 검수를 필수로 하고, 배포 전 실제 Streamable HTTP MCP 클라이언트에서 최소 한 번의 종단 간 호출을 확인한다.
 
 ### 10.4 보안과 개인정보
@@ -452,6 +513,16 @@ sequenceDiagram
 - 모든 옵션이 준비된 실제 에이전트 대화에서 추가 확인 없이 도구가 호출되는지 확인한다.
 - 런타임 로그에서 후보와 추첨 결과가 나타나지 않는지 확인한다.
 
+### 11.6 MCP Apps UI 검수
+
+- `tools/list`의 `draw_roulette`에 표준 UI 리소스 URI가 노출된다.
+- `resources/read`가 정확한 URI와 `text/html;profile=mcp-app` MIME의 HTML을 반환한다.
+- MCP Apps 호환 로컬 참조 호스트 또는 UI Inspector가 같은 도구 결과를 iframe에 전달한다.
+- 정상 결과는 서버 순서를 보존한 애니메이션으로 표시되고 잘못된 결과는 안전한 오류 상태로 표시된다.
+- reduced motion, 좁은 viewport, 긴 후보 이름과 최대 45개 결과를 확인한다.
+- UI 문서에 외부 네트워크 요청과 저장소·분석 호출이 없음을 정적·동적 검사한다.
+- Codex와 일반 MCP Inspector에서 기존 텍스트 호출이 계속 성공한다.
+
 ## 12. 배포·운영·릴리스
 
 ### 12.1 Vercel 배포
@@ -480,6 +551,14 @@ sequenceDiagram
 - 개인정보 안내에 정적 웹앱과 MCP 서버의 데이터 경계 차이가 반영되어 있다.
 - MCP Apps 코드와 UI 리소스가 1차 산출물에 포함되지 않는다.
 
+### 12.4 2차 MCP Apps 완료 조건
+
+- MCP App 전용 빌드와 테스트가 독립적으로 통과한다.
+- 기존 코어·웹·MCP 테스트와 목적별 빌드가 모두 회귀 없이 통과한다.
+- 호환 로컬 참조 호스트에서 추첨 결과 애니메이션을 확인한다.
+- UI 비지원 클라이언트에서 텍스트 fallback을 확인한다.
+- Vercel Preview·Production 배포와 배포 후 UI 검증은 별도 작업으로 남긴다.
+
 ## 13. 리스크와 후속 검토
 
 - 공개 무인증 엔드포인트는 남용으로 Vercel Hobby 한도에 도달할 수 있다. 실제 사용량을 근거로 요청 제한이나 인증 도입을 별도 검토한다.
@@ -487,4 +566,5 @@ sequenceDiagram
 - 같은 요청의 전송 실패 후 재호출은 새로운 결과를 만들 수 있다. 결과 재현이나 요청 멱등성이 필요해지면 저장·서명 정책과 함께 별도 설계한다.
 - 현재 추첨은 암호학적으로 편향을 줄이지만 사용자가 서버 결과를 독립 검증할 수는 없다. 감사 가능성이 요구되면 commit-reveal 또는 서명 결과를 후속 검토한다.
 - Vercel Hobby 정책이나 MCP SDK·전송 규격은 변경될 수 있으므로 배포 및 의존성 업데이트 시 공식 문서를 다시 확인한다.
-- MCP Apps는 별도 스펙과 빌드로 추진한다. 기존 Canvas/WebGL 자산을 재사용하더라도 텍스트 MCP 결과를 유일한 추첨 원본으로 유지한다.
+- MCP Apps는 공식 확장 표준이지만 코어 MCP 기능은 아니므로 호스트별 지원 차이가 존재한다. UI 지원 여부와 무관하게 텍스트 MCP 결과를 유지한다.
+- `@mcp-ui/server`와 MCP Apps 확장 SDK가 현재 서버의 MCP SDK 2.x와 다른 SDK 계열에 의존할 수 있다. 서버 등록은 현재 SDK의 표준 도구·리소스 API로 유지하고 패키지 호환성을 자동 테스트한다.

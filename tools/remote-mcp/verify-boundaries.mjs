@@ -7,6 +7,8 @@ const projectRoot = nodePath.resolve(toolsDirectory, "../..");
 const coreRoot = nodePath.join(projectRoot, "src/core");
 const webRoot = nodePath.join(projectRoot, "src/web");
 const mcpRoot = nodePath.join(projectRoot, "src/mcp");
+const mcpAppRoot = nodePath.join(projectRoot, "src/mcp-apps");
+const generatedMcpAppRoot = nodePath.join(mcpAppRoot, "roulette/generated");
 const apiRoot = nodePath.join(projectRoot, "api");
 const failures = [];
 
@@ -57,6 +59,7 @@ async function verifySources() {
     { kind: "core", root: coreRoot },
     { kind: "web", root: webRoot },
     { kind: "mcp", root: mcpRoot },
+    { kind: "mcp-app", root: mcpAppRoot },
     { kind: "api", root: apiRoot },
   ];
 
@@ -66,15 +69,33 @@ async function verifySources() {
         continue;
       }
 
+      // 생성 모듈에는 번들 문자열이 들어 있으므로 아래 소스 정적 검사의 대상이 아니다.
+      if (kind === "mcp-app" && file.startsWith(generatedMcpAppRoot)) {
+        continue;
+      }
+
       const source = await readFile(file, "utf8");
       const relativeFile = nodePath.relative(projectRoot, file);
 
-      if ((kind === "core" || kind === "mcp" || kind === "api") && /Math\.random\s*\(/.test(source)) {
+      if (
+        (kind === "core" || kind === "mcp" || kind === "mcp-app" || kind === "api") &&
+        /Math\.random\s*\(/.test(source)
+      ) {
         failures.push(`${relativeFile}: Math.random 사용 금지`);
       }
 
-      if ((kind === "mcp" || kind === "api") && /console\.(?:log|error|warn|info|debug)\s*\(/.test(source)) {
+      if (
+        (kind === "mcp" || kind === "mcp-app" || kind === "api") &&
+        /console\.(?:log|error|warn|info|debug)\s*\(/.test(source)
+      ) {
         failures.push(`${relativeFile}: payload 유출 가능성이 있는 console 호출 금지`);
+      }
+
+      if (
+        kind === "mcp-app" &&
+        /(?:\bfetch\s*\(|\blocalStorage\b|\bsessionStorage\b|\bcallServerTool\b)/.test(source)
+      ) {
+        failures.push(`${relativeFile}: MCP App의 외부 요청·저장·도구 재호출 금지`);
       }
 
       for (const specifier of findImports(source)) {
@@ -87,6 +108,7 @@ async function verifySources() {
         if (
           kind === "web" &&
           (resolvesInside(file, specifier, mcpRoot) ||
+            resolvesInside(file, specifier, mcpAppRoot) ||
             resolvesInside(file, specifier, apiRoot) ||
             specifier === "mcp-handler" ||
             specifier.startsWith("@modelcontextprotocol/"))
@@ -103,6 +125,29 @@ async function verifySources() {
         ) {
           failures.push(`${relativeFile}: MCP에서 웹 의존성 ${specifier}`);
         }
+
+        if (
+          (kind === "mcp" || kind === "api") &&
+          resolvesInside(file, specifier, mcpAppRoot) &&
+          !resolvesInside(file, specifier, generatedMcpAppRoot)
+        ) {
+          failures.push(`${relativeFile}: MCP에서 MCP App 런타임 소스 의존성 ${specifier}`);
+        }
+
+        if (
+          kind === "mcp-app" &&
+          (resolvesInside(file, specifier, coreRoot) ||
+            resolvesInside(file, specifier, webRoot) ||
+            resolvesInside(file, specifier, mcpRoot) ||
+            resolvesInside(file, specifier, apiRoot) ||
+            specifier === "react" ||
+            specifier === "react-dom" ||
+            specifier === "html-to-image" ||
+            specifier === "mcp-handler" ||
+            specifier === "@modelcontextprotocol/server")
+        ) {
+          failures.push(`${relativeFile}: MCP App 경계 밖 의존성 ${specifier}`);
+        }
       }
     }
   }
@@ -114,6 +159,25 @@ async function verifySources() {
     failures.push(
       `api에는 Vercel Function 엔트리 mcp.ts만 허용: ${apiFiles.join(", ")}`,
     );
+  }
+}
+
+async function verifyMcpAppResource() {
+  const generatedSource = await readFile(
+    nodePath.join(generatedMcpAppRoot, "rouletteAppResource.ts"),
+    "utf8",
+  );
+  const requiredMarkers = [
+    "ui://roulette/roulette-v1.html",
+    "text/html;profile=mcp-app",
+    '\"connectDomains\":[]',
+    '\"resourceDomains\":[]',
+  ];
+
+  for (const marker of requiredMarkers) {
+    if (!generatedSource.includes(marker)) {
+      failures.push(`생성된 MCP App 리소스에 필수 표식 없음: ${marker}`);
+    }
   }
 }
 
@@ -147,6 +211,8 @@ async function verifyWebBundle() {
     "mcp-handler",
     "draw_roulette",
     "roulette-remote-mcp",
+    "ui://roulette/roulette-v1.html",
+    "text/html;profile=mcp-app",
   ];
 
   for (const marker of forbiddenMarkers) {
@@ -157,6 +223,7 @@ async function verifyWebBundle() {
 }
 
 await verifySources();
+await verifyMcpAppResource();
 await verifyWebBundle();
 await verifyVercelConfiguration();
 

@@ -7,17 +7,19 @@
 - 대상 브랜치: `feature/remote-mcp`
 - 최종 갱신일: 2026-08-05
 - 전체 상태: `done`
-- 진행률: 8/8
-- 다음 작업: 현재 로컬 구현 완료. Preview·Production 배포와 배포 후 검증은 Deferred Work로 진행
-- 현재 작업 완료 기준: 배포 가능한 Vercel Function 구현과 자동 테스트, 동등한 로컬 HTTP 실행, `vercel build`, 로컬 MCP Inspector 검증을 모두 통과한다.
+- 진행률: 12/12
+- 다음 작업: Deferred Work에서 Vercel Preview 배포와 원격 호스트별 검증을 별도 계획으로 시작한다.
+- 현재 작업 완료 기준: 기존 텍스트 fallback을 유지하면서 MCP Apps 호환 호스트에 추첨 애니메이션을 제공하고, UI·서버·정적 웹의 빌드 경계와 로컬 검증을 모두 통과한다.
 - 현재 작업 범위 제외: Vercel Preview·Production 배포, 배포 URL 검증, Vercel Runtime Logs·cold start·플랫폼 한도 검증, 실제 원격 MCP 클라이언트 E2E, 다중 클라이언트 운영 검증
-- 기능 범위 제외: MCP Apps UI, 인증·OAuth, 데이터베이스·KV·캐시, 추첨 감사·재현 기능, 상업적 운영
+- 기능 범위 제외: 인증·OAuth, 데이터베이스·KV·캐시, 추첨 감사·재현 기능, 상업적 운영
 - 외부 작업: 현재 작업에서는 배포, 도메인 변경, 원격 MCP 클라이언트 등록을 수행하지 않는다.
 
 ### Open Questions
 
 1. 해결됨: MCP SDK 2.0.0과 `mcp-handler` 2.1.0으로 고정하고 운영 의존성 취약점 0건을 확인했다.
 2. 해결됨: `vercel build`는 ID 없는 임시 로컬 설정으로 통과했고, `vercel dev`는 OAuth·프로젝트 연결을 요구해 동등한 로컬 어댑터로 대체했다. 배포는 수행하지 않았다.
+3. 해결됨: 신규 UI는 레거시 MCP-UI 프로토콜이 아니라 공식 MCP Apps 확장 표준의 `_meta.ui.resourceUri`와 `text/html;profile=mcp-app`을 사용한다.
+4. 확인됨: MCP Apps는 코어 MCP가 아닌 확장 표준이므로 UI 렌더링을 지원하지 않는 호스트가 있다. Codex는 현재 공개된 MCP-UI 호환 호스트 목록에 없으므로 텍스트 fallback을 필수로 유지한다.
 
 ## Execution Order
 
@@ -28,6 +30,8 @@
 5. T6에서 전체 테스트와 번들 격리를 자동 검증하고, T7에서 사용·개발·개인정보 문서를 정리한다.
 6. T8에서 Vercel 호환 로컬 실행·빌드와 MCP Inspector 검증을 수행하고 현재 작업을 완료한다.
 7. Preview·Production 배포와 배포 후 검증은 별도 작업 계획으로 수립한다.
+8. T9에서 2차 MCP Apps 계약을 확정하고 T10에서 격리된 UI를 만든 뒤, T11에서 기존 도구와 UI 리소스를 연결한다.
+9. T12에서 프로토콜·UI·번들 경계를 로컬 검증하고 사용 가이드를 갱신한다.
 
 ## Tasks
 
@@ -288,6 +292,113 @@
   - 해결됨: Build는 임시 로컬 설정으로 가능하고 Dev는 연결을 요구한다.
 - `next_action`: 완료. Preview·Production 배포와 배포 후 검증은 별도 작업에서 수행한다.
 
+### T9. MCP Apps 호환성 및 2차 계약 확정
+
+- 상태: `done`
+- 우선순위: P0
+- 진행: [x]
+- 목적: MCP-UI를 공식 MCP Apps 확장 표준에 맞춰 도입하면서 기존 범용 MCP의 텍스트 동작과 개인정보 경계를 보존한다.
+- 작업 범위:
+  - MCP Apps와 MCP-UI의 현재 공식 규격, TypeScript SDK, 호스트 지원 범위를 확인한다.
+  - UI 지원·비지원 호스트의 동작과 텍스트 fallback 계약을 정의한다.
+  - 서버가 확정한 결과를 UI가 애니메이션으로만 표현하고 재추첨하지 않는 책임 경계를 정의한다.
+  - 기존 `draw_roulette` 도구에 UI를 직접 연결할지 별도 렌더 도구를 둘지 사용자 흐름을 기준으로 결정한다.
+  - 후보와 결과의 무로그·무저장 정책을 UI 리소스와 오류 경로까지 확장한다.
+- 산출물:
+  - 갱신된 `docs/feature/remote-mcp/SPEC.md`
+  - 갱신된 `docs/feature/remote-mcp/TASK.md`
+- 완료 조건:
+  - `_meta.ui.resourceUri`와 `text/html;profile=mcp-app`을 사용하는 표준 계약이 명시되어 있다.
+  - UI가 없는 호스트에서도 기존 텍스트와 `structuredContent`로 전체 흐름을 완료할 수 있다.
+  - 호스트 지원 범위와 Codex 로컬 테스트의 한계가 문서에 명시되어 있다.
+  - 추첨 결과의 유일한 원본이 서버의 `draw_roulette` 결과임이 명시되어 있다.
+- 의존성: T8
+- 검증:
+  - MCP Apps, MCP-UI 공식 문서와 구현 계약 대조
+  - 기존 SPEC의 1차 계약과 충돌 여부 검토
+- `next_action`: 완료. T10에서 자체 포함 룰렛 UI와 전용 빌드·테스트를 구현한다.
+
+### T10. 격리된 룰렛 MCP App UI 구현
+
+- 상태: `done`
+- 우선순위: P0
+- 진행: [x]
+- 목적: 기존 정적 웹앱과 독립된 단일 파일 룰렛 UI를 구현해 MCP Apps 호스트의 sandbox iframe에서 실행한다.
+- 작업 범위:
+  - `src/mcp-apps/roulette/`에 UI 엔트리, 스타일, 결과 검증·표현 코드를 둔다.
+  - MCP Apps 브리지로 최종 `structuredContent`를 수신하고 추첨 순서대로 애니메이션을 재생한다.
+  - 외부 네트워크, 저장소, 분석, 오디오 없이 단일 HTML 리소스로 번들한다.
+  - 애니메이션 감소 설정과 작은 화면을 고려한 접근성·반응형 표현을 제공한다.
+  - 정적 웹 빌드와 MCP 서버 타입 검사에서 UI 소스 경계를 분리한다.
+- 산출물:
+  - `src/mcp-apps/roulette/` UI 소스
+  - MCP App 전용 타입·빌드 설정
+  - UI 단위 테스트
+- 완료 조건:
+  - 유효한 최종 결과를 받아 당첨 순서를 애니메이션으로 표시한다.
+  - UI가 난수를 생성하거나 서버 도구를 다시 호출하지 않는다.
+  - 사용자 입력과 결과를 HTML로 삽입하지 않고 텍스트 데이터로 안전하게 렌더링한다.
+  - 외부 origin 연결 없이 자체 포함 리소스로 동작한다.
+- 의존성: T9
+- 검증:
+  - `test:mcp-app`
+  - `build:mcp-app`
+  - 결과 스키마·XSS·접근성·애니메이션 감소 테스트
+- `next_action`: 완료. T11에서 빌드된 리소스를 기존 `draw_roulette` 메타데이터와 연결한다.
+
+### T11. 기존 추첨 도구와 UI 리소스 연결
+
+- 상태: `done`
+- 우선순위: P0
+- 진행: [x]
+- 목적: `draw_roulette`의 결과·오류 계약을 유지하면서 호환 호스트가 룰렛 UI 리소스를 발견하고 렌더링하게 한다.
+- 작업 범위:
+  - 버전이 포함된 안정적인 `ui://` 리소스를 MCP 서버에 등록한다.
+  - `draw_roulette` 도구 메타데이터를 UI 리소스 URI에 연결한다.
+  - 기존 텍스트와 `structuredContent` 응답을 변경 없이 유지한다.
+  - UI 리소스 응답에 최소 CSP와 무캐시·무외부연결 정책을 적용한다.
+  - 로컬·Vercel Function 빌드가 생성된 UI 리소스를 포함하도록 구성한다.
+- 산출물:
+  - MCP Apps 도구·리소스 등록 코드
+  - 프로토콜 통합 테스트
+- 완료 조건:
+  - `tools/list`에서 UI resource URI를 확인할 수 있다.
+  - `resources/read`가 올바른 MIME의 자체 포함 HTML을 반환한다.
+  - `tools/call`은 기존 텍스트·구조화 결과를 계속 반환한다.
+  - UI 비지원 클라이언트와 기존 Inspector 호출이 회귀 없이 동작한다.
+- 의존성: T10
+- 검증:
+  - MCP SDK 클라이언트의 도구 목록·리소스 조회·도구 호출 통합 테스트
+  - 기존 MCP 테스트 전체 실행
+- `next_action`: 완료. T12에서 호환 로컬 UI 호스트의 실제 렌더링과 전체 빌드 경계를 검증한다.
+
+### T12. MCP App 로컬 종합 검증 및 문서화
+
+- 상태: `done`
+- 우선순위: P0
+- 진행: [x]
+- 목적: 배포하지 않고 MCP Apps 렌더링, 텍스트 fallback, 개인정보와 목적별 번들 격리를 검증하고 실행 방법을 문서화한다.
+- 작업 범위:
+  - MCP Apps 호환 로컬 UI Inspector 또는 참조 호스트에서 애니메이션을 검증한다.
+  - Codex와 일반 MCP Inspector에서는 텍스트 fallback과 도구 계약을 재검증한다.
+  - 웹·MCP App·MCP Function의 목적별 빌드와 금지 의존성 경계를 자동 검사한다.
+  - README와 기능 개발 가이드에 UI 지원 조건과 로컬 실행·검증 절차를 추가한다.
+  - Vercel 배포 후 UI 호스트 검증 항목을 Deferred Work에 추가한다.
+- 산출물:
+  - 자동 검증 스크립트와 로컬 검증 기록
+  - 갱신된 README·개발 가이드
+- 완료 조건:
+  - 호환 참조 호스트에서 결과 애니메이션이 렌더링된다.
+  - 비호환 호스트에서 텍스트 결과가 누락되지 않는다.
+  - 전체 자동 테스트와 세 빌드 경계 검사가 통과한다.
+  - 후보·결과가 로그·저장소·외부 요청에 남지 않는다.
+- 의존성: T11
+- 검증:
+  - 전체 `verify` 명령
+  - 로컬 UI Inspector 시나리오
+  - Vercel 호환 로컬 빌드 및 산출물 검사
+- `next_action`: 완료. Preview·Production 배포와 원격 MCP Apps 호스트 검증은 Deferred Work에서 별도로 진행한다.
+
 ## Deferred Work
 
 다음 항목은 현재 작업의 완료 조건이 아니며, T8 완료 후 별도 작업 계획과 상태로 관리한다.
@@ -310,7 +421,7 @@
 | Streamable HTTP와 Vercel 배포 준비 | T4, T8 |
 | 공개 서비스 보안·개인정보의 로컬 검증 | T5, T7, T8 |
 | 자동 테스트와 배포 전 로컬 검증 | T6, T8 |
-| MCP Apps 후속 확장 경계 | T2, T7 |
+| MCP Apps UI와 텍스트 fallback | T2, T7, T9, T10, T11, T12 |
 | Vercel Hobby 운영 제약 문서화 | T7 |
 
 ### 현재 작업에서 미완료로 남는 스펙 요구사항
@@ -394,3 +505,31 @@
   - 검증: 전체 143개 테스트·웹/MCP 빌드·경계 검사와 이동된 로컬 서버의 Inspector `tools/list` 통과
   - 리스크_또는_차단: 없음
   - 사용자_피드백: `docs`는 문서 전용 위치로 유지
+- 2026-08-05 13:10 | 단계: T9 | 상태: `in_progress` → `done`
+  - 요약: 신규 UI를 공식 MCP Apps 확장 표준에 맞추고 기존 `draw_roulette`에 직접 연결하며, UI 비지원 호스트에는 텍스트 fallback을 유지하는 2차 계약을 확정했다.
+  - 산출물: 갱신된 `docs/feature/remote-mcp/SPEC.md`, `docs/feature/remote-mcp/TASK.md`
+  - 검증: MCP Apps 2026-01-26 안정 규격, MCP-UI TypeScript 가이드와 공개 호스트 지원 목록 대조
+  - 리스크_또는_차단: Codex는 현재 공개 MCP-UI 호환 호스트 목록에 없으므로 로컬 Codex에서는 UI 렌더링 대신 텍스트 fallback만 검증 가능
+  - 다음: T10 격리된 룰렛 MCP App UI 구현
+  - 사용자_피드백: MCP Apps를 사실상 표준으로 보고 표준 우선 구현을 진행하되 호스트 비호환 가능성을 확인
+- 2026-08-05 13:25 | 단계: T10 | 상태: `in_progress` → `done`
+  - 요약: Vanilla TypeScript와 MCP Apps 브리지로 서버 결과만 표현하는 룰렛 애니메이션을 구현하고 MCP-UI로 표준 단일 HTML 리소스를 생성했다.
+  - 산출물: `src/mcp-apps/roulette/`, `tsconfig.mcp-app.json`, `vite.mcp-app.config.ts`, `vitest.mcp-app.config.ts`, 리소스 생성 도구
+  - 검증: UI 모델·소스 경계 10개 테스트와 전용 타입 검사·단일 HTML 빌드 통과, gzip 기준 약 84KB
+  - 리스크_또는_차단: UI 렌더링은 호스트의 MCP Apps 지원이 필요하며 UI 자체는 추첨이나 도구 재호출을 수행하지 않음
+  - 다음: T11 기존 추첨 도구와 UI 리소스 연결
+  - 사용자_피드백: 공식 MCP Apps 표준 우선 구현
+- 2026-08-05 13:40 | 단계: T11 | 상태: `in_progress` → `done`
+  - 요약: 기존 `draw_roulette`에 표준 UI 리소스 URI와 ChatGPT 호환 alias를 연결하고, MCP SDK 2.x의 리소스 API로 자체 포함 HTML을 제공했다.
+  - 산출물: `src/mcp/resources/rouletteApp.ts`, 갱신된 서버 등록·통합 테스트, MCP-UI 생성 리소스
+  - 검증: MCP 테스트 14개 통과, Inspector `tools/list`, `resources/list`, App probe와 실제 `tools/call` 통과
+  - 리스크_또는_차단: `@mcp-ui/server`는 빌드 시점에만 사용해 현재 MCP SDK 2.x 런타임과 구형 SDK 의존성의 등록 충돌을 차단함
+  - 다음: T12 MCP App 로컬 종합 검증 및 문서화
+  - 사용자_피드백: UI 비지원 호스트의 텍스트 fallback 유지
+- 2026-08-05 13:40 | 단계: T12 | 상태: `in_progress` → `done`
+  - 요약: MCP Inspector의 실제 sandbox iframe에서 룰렛 UI를 렌더링하고, 텍스트 fallback·개인정보·목적별 번들 경계를 전체 검증과 문서에 반영했다.
+  - 산출물: 보강된 경계·Vercel 산출물 검사, `README.md`, 아키텍처·개발 가이드, 갱신된 로컬 검증 기록
+  - 검증: 총 23개 파일·154개 테스트, 웹·MCP App·MCP 빌드, Inspector UI 렌더링·브라우저 오류 0건, Vercel CLI 58.5.1 Function 전용 Build Output, 전체 의존성 취약점 0건 통과
+  - 리스크_또는_차단: Inspector 2.0.0 npm 패키지의 sandbox 파일 누락은 공식 파일 복원으로 로컬 검증했으며, Codex UI 렌더링과 실제 원격 호스트 호환성은 배포 후 범위
+  - 다음: Deferred Work의 Preview 배포 및 원격 호스트별 검증
+  - 사용자_피드백: MCP Apps를 표준 우선으로 제공하되 비지원 호스트의 텍스트 fallback 유지

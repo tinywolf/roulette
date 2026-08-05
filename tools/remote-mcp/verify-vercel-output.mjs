@@ -55,6 +55,8 @@ assert(
 
 const forbiddenFunctionPaths = [
   "src/web/",
+  "src/mcp-apps/roulette/app.js",
+  "src/mcp-apps/roulette/model.js",
   "node_modules/react/",
   "node_modules/react-dom/",
   "node_modules/html-to-image/",
@@ -68,8 +70,11 @@ for (const forbiddenPath of forbiddenFunctionPaths) {
 
 assert(
   functionFiles.includes("src/core/draw.js") &&
-    functionFiles.includes("src/mcp/server.js"),
-  "MCP Function에 필요한 공통 코어 또는 서버 코드가 없습니다.",
+    functionFiles.includes("src/mcp/server.js") &&
+    functionFiles.includes(
+      "src/mcp-apps/roulette/generated/rouletteAppResource.js",
+    ),
+  "MCP Function에 필요한 공통 코어, 서버 또는 생성 UI 리소스가 없습니다.",
 );
 
 console.info("Vercel Function 전용 Build Output 검증 통과");

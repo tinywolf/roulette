@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 describe("Vercel MCP Function", () => {
-  it("Streamable HTTP로 초기화하고 단일 도구를 조회한다", async () => {
+  it("Streamable HTTP로 초기화하고 UI가 연결된 단일 도구를 조회한다", async () => {
     const client = await createTestClient();
     const tools = await client.listTools();
 
@@ -40,12 +40,47 @@ describe("Vercel MCP Function", () => {
         destructiveHint: false,
         openWorldHint: false,
       },
+      _meta: {
+        ui: { resourceUri: "ui://roulette/roulette-v1.html" },
+        "openai/outputTemplate": "ui://roulette/roulette-v1.html",
+      },
     });
     expect(tools.tools[0].inputSchema.required).toEqual([
       "rawInput",
       "drawCount",
     ]);
     expect(tools.tools[0].inputSchema.additionalProperties).toBe(false);
+  });
+
+  it("MCP Apps 룰렛 리소스를 표준 MIME과 자체 포함 HTML로 반환한다", async () => {
+    const client = await createTestClient();
+    const listed = await client.listResources();
+
+    expect(listed.resources).toHaveLength(1);
+    expect(listed.resources[0]).toMatchObject({
+      uri: "ui://roulette/roulette-v1.html",
+      mimeType: "text/html;profile=mcp-app",
+    });
+
+    const result = await client.readResource({
+      uri: "ui://roulette/roulette-v1.html",
+    });
+    const resource = result.contents[0];
+
+    expect(resource).toMatchObject({
+      uri: "ui://roulette/roulette-v1.html",
+      mimeType: "text/html;profile=mcp-app",
+    });
+    expect("text" in resource && resource.text).toContain("룰렛 추첨 결과");
+    expect("text" in resource && resource.text).toContain(
+      "ui/notifications/tool-result",
+    );
+    expect("text" in resource && resource.text).not.toMatch(
+      /(?:src|href)=["']https?:\/\//,
+    );
+    expect("text" in resource && resource.text).not.toMatch(
+      /\bfetch\s*\(|\blocalStorage\b|\bsessionStorage\b/,
+    );
   });
 
   it("도구를 호출해 텍스트와 구조화 결과를 한 응답으로 받는다", async () => {

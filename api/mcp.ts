@@ -2,7 +2,7 @@ import { createMcpHandler } from "mcp-handler";
 import {
   MCP_SERVER_INFO,
   MCP_SERVER_OPTIONS,
-  registerRouletteTools,
+  registerRouletteMcp,
 } from "../src/mcp/server.js";
 import {
   createPolicyErrorResponse,
@@ -13,7 +13,7 @@ import {
 const MAX_REQUEST_BYTES = 16 * 1_024;
 
 const internalHandler = createMcpHandler(
-  registerRouletteTools,
+  registerRouletteMcp,
   {
     ...MCP_SERVER_OPTIONS,
     serverInfo: MCP_SERVER_INFO,

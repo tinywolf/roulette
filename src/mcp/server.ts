@@ -5,10 +5,14 @@ import {
   drawRouletteOutputSchema,
   executeDrawRoulette,
 } from "./tools/drawRoulette.js";
+import {
+  registerRouletteAppResource,
+  ROULETTE_APP_RESOURCE_URI,
+} from "./resources/rouletteApp.js";
 
 export const MCP_SERVER_INFO = {
   name: "roulette-remote-mcp",
-  version: "1.0.0",
+  version: "1.1.0",
 } as const;
 
 export const MCP_SERVER_INSTRUCTIONS = [
@@ -22,12 +26,14 @@ export const MCP_SERVER_INSTRUCTIONS = [
 export const MCP_SERVER_OPTIONS: ServerOptions = {
   instructions: MCP_SERVER_INSTRUCTIONS,
   capabilities: {
+    resources: {},
     tools: {},
   },
 };
 
-/** 룰렛 MCP 서버가 공개하는 도구를 한 곳에서 등록한다. */
-export function registerRouletteTools(server: McpServer): void {
+/** 룰렛 MCP 서버가 공개하는 도구와 선택적 UI 리소스를 한 곳에서 등록한다. */
+export function registerRouletteMcp(server: McpServer): void {
+  registerRouletteAppResource(server);
   server.registerTool(
     DRAW_ROULETTE_TOOL_NAME,
     {
@@ -40,6 +46,10 @@ export function registerRouletteTools(server: McpServer): void {
         readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: false,
+      },
+      _meta: {
+        ui: { resourceUri: ROULETTE_APP_RESOURCE_URI },
+        "openai/outputTemplate": ROULETTE_APP_RESOURCE_URI,
       },
     },
     async (input) => executeDrawRoulette(input),

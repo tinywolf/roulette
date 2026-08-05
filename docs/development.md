@@ -23,14 +23,16 @@ npm install
 api/          Vercel Function과 HTTP 정책
 src/core/     웹·MCP 공통 순수 규칙
 src/web/      React·브라우저 전용 제품
-src/mcp/      MCP 도구·표현 전용 제품
+src/mcp-apps/ MCP Apps UI와 생성 리소스
+src/mcp/      MCP 도구·리소스·표현 전용 제품
 tools/        로컬 실행과 빌드·경계 검증 도구
 ```
 
-허용 방향은 `web → core ← mcp ← api`다.
+허용 방향은 `web → core ← mcp ← api`다. `mcp-apps`는 독립 빌드하며 MCP 서버에는 생성된 HTML 리소스만 전달한다.
 
 - `core`에서 React, DOM, MCP SDK, Vercel API를 import하지 않는다.
 - `web`과 `mcp`는 서로 import하지 않는다.
+- `mcp-apps`는 `core`, `web`, `mcp`, `api`를 import하지 않으며 서버 난수와 도구 호출을 수행하지 않는다.
 - 웹 수동·자동 일정과 렌더링 타입은 `src/web/domain`에 둔다.
 - 후보 파싱, 난수와 즉시 추첨처럼 두 제품에서 같은 의미인 규칙만 `src/core`에 둔다.
 - MCP 요청 변환과 보안 헤더는 `api`에 두고 코어로 밀어 넣지 않는다.
@@ -61,10 +63,11 @@ npm exec -- vite preview
 
 ```bash
 npm run build:mcp
+npm run test:mcp-app
 npm run test:mcp
 ```
 
-`src/mcp/integration/mcpFunction.test.ts`는 실제 MCP 2 클라이언트와 Streamable HTTP transport를 메모리상의 Function에 연결해 초기화, 도구 조회와 호출을 검증한다. 로컬 HTTP 서버와 MCP Inspector 절차는 [Remote MCP 개발 가이드](feature/remote-mcp/DEVELOPMENT.md)에 기록한다.
+`build:mcp`는 MCP App을 단일 HTML 리소스로 먼저 생성한 뒤 서버 타입을 검사한다. `src/mcp/integration/mcpFunction.test.ts`는 실제 MCP 2 클라이언트와 Streamable HTTP transport를 메모리상의 Function에 연결해 초기화, 도구·리소스 조회와 호출을 검증한다. 로컬 HTTP 서버와 MCP Inspector 절차는 [Remote MCP 개발 가이드](feature/remote-mcp/DEVELOPMENT.md)에 기록한다.
 
 도구 계약 변경 시 다음을 함께 갱신한다.
 
@@ -88,6 +91,7 @@ npm run verify
 ```bash
 npm run test:core
 npm run test:web
+npm run test:mcp-app
 npm run test:mcp
 npm run verify:boundaries
 ```
@@ -102,7 +106,7 @@ npm run test:core -- src/core/input.test.ts
 
 ## 구현 작업 순서
 
-1. 변경 책임이 `core`, `web`, `mcp`, `api` 중 어디에 속하는지 결정한다.
+1. 변경 책임이 `core`, `web`, `mcp-apps`, `mcp`, `api` 중 어디에 속하는지 결정한다.
 2. 가장 작은 단위 테스트로 현재 계약과 실패 사례를 고정한다.
 3. 단순한 구현으로 테스트를 통과시킨다.
 4. 목적별 테스트와 타입 검사를 실행한다.
@@ -127,9 +131,16 @@ npm run test:core -- src/core/input.test.ts
 - 16 KiB를 넘는 요청은 의도적으로 413을 반환한다.
 - GET·DELETE 405는 stateless 서버의 정상 동작이다.
 
+### MCP App이 표시되지 않음
+
+- `tools/list`의 `_meta.ui.resourceUri`가 `ui://roulette/roulette-v1.html`인지 확인한다.
+- `resources/read`의 MIME이 `text/html;profile=mcp-app`인지 확인한다.
+- 호스트가 MCP Apps 확장을 지원하지 않으면 텍스트 결과만 표시되는 것이 정상이다.
+- Inspector 2.0.0에서 `sandbox_proxy.html` ENOENT가 발생하면 기능 가이드의 알려진 패키징 문제를 확인한다.
+
 ### 웹·MCP 코드 혼입
 
-`npm run verify:boundaries`를 실행한다. 정적 검사 외에 `dist/assets`에서 MCP SDK 식별자가 발견되면 웹 진입점의 import 경로를 추적한다.
+`npm run verify:boundaries`를 실행한다. 정적 검사 외에 `dist/assets`에서 MCP SDK나 UI 리소스 식별자가 발견되면 웹 진입점의 import 경로를 추적한다. Function은 MCP App 실행 소스가 아니라 생성된 HTML 리소스만 포함해야 한다.
 
 ## 보안 점검
 
