@@ -133,4 +133,4 @@ node tools/remote-mcp/verify-vercel-output.mjs .vercel/output
 
 ## 배포 후 별도 검증
 
-후속 작업에서만 Preview와 Production을 생성한다. 실제 HTTPS `/mcp`, cold start, Function Runtime Logs, Hobby 한도, 원격 클라이언트의 MCP Apps·텍스트 fallback 호환성과 롤백을 검증한다. 이 문서의 로컬 통과만으로 운영 배포가 완료되었다고 판단하지 않는다.
+Preview와 Production 생성 절차, 사용자 확인 사항과 롤백 기준은 [Vercel 배포 가이드](DEPLOYMENT.md)를 따른다. 실제 HTTPS `/mcp`, cold start, Function Runtime Logs, Hobby 한도, 원격 클라이언트의 MCP Apps·텍스트 fallback 호환성과 롤백을 검증한다. 이 문서의 로컬 통과만으로 운영 배포가 완료되었다고 판단하지 않는다.

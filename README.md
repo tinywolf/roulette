@@ -112,6 +112,16 @@ codex mcp list
 
 MCP Apps 확장을 지원하는 호스트는 같은 `draw_roulette` 호출에서 룰렛 애니메이션을 렌더링합니다. 확장을 지원하지 않는 호스트도 텍스트와 `structuredContent` 결과를 그대로 받으므로 추첨 기능은 유지됩니다. Codex는 현재 공개 호환 호스트 목록에 포함되어 있지 않아 로컬 등록 시 텍스트 결과가 표시되는 것을 정상 fallback으로 봅니다.
 
+## 공개 Preview MCP
+
+Vercel Hobby 환경의 공개 Preview는 다음 URL에서 사용할 수 있습니다.
+
+```text
+https://roulette-remote-l3lnprqhy-j-personal-projects.vercel.app/mcp
+```
+
+표준 Streamable HTTP MCP 클라이언트에 이 URL을 등록합니다. Preview는 기능·호환성 검증용이며, 실제 개인정보나 민감정보를 후보로 사용하지 않습니다. Production 별칭은 아직 정상 버전으로 교체하지 않았으므로 사용하지 않습니다.
+
 ## 테스트와 검증
 
 전체 제품 경계와 회귀를 한 번에 검증합니다.
@@ -134,7 +144,7 @@ npm run verify:boundaries
 
 `verify:boundaries`는 공통 코어의 역방향 의존, 웹·MCP App·MCP의 교차 import, 안전하지 않은 난수, MCP 계층의 로그·외부 요청과 웹 번들의 MCP 코드 혼입을 검사합니다.
 
-Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](docs/feature/remote-mcp/DEVELOPMENT.md)를 따릅니다. 이번 작업 범위에는 Vercel Preview·Production 배포가 포함되지 않습니다.
+Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](docs/feature/remote-mcp/DEVELOPMENT.md)를 따릅니다. 실제 Vercel 배포 전 확인 사항과 단계별 명령은 [배포 가이드](docs/feature/remote-mcp/DEPLOYMENT.md)에 정리되어 있습니다.
 
 ## 프로젝트 구조
 
@@ -177,10 +187,13 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 - [Remote MCP 스펙](docs/feature/remote-mcp/SPEC.md)
 - [Remote MCP 작업 기록](docs/feature/remote-mcp/TASK.md)
 - [Remote MCP 로컬 검증](docs/feature/remote-mcp/DEVELOPMENT.md)
+- [Remote MCP Vercel 배포](docs/feature/remote-mcp/DEPLOYMENT.md)
+- [Remote MCP Preview 검증 기록](docs/feature/remote-mcp/PREVIEW-VALIDATION.md)
 
 ## 현재 제한사항
 
 - 후보는 최대 45개입니다.
 - MCP Apps UI는 호스트가 확장을 구현한 경우에만 표시되며, 나머지 호스트는 텍스트 결과를 사용합니다.
 - MCP는 인증, 상태 저장, 결과 복구와 재현 가능한 난수 시드를 제공하지 않습니다.
-- 실제 Vercel 배포와 배포 후 원격 클라이언트 검증은 별도 작업입니다.
+- Vercel Preview의 Function·프로토콜·로그 검증은 통과했지만 실제 원격 MCP Apps 호스트 E2E는 아직 수행하지 않았습니다.
+- Production 별칭은 Vercel의 첫 배포 자동 지정으로 생성된 수정 전 버전이며 현재 사용할 수 없습니다.

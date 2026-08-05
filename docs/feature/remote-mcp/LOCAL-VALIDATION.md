@@ -2,7 +2,7 @@
 
 ## 결과
 
-- 검증 일시: 2026-08-05 13:40 KST
+- 검증 일시: 2026-08-05 14:32 KST
 - 결과: 통과
 - Preview·Production 배포: 수행하지 않음
 - Vercel 프로젝트 생성·연결: 수행하지 않음
@@ -27,15 +27,15 @@
 
 - 코어: 3개 파일, 20개 테스트 통과
 - 웹: 14개 파일, 110개 테스트 통과
-- MCP App: 2개 파일, 10개 테스트 통과
+- MCP App: 2개 파일, 13개 테스트 통과
 - MCP·Function: 4개 파일, 14개 테스트 통과
 - 웹 Vite 빌드 통과
-- MCP App 단일 HTML 빌드 통과: 348.70 kB, gzip 83.48 kB
+- MCP App 단일 HTML 빌드 통과: 349.10 kB, gzip 83.69 kB
 - MCP App·MCP TypeScript 검사 통과
 - 소스·웹·MCP App·Function 번들 경계 검사 통과
-- 합계: 23개 파일, 154개 테스트 통과
+- 합계: 23개 파일, 157개 테스트 통과
 
-전체 의존성 `npm audit` 결과는 취약점 0건이다. 민감정보 패턴 검색에서도 개인 키·API 키·하드코딩된 비밀번호가 발견되지 않았다.
+운영 의존성 `npm audit --omit=dev` 결과는 취약점 0건이다. 민감정보 패턴 검색에서도 Vercel 토큰, 개인 키, API 키와 하드코딩된 비밀번호가 발견되지 않았다.
 
 ## MCP Inspector
 
@@ -57,7 +57,7 @@ MCP Inspector 웹 UI의 Apps 탭에서 동일한 로컬 서버를 호출했다.
 - `tools/list`: `_meta.ui.resourceUri`와 ChatGPT 호환 `openai/outputTemplate`이 모두 `ui://roulette/roulette-v1.html`을 가리킴
 - `resources/list`·`resources/read`: `text/html;profile=mcp-app` 자체 포함 리소스 반환
 - `tools/call`: 기존 텍스트와 `structuredContent`를 유지하면서 UI가 같은 확정 결과를 수신
-- 렌더링: 룰렛 회전 후 당첨자 2명을 순서대로 공개하고 미추첨 인원을 표시
+- 렌더링: 후보 수만큼 구획이 있는 룰렛 회전 후 추첨 결과 2개를 순서대로 공개하고 남은 대상 수를 표시
 - 런타임: Inspector 브라우저 오류 로그 0건
 - 네트워크·저장: UI 번들에 외부 자산 URL, `fetch`, `localStorage`, `sessionStorage` 없음
 - 접근성: `aria-live`, 작은 화면 레이아웃, `prefers-reduced-motion` 처리 확인
@@ -88,4 +88,4 @@ Vercel CLI 58.5.1의 `vercel dev`는 프로젝트 연결이 없으면 OAuth 로�
 - Hobby 플랜 사용량과 공개 엔드포인트 남용 대응
 - 실제 원격 MCP 클라이언트별 대화 수집과 호출 호환성
 - MCP Apps 지원 호스트의 원격 UI와 비지원 호스트의 텍스트 fallback
-- Preview 롤백 후 Production 배포·롤백 절차
+- Preview 검증 후 Production 배포·롤백 절차

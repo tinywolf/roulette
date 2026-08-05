@@ -6,13 +6,13 @@
 - 보조 요구사항 문서: 없음
 - 대상 브랜치: `feature/remote-mcp`
 - 최종 갱신일: 2026-08-05
-- 전체 상태: `done`
-- 진행률: 13/13
-- 다음 작업: Deferred Work에서 Vercel Preview 배포와 원격 호스트별 검증을 별도 계획으로 시작한다.
+- 전체 상태: `in_progress`
+- 진행률: 16/17
+- 다음 작업: T17에서 사용자 승인에 따라 의도치 않은 구버전 Production 배포와 자동화 우회 토큰을 삭제한다.
 - 현재 작업 완료 기준: 기존 텍스트 fallback을 유지하면서 MCP Apps 호환 호스트에 추첨 애니메이션을 제공하고, UI·서버·정적 웹의 빌드 경계와 로컬 검증을 모두 통과한다.
-- 현재 작업 범위 제외: Vercel Preview·Production 배포, 배포 URL 검증, Vercel Runtime Logs·cold start·플랫폼 한도 검증, 실제 원격 MCP 클라이언트 E2E, 다중 클라이언트 운영 검증
+- 현재 작업 범위 제외: Production 승격·삭제, 커스텀 도메인, 실제 원격 MCP Apps 호스트 E2E, 다중 클라이언트 운영 검증
 - 기능 범위 제외: 인증·OAuth, 데이터베이스·KV·캐시, 추첨 감사·재현 기능, 상업적 운영
-- 외부 작업: 현재 작업에서는 배포, 도메인 변경, 원격 MCP 클라이언트 등록을 수행하지 않는다.
+- 외부 작업: 공개 Preview와 Runtime Logs 검증을 완료했다. Vercel이 첫 배포를 Production으로 자동 지정해 남은 구버전 배포는 사용자 결정 전까지 승격·삭제하지 않는다.
 
 ### Open Questions
 
@@ -20,6 +20,7 @@
 2. 해결됨: `vercel build`는 ID 없는 임시 로컬 설정으로 통과했고, `vercel dev`는 OAuth·프로젝트 연결을 요구해 동등한 로컬 어댑터로 대체했다. 배포는 수행하지 않았다.
 3. 해결됨: 신규 UI는 레거시 MCP-UI 프로토콜이 아니라 공식 MCP Apps 확장 표준의 `_meta.ui.resourceUri`와 `text/html;profile=mcp-app`을 사용한다.
 4. 확인됨: MCP Apps는 코어 MCP가 아닌 확장 표준이므로 UI 렌더링을 지원하지 않는 호스트가 있다. Codex는 현재 공개된 MCP-UI 호환 호스트 목록에 없으므로 텍스트 fallback을 필수로 유지한다.
+5. 확인됨: 빈 Vercel 프로젝트의 첫 `vercel deploy --prebuilt`는 `--prod`가 없어도 Production으로 자동 지정될 수 있다. 해당 구버전 배포는 `/mcp`에서 500을 반환하며, 수정 Preview는 별도 URL에서 정상 동작한다.
 
 ## Execution Order
 
@@ -420,12 +421,104 @@
   - Vercel 호환 로컬 빌드 및 Function 전용 산출물 검사
 - `next_action`: 완료. Preview·Production 배포와 원격 MCP Apps 호스트 검증은 Deferred Work에서 별도로 진행한다.
 
+### T14. Vercel Preview 배포 준비
+
+- 상태: `done`
+- 우선순위: P0
+- 진행: [x]
+- 목적: 외부 배포 상태를 변경하기 전에 현재 브랜치가 재현 가능한 Vercel Function 산출물을 만드는지 확인하고, 사용자에게 필요한 계정·프로젝트·공개 범위 결정을 명확히 한다.
+- 작업 범위:
+  - Git 브랜치와 원격 추적 상태, Vercel 프로젝트 연결 여부를 확인한다.
+  - 전체 자동 검증과 Vercel CLI 로컬 빌드·Function 전용 산출물 검사를 다시 수행한다.
+  - Preview 생성, HTTPS `/mcp` 검증, Production 승격과 롤백 순서를 문서화한다.
+  - 계정 범위, 프로젝트 이름, Git 연동 방식, 공개 URL·보호 정책 등 사용자 준비사항을 정리한다.
+- 완료 조건:
+  - `npm run verify`와 로컬 `vercel build` 산출물 검사가 통과한다.
+  - 배포에 필요한 사용자 결정과 비밀정보 취급 방식이 문서에 명시된다.
+  - 실제 Preview·Production 배포나 원격 프로젝트 생성은 수행하지 않는다.
+- 검증:
+  - 전체 테스트·타입 검사·제품별 빌드·경계 검사
+  - Vercel CLI Build Output 및 `/mcp` rewrite 검사
+  - Git 상태와 민감정보 정적 검사
+- `next_action`: 완료. 사용자 확인 사항을 확정한 뒤 별도 단계에서 외부 Vercel 프로젝트 연결과 Preview 배포를 수행한다.
+
+### T15. Vercel 프로젝트 생성 및 로컬 연결
+
+- 상태: `done`
+- 우선순위: P0
+- 진행: [x]
+- 목적: Preview 배포 전에 개인 Hobby Scope에 MCP 전용 프로젝트를 생성하고 현재 저장소를 실제 프로젝트에 연결한다.
+- 작업 범위:
+  - 로그인된 Vercel 사용자와 사용 가능한 Scope를 읽기 전용으로 확인한다.
+  - `roulette-remote-mcp` 프로젝트를 생성하고 저장소 루트에 연결한다.
+  - 생성된 `.vercel/project.json`이 외부 `projectId`·`orgId`와 프로젝트 이름을 포함하는지 확인한다.
+- 완료 조건:
+  - Vercel Dashboard에 `roulette-remote-mcp` 프로젝트가 존재한다.
+  - 로컬 연결 정보가 임시 검증 설정이 아닌 실제 프로젝트를 가리킨다.
+  - Preview·Production Deployment는 생성되지 않는다.
+- 검증:
+  - Vercel CLI 사용자·Scope 확인
+  - `vercel project inspect roulette-remote-mcp` 확인
+  - 로컬 `.vercel/project.json` 연결 확인
+- `next_action`: 완료. Hobby 플랜·데이터 학습 opt-out 확인 후 실제 프로젝트 설정을 pull하고 Preview Build Output을 생성한다.
+
+### T16. Vercel 공개 Preview 배포 및 검증
+
+- 상태: `done`
+- 우선순위: P0
+- 진행: [x]
+- 목적: 실제 Vercel 환경에 Function 전용 Preview를 배포하고 공개 원격 MCP의 핵심 계약과 개인정보 경계를 검증한다.
+- 작업 범위:
+  - Preview 프로젝트 설정을 pull하고 전체 자동 검증을 재실행한다.
+  - Vercel Build Output을 생성해 Function·rewrite·제품 격리 경계를 확인한다.
+  - prebuilt Preview를 배포하고 공개 HTTPS `/mcp`를 호출한다.
+  - 도구 목록·일부 추첨·UI 리소스·루트 404·응답 헤더·cold start를 확인한다.
+  - Runtime Logs에 합성 후보·결과·요청 본문이 노출되지 않는지 확인한다.
+- 완료 조건:
+  - Preview URL과 `/mcp`가 인증 리다이렉트 없이 원격 클라이언트에서 접근 가능하다.
+  - Function 전용 Build Output과 MCP 프로토콜 검증이 통과한다.
+  - 후보·결과 payload가 Runtime Logs에 남지 않는다.
+  - 검증한 Preview를 Production으로 승격하지 않으며, 플랫폼의 자동 Production 지정이 발생하면 별도 후속 결정으로 기록한다.
+- 검증:
+  - `npm run verify`
+  - `vercel pull`, `vercel build`, `verify-vercel-output.mjs`
+  - 원격 MCP Inspector CLI와 HTTP 상태·헤더 검사
+  - Vercel Runtime Logs 및 Deployment 목록 확인
+- 결과:
+  - 정상 Preview: `https://roulette-remote-l3lnprqhy-j-personal-projects.vercel.app/mcp`
+  - `tools/list`, 정상·오류 `tools/call`, `resources/list`, `resources/read`, 루트 404와 보안 헤더 검증 통과
+  - 첫 Function 요청 약 0.33초, Runtime Logs 29건에서 요청 메서드·경로 외 후보·결과 payload와 오류 로그 없음
+  - 배포 중 발견한 Vercel Node 요청 형식 불일치를 Web `Request` 어댑터로 수정하고 23개 파일·157개 테스트와 Function 전용 빌드를 재검증
+  - 예외: 첫 prebuilt 배포가 Vercel에 의해 Production으로 자동 지정됐으며 구버전 Production 별칭은 현재 500을 반환함
+- `next_action`: 완료. 사용자 피드백을 받아 의도치 않은 Production 배포와 자동화 우회 토큰의 정리 여부를 결정한 뒤, 커밋·PR·Production 작업을 별도로 진행한다.
+
+### T17. 의도치 않은 Vercel 외부 리소스 정리
+
+- 상태: `in_progress`
+- 우선순위: P0
+- 진행: [ ]
+- 목적: Preview 진단 과정에서 의도치 않게 생성된 구버전 Production 배포와 불필요한 자동화 우회 토큰을 제거한다.
+- 작업 범위:
+  - 삭제 직전 Production Deployment ID와 자동화 우회 토큰 존재 여부를 읽기 전용으로 재확인한다.
+  - 구버전 Production `dpl_3ZfLZgCexs2vcS9qw1CXszcSM1C1`만 삭제한다.
+  - Preview 보호 진단 중 생성된 자동화 우회 토큰을 삭제한다.
+  - 정상 Preview Deployment와 프로젝트의 공개 MCP 설정이 유지되는지 확인한다.
+- 완료 조건:
+  - 구버전 Production 배포와 `roulette-remote-mcp.vercel.app`의 실패 별칭이 더 이상 서비스되지 않는다.
+  - 프로젝트의 자동화 우회 토큰이 0개다.
+  - 정상 Preview `/mcp`의 도구 호출과 Runtime Logs 비노출 정책은 유지된다.
+- 검증:
+  - Vercel Deployment 목록과 Production 별칭 HTTP 상태 확인
+  - 프로젝트 보호 설정의 우회 토큰 개수 확인
+  - 정상 Preview 원격 `tools/list` 재호출
+- `next_action`: 삭제 대상을 재확인한 뒤 사용자 승인 범위 안에서 두 외부 리소스만 제거한다.
+
 ## Deferred Work
 
-다음 항목은 현재 작업의 완료 조건이 아니며, T8 완료 후 별도 작업 계획과 상태로 관리한다.
+다음 항목은 T15의 프로젝트 연결 완료 후 실제 배포 상태를 변경하는 별도 작업 계획과 상태로 관리한다.
 
-1. Vercel Preview 배포 및 검증
-   - 실제 `/mcp` HTTPS 라우팅, cold start, Function Runtime Logs, 플랫폼 실행·번들 제한, 정적 웹앱 회귀를 확인한다.
+1. 완료: Vercel Preview 배포 및 검증
+   - 실제 `/mcp` HTTPS 라우팅, cold start, Function Runtime Logs, 플랫폼 실행·번들 제한과 정적 웹앱 미배포를 확인했다.
 2. Vercel Production 배포 및 실제 원격 MCP 클라이언트 E2E
    - 옵션 누락 시 대화 수집, 옵션 완성 시 즉시 호출, 텍스트·구조화 결과, Production 로그와 롤백을 확인한다.
 3. 출시 후 운영 안정화
@@ -439,18 +532,18 @@
 | 난수·추첨 규칙 | T1, T3, T6 |
 | MCP 도구·응답·오류 계약 | T3, T5, T8 |
 | 공통 코어·웹·MCP 구조 격리 | T1, T2, T4, T6 |
-| Streamable HTTP와 Vercel 배포 준비 | T4, T8 |
-| 공개 서비스 보안·개인정보의 로컬 검증 | T5, T7, T8 |
+| Streamable HTTP와 Vercel Preview 배포 | T4, T8, T14, T15, T16 |
+| 공개 서비스 보안·개인정보 검증 | T5, T7, T8, T16 |
 | 자동 테스트와 배포 전 로컬 검증 | T6, T8 |
 | MCP Apps UI와 텍스트 fallback | T2, T7, T9, T10, T11, T12, T13 |
-| Vercel Hobby 운영 제약 문서화 | T7 |
+| Vercel Hobby 운영 제약 문서화 | T7, T14 |
 
 ### 현재 작업에서 미완료로 남는 스펙 요구사항
 
 | 스펙 요구사항 | 후속 작업 |
 | --- | --- |
-| Vercel Preview·Production 배포 | Deferred Work 1, 2 |
-| 배포 환경의 HTTPS·cold start·Runtime Logs·플랫폼 한도 검증 | Deferred Work 1, 2 |
+| Vercel Production 배포 | Deferred Work 2 |
+| Production 환경의 HTTPS·cold start·Runtime Logs·플랫폼 한도 재검증 | Deferred Work 2 |
 | 실제 원격 MCP 클라이언트의 대화 기반 E2E | Deferred Work 2 |
 | 다중 클라이언트 및 출시 후 운영 안정화 | Deferred Work 3 |
 
@@ -561,3 +654,24 @@
   - 리스크_또는_차단: MCP UI는 웹의 사실적 추첨기와 시각적으로 다르지만 제품별 제약과 독립적인 발전을 우선함
   - 다음: Deferred Work의 Preview 배포 및 원격 호스트별 검증
   - 사용자_피드백: 동등 UX가 필수가 아니므로 웹과 MCP 렌더링을 별도로 유지하고 이전 룰렛 방식으로 롤백
+- 2026-08-05 14:32 | 단계: T14 | 상태: `in_progress` → `done`
+  - 요약: 실제 외부 배포 전에 현재 브랜치와 Vercel 설정을 점검하고, CLI Preview부터 Production·Git 연동·롤백까지의 운영 체크리스트를 확정했다.
+  - 산출물: `docs/feature/remote-mcp/DEPLOYMENT.md`, 갱신된 README·개발 가이드·로컬 검증 기록
+  - 검증: 총 23개 파일·157개 테스트, 세 제품 빌드와 경계 검사, Vercel CLI 58.5.1 Function 전용 Build Output, 운영 의존성 취약점 0건, 민감정보 패턴 0건 통과
+  - 리스크_또는_차단: 현재 브랜치에 원격 추적 브랜치와 실제 Vercel 프로젝트가 없고, 원격 `main`에는 아직 MCP 설정이 없다. 외부 배포 전 계정 범위·프로젝트 이름·Preview 공개 여부·Hobby 데이터 학습 opt-out을 사용자가 확정해야 한다.
+  - 다음: 사용자 확인 후 Deferred Work 1의 Vercel 프로젝트 연결과 공개 Preview 배포
+  - 사용자_피드백: 운영 환경 배포를 준비하고 필요한 절차와 정보를 안내할 것
+- 2026-08-05 14:47 | 단계: T15 | 상태: `in_progress` → `done`
+  - 요약: 로그인된 기본 Scope `j-personal-projects`에 `roulette-remote-mcp` 프로젝트를 생성하고 현재 저장소를 실제 프로젝트에 연결했다.
+  - 산출물: Vercel 프로젝트, 실제 `.vercel/project.json`, Git에서 제외된 `.env.local` OIDC 토큰, 보강된 `.gitignore`
+  - 검증: `vercel project inspect`에서 프로젝트 이름·소유자·빌드 명령 `npm run build:mcp`·출력 `vercel-static` 확인, `vercel list`에서 Deployment 0건 확인
+  - 리스크_또는_차단: GitHub Login Connection이 없어 자동 Git 연결은 실패했지만 `main` 병합 후 연결할 계획이므로 CLI Preview에는 영향이 없다. 새 프로젝트 기본 Node.js는 24.x이며 실제 Preview에서 런타임 호환성을 확인해야 한다.
+  - 다음: Hobby 플랜과 Model Training opt-out 확인 후 Preview 설정 pull·build·deploy
+  - 사용자_피드백: CLI 로그인 완료 후 프로젝트 생성부터 진행 승인
+- 2026-08-05 15:12 | 단계: T16 | 상태: `in_progress` → `done`
+  - 요약: Vercel Hobby의 공개 Preview에 Function 전용 MCP를 배포하고 원격 Inspector 계약, UI 리소스, 루트 404, 보안 헤더, cold start와 Runtime Logs 비노출을 검증했다. 실제 런타임에서 발견한 Node 요청 형식 차이를 어댑터로 수정했다.
+  - 산출물: 정상 Preview Deployment, `docs/feature/remote-mcp/PREVIEW-VALIDATION.md`, Vercel Node/Web Request 어댑터와 회귀 테스트, `api/tsconfig.json`
+  - 검증: 23개 파일·157개 테스트와 세 제품 빌드·경계 검사, Vercel Function 전용 Build Output, 원격 `tools/list`·정상/오류 `tools/call`·`resources/list/read`, 첫 Function 요청 약 0.33초, Runtime Logs 29건 payload 비노출 통과
+  - 리스크_또는_차단: Vercel이 빈 프로젝트의 첫 prebuilt 배포를 Production으로 자동 지정했다. 해당 구버전 Production 별칭은 현재 500이며 정상 Preview는 승격하지 않았다. 진단 과정에서 생성된 자동화 우회 토큰과 함께 정리 여부를 사용자 피드백으로 결정해야 한다.
+  - 다음: T16 결과 피드백 후 의도치 않은 Production 처리, Model Training opt-out 확인과 커밋·PR·Production 단계를 별도로 진행
+  - 사용자_피드백: Hobby 프로젝트의 Preview 진행 승인, VPN 종료 후 공개 엔드포인트 재검증 요청

@@ -2,19 +2,67 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { Readable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { handleMcpRequest } from "../../../api/mcp";
+import handleVercelMcpRequest, {
+  handleMcpRequest,
+} from "../../../api/mcp";
 
 const clients: Client[] = [];
+
+async function invokeVercelAdapter(request: Request): Promise<Response> {
+  const rawHeaders: string[] = [];
+  const incomingHeaders: Record<string, string> = {};
+
+  request.headers.forEach((value, name) => {
+    rawHeaders.push(name, value);
+    incomingHeaders[name] = value;
+  });
+
+  const requestBytes = Buffer.from(await request.arrayBuffer());
+  const incoming = Object.assign(
+    Readable.from(requestBytes.byteLength > 0 ? [requestBytes] : []),
+    {
+      headers: incomingHeaders,
+      method: request.method,
+      rawHeaders,
+      url: `${new URL(request.url).pathname}${new URL(request.url).search}`,
+    },
+  ) as IncomingMessage;
+  const responseHeaders = new Headers();
+  let responseBytes = Buffer.alloc(0);
+  const outgoing = {
+    statusCode: 200,
+    statusMessage: "",
+    setHeader(name: string, value: number | string | readonly string[]) {
+      responseHeaders.set(
+        name,
+        Array.isArray(value) ? value.join(", ") : String(value),
+      );
+      return this;
+    },
+    end(chunk?: Uint8Array) {
+      if (chunk) responseBytes = Buffer.from(chunk);
+      return this;
+    },
+  } as unknown as ServerResponse;
+
+  await handleVercelMcpRequest(incoming, outgoing);
+
+  return new Response(responseBytes, {
+    status: outgoing.statusCode,
+    statusText: outgoing.statusMessage,
+    headers: responseHeaders,
+  });
+}
 
 async function createTestClient(): Promise<Client> {
   const transport = new StreamableHTTPClientTransport(
     new URL("http://localhost/mcp"),
     {
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        return handleMcpRequest(request);
-      },
+      fetch: async (input, init) =>
+        invokeVercelAdapter(new Request(input, init)),
     },
   );
   const client = new Client({ name: "roulette-test-client", version: "1.0.0" });
