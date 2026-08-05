@@ -6,13 +6,13 @@
 - 보조 요구사항 문서: 없음
 - 대상 브랜치: `feature/remote-mcp`
 - 최종 갱신일: 2026-08-05
-- 전체 상태: `in_progress`
-- 진행률: 16/17
-- 다음 작업: T17에서 사용자 승인에 따라 의도치 않은 구버전 Production 배포와 자동화 우회 토큰을 삭제한다.
+- 전체 상태: `done`
+- 진행률: 17/17
+- 다음 작업: T17 결과에 대한 사용자 피드백 후 Model Training opt-out 확인과 커밋·PR·Production 단계를 별도로 진행한다.
 - 현재 작업 완료 기준: 기존 텍스트 fallback을 유지하면서 MCP Apps 호환 호스트에 추첨 애니메이션을 제공하고, UI·서버·정적 웹의 빌드 경계와 로컬 검증을 모두 통과한다.
-- 현재 작업 범위 제외: Production 승격·삭제, 커스텀 도메인, 실제 원격 MCP Apps 호스트 E2E, 다중 클라이언트 운영 검증
+- 현재 작업 범위 제외: 신규 Production 배포·승격, 커스텀 도메인, 실제 원격 MCP Apps 호스트 E2E, 다중 클라이언트 운영 검증
 - 기능 범위 제외: 인증·OAuth, 데이터베이스·KV·캐시, 추첨 감사·재현 기능, 상업적 운영
-- 외부 작업: 공개 Preview와 Runtime Logs 검증을 완료했다. Vercel이 첫 배포를 Production으로 자동 지정해 남은 구버전 배포는 사용자 결정 전까지 승격·삭제하지 않는다.
+- 외부 작업: 공개 Preview와 Runtime Logs 검증을 완료했고, Vercel이 자동 지정한 구버전 Production과 진단용 자동화 우회 토큰을 사용자 승인에 따라 삭제했다.
 
 ### Open Questions
 
@@ -20,7 +20,7 @@
 2. 해결됨: `vercel build`는 ID 없는 임시 로컬 설정으로 통과했고, `vercel dev`는 OAuth·프로젝트 연결을 요구해 동등한 로컬 어댑터로 대체했다. 배포는 수행하지 않았다.
 3. 해결됨: 신규 UI는 레거시 MCP-UI 프로토콜이 아니라 공식 MCP Apps 확장 표준의 `_meta.ui.resourceUri`와 `text/html;profile=mcp-app`을 사용한다.
 4. 확인됨: MCP Apps는 코어 MCP가 아닌 확장 표준이므로 UI 렌더링을 지원하지 않는 호스트가 있다. Codex는 현재 공개된 MCP-UI 호환 호스트 목록에 없으므로 텍스트 fallback을 필수로 유지한다.
-5. 확인됨: 빈 Vercel 프로젝트의 첫 `vercel deploy --prebuilt`는 `--prod`가 없어도 Production으로 자동 지정될 수 있다. 해당 구버전 배포는 `/mcp`에서 500을 반환하며, 수정 Preview는 별도 URL에서 정상 동작한다.
+5. 해결됨: 빈 Vercel 프로젝트의 첫 `vercel deploy --prebuilt`는 `--prod`가 없어도 Production으로 자동 지정될 수 있다. 해당 구버전 배포와 자동화 우회 토큰을 T17에서 제거했고 수정 Preview만 공개 검증 대상으로 유지한다.
 
 ## Execution Order
 
@@ -489,14 +489,14 @@
   - `tools/list`, 정상·오류 `tools/call`, `resources/list`, `resources/read`, 루트 404와 보안 헤더 검증 통과
   - 첫 Function 요청 약 0.33초, Runtime Logs 29건에서 요청 메서드·경로 외 후보·결과 payload와 오류 로그 없음
   - 배포 중 발견한 Vercel Node 요청 형식 불일치를 Web `Request` 어댑터로 수정하고 23개 파일·157개 테스트와 Function 전용 빌드를 재검증
-  - 예외: 첫 prebuilt 배포가 Vercel에 의해 Production으로 자동 지정됐으며 구버전 Production 별칭은 현재 500을 반환함
-- `next_action`: 완료. 사용자 피드백을 받아 의도치 않은 Production 배포와 자동화 우회 토큰의 정리 여부를 결정한 뒤, 커밋·PR·Production 작업을 별도로 진행한다.
+  - 예외: 첫 prebuilt 배포가 Vercel에 의해 Production으로 자동 지정됐으며 구버전 Production 별칭은 당시 500을 반환함. T17에서 삭제 완료
+- `next_action`: 완료. T17에서 사용자 승인에 따라 의도치 않은 Production 배포와 자동화 우회 토큰을 정리한다.
 
 ### T17. 의도치 않은 Vercel 외부 리소스 정리
 
-- 상태: `in_progress`
+- 상태: `done`
 - 우선순위: P0
-- 진행: [ ]
+- 진행: [x]
 - 목적: Preview 진단 과정에서 의도치 않게 생성된 구버전 Production 배포와 불필요한 자동화 우회 토큰을 제거한다.
 - 작업 범위:
   - 삭제 직전 Production Deployment ID와 자동화 우회 토큰 존재 여부를 읽기 전용으로 재확인한다.
@@ -511,7 +511,12 @@
   - Vercel Deployment 목록과 Production 별칭 HTTP 상태 확인
   - 프로젝트 보호 설정의 우회 토큰 개수 확인
   - 정상 Preview 원격 `tools/list` 재호출
-- `next_action`: 삭제 대상을 재확인한 뒤 사용자 승인 범위 안에서 두 외부 리소스만 제거한다.
+- 결과:
+  - 구버전 Production `dpl_3ZfLZgCexs2vcS9qw1CXszcSM1C1` 삭제 완료
+  - 프로젝트 Production 대상 `null`, `roulette-remote-mcp.vercel.app/mcp` 404 확인
+  - 자동화 우회 토큰 1개 폐기 후 프로젝트 우회 토큰 0개 확인
+  - 정상 Preview Deployment는 `Ready`이며 원격 `tools/list` 재검증 통과
+- `next_action`: 완료. 사용자 피드백 후 Model Training opt-out 확인과 커밋·PR·Production 작업을 별도로 진행한다.
 
 ## Deferred Work
 
@@ -672,6 +677,13 @@
   - 요약: Vercel Hobby의 공개 Preview에 Function 전용 MCP를 배포하고 원격 Inspector 계약, UI 리소스, 루트 404, 보안 헤더, cold start와 Runtime Logs 비노출을 검증했다. 실제 런타임에서 발견한 Node 요청 형식 차이를 어댑터로 수정했다.
   - 산출물: 정상 Preview Deployment, `docs/feature/remote-mcp/PREVIEW-VALIDATION.md`, Vercel Node/Web Request 어댑터와 회귀 테스트, `api/tsconfig.json`
   - 검증: 23개 파일·157개 테스트와 세 제품 빌드·경계 검사, Vercel Function 전용 Build Output, 원격 `tools/list`·정상/오류 `tools/call`·`resources/list/read`, 첫 Function 요청 약 0.33초, Runtime Logs 29건 payload 비노출 통과
-  - 리스크_또는_차단: Vercel이 빈 프로젝트의 첫 prebuilt 배포를 Production으로 자동 지정했다. 해당 구버전 Production 별칭은 현재 500이며 정상 Preview는 승격하지 않았다. 진단 과정에서 생성된 자동화 우회 토큰과 함께 정리 여부를 사용자 피드백으로 결정해야 한다.
+  - 리스크_또는_차단: Vercel이 빈 프로젝트의 첫 prebuilt 배포를 Production으로 자동 지정했다. 해당 구버전 Production 별칭은 당시 500이었고 정상 Preview는 승격하지 않았다. T17에서 사용자 승인에 따라 자동화 우회 토큰과 함께 정리했다.
   - 다음: T16 결과 피드백 후 의도치 않은 Production 처리, Model Training opt-out 확인과 커밋·PR·Production 단계를 별도로 진행
   - 사용자_피드백: Hobby 프로젝트의 Preview 진행 승인, VPN 종료 후 공개 엔드포인트 재검증 요청
+- 2026-08-05 15:24 | 단계: T17 | 상태: `in_progress` → `done`
+  - 요약: 사용자 승인에 따라 의도치 않게 생성된 구버전 Production 배포와 보호 진단용 자동화 우회 토큰을 정확히 식별해 삭제했다.
+  - 산출물: Production 대상과 자동화 우회 토큰이 제거된 `roulette-remote-mcp` Vercel 프로젝트, 갱신된 Preview 검증·배포 문서
+  - 검증: Deployment 목록에 Preview 2개만 존재, 프로젝트 Production 대상 `null`, Production 별칭 `/mcp` 404, 우회 토큰 0개, 정상 Preview `Ready` 및 원격 `tools/list` 통과
+  - 리스크_또는_차단: 삭제한 Production은 즉시 롤백할 수 없다. 첫 실패 Preview는 이 승인 범위에 포함되지 않아 남겨뒀으며 서비스 별칭과 연결되지 않는다.
+  - 다음: Model Training opt-out 확인과 커밋·PR·Production 단계를 별도 진행
+  - 사용자_피드백: 구버전 Production 배포와 자동화 우회 토큰 삭제 승인

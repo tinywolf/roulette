@@ -120,7 +120,7 @@ Vercel Hobby 환경의 공개 Preview는 다음 URL에서 사용할 수 있습�
 https://roulette-remote-l3lnprqhy-j-personal-projects.vercel.app/mcp
 ```
 
-표준 Streamable HTTP MCP 클라이언트에 이 URL을 등록합니다. Preview는 기능·호환성 검증용이며, 실제 개인정보나 민감정보를 후보로 사용하지 않습니다. Production 별칭은 아직 정상 버전으로 교체하지 않았으므로 사용하지 않습니다.
+표준 Streamable HTTP MCP 클라이언트에 이 URL을 등록합니다. Preview는 기능·호환성 검증용이며, 실제 개인정보나 민감정보를 후보로 사용하지 않습니다. 현재 Production 배포는 없습니다.
 
 ## 테스트와 검증
 
@@ -196,4 +196,4 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 - MCP Apps UI는 호스트가 확장을 구현한 경우에만 표시되며, 나머지 호스트는 텍스트 결과를 사용합니다.
 - MCP는 인증, 상태 저장, 결과 복구와 재현 가능한 난수 시드를 제공하지 않습니다.
 - Vercel Preview의 Function·프로토콜·로그 검증은 통과했지만 실제 원격 MCP Apps 호스트 E2E는 아직 수행하지 않았습니다.
-- Production 별칭은 Vercel의 첫 배포 자동 지정으로 생성된 수정 전 버전이며 현재 사용할 수 없습니다.
+- Production 배포는 아직 없으며 검증된 Preview만 공개 상태입니다.

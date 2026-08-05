@@ -8,7 +8,7 @@
 - `j-personal-projects/roulette-remote-mcp` Vercel 프로젝트와 로컬 연결을 생성했다.
 - Hobby 플랜과 공개 Preview 배포를 확인했다.
 - 정상 Preview MCP는 `https://roulette-remote-l3lnprqhy-j-personal-projects.vercel.app/mcp`다.
-- 첫 배포 자동 지정으로 생성된 Production 별칭은 수정 전 코드라 현재 500을 반환하며, 정상 Preview를 아직 승격하지 않았다.
+- 첫 배포 자동 지정으로 생성된 수정 전 Production은 삭제했다. 현재 Production 대상은 없고 정상 Preview를 승격하지 않았다.
 - 현재 구현에는 환경 변수, 데이터베이스, KV, 캐시, 외부 API 키가 필요하지 않다.
 
 2026-08-05 Preview 검증에서 23개 파일·157개 테스트, 웹·MCP App·MCP 빌드, 소스 경계, Vercel Function 전용 Build Output과 공개 원격 MCP 호출이 모두 통과했다. 상세 결과는 [Preview 검증 기록](PREVIEW-VALIDATION.md)을 참고한다.
@@ -21,7 +21,7 @@ Production을 만들기 전에 아래 항목을 확정한다.
 | --- | --- | --- |
 | Vercel 계정 범위 | `j-personal-projects`, Hobby 확인 완료 | Hobby는 개인·비상업 용도로만 사용할 수 있다. 상업적 운영이면 Pro 이상을 선택한다. |
 | 프로젝트 이름 | `roulette-remote-mcp`, 생성 완료 | 정적 웹 프로젝트와 역할을 구분한다. 실제 `vercel.app` 도메인은 Preview 배포 후 생성된다. |
-| 최초 배포 방식 | 첫 배포 자동 Production 지정 확인 | 빈 프로젝트에서는 `--prod`가 없어도 첫 배포가 Production이 될 수 있다. 현재 구버전 Production 처리는 사용자 결정 대기 중이다. |
+| 최초 배포 방식 | 첫 배포 자동 Production 지정 확인 | 빈 프로젝트에서는 `--prod`가 없어도 첫 배포가 Production이 될 수 있다. 자동 지정된 구버전 Production은 검증 후 삭제했다. |
 | Preview 보호 | `None` 적용 완료 | 일반 MCP 호스트가 Vercel Authentication 로그인 리다이렉트를 처리한다고 가정할 수 없어 공개 검증 동안 보호를 비활성화했다. |
 | Production 도메인 | 기본 `*.vercel.app` | MCP 연결에는 충분하다. 사용자 소유 커스텀 도메인은 선택 사항이다. |
 | Git 연동 | Preview 통과와 `main` 병합 후 연결 | 현재 원격 `main`에는 MCP용 `vercel.json`이 없으므로 지금 저장소를 Import하면 정적 웹이 Vercel에 배포될 수 있다. |

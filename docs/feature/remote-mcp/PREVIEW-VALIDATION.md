@@ -42,15 +42,15 @@ Vercel Node Function은 기본 export에 Node의 `IncomingMessage`와 `ServerRes
 
 | 환경 | Deployment | 상태 |
 | --- | --- | --- |
-| Production | `dpl_3ZfLZgCexs2vcS9qw1CXszcSM1C1` | 수정 전 코드이며 `https://roulette-remote-mcp.vercel.app/mcp`에서 500 반환 |
+| Production | `dpl_3ZfLZgCexs2vcS9qw1CXszcSM1C1` | 수정 전 코드로 500을 반환해 검증 후 삭제 완료 |
 | 첫 Preview | `dpl_GUj8hRUM7p8zKAAGS97p2A2JAvmh` | 수정 전 코드라 `/mcp` 500 |
 | 정상 Preview | `dpl_HVFjSkjURrpKNm8pyDqGGnTNJamc` | 전체 Preview 검증 통과 |
 
-정상 Preview를 Production으로 승격하거나 기존 Production을 삭제하지 않았다. 현재 Production 별칭은 사용할 수 없으며 처리 방향은 사용자 피드백 후 결정한다. 보호된 배포 진단 중 Vercel CLI가 만든 자동화 우회 토큰도 값은 노출하지 않았고, 공개 Preview에는 필요하지 않으므로 함께 정리 여부를 결정한다.
+정상 Preview를 Production으로 승격하지 않았다. 사용자 승인 후 구버전 Production 배포를 삭제해 프로젝트의 Production 대상은 `null`이 됐고 `https://roulette-remote-mcp.vercel.app/mcp`는 404를 반환한다. 보호된 배포 진단 중 Vercel CLI가 만든 자동화 우회 토큰 1개도 값을 노출하지 않고 폐기했으며, 프로젝트의 우회 토큰은 0개다. 정상 Preview는 삭제 후에도 `Ready` 상태와 `tools/list` 응답을 유지했다.
 
 ## 후속 작업
 
-1. 의도치 않은 구버전 Production 배포와 자동화 우회 토큰을 유지할지 삭제할지 결정한다.
+1. 완료: 의도치 않은 구버전 Production 배포와 자동화 우회 토큰을 삭제했다.
 2. Vercel Hobby의 Model Training opt-out 상태를 확인한다.
 3. 변경을 커밋·push하고 PR을 병합한 뒤, 병합된 `main`에서 Production을 새로 빌드·배포한다.
 4. 실제 MCP Apps 호스트에서 원격 UI 렌더링과 대화 기반 옵션 수집 E2E를 별도로 검증한다.
