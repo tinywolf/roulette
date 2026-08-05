@@ -23,5 +23,7 @@ describe("MCP App 소스 경계", () => {
     expect(source).not.toContain("innerHTML");
     expect(source).not.toMatch(/\b(?:fetch|localStorage|sessionStorage)\b/);
     expect(source).not.toContain("callServerTool");
+    expect(source).toContain("개 추첨 완료");
+    expect(source).not.toMatch(/명 당첨|명 미추첨/);
   });
 });

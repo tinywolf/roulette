@@ -11,6 +11,13 @@ export type RouletteResult = {
   results: RouletteResultItem[];
 };
 
+const WHEEL_SEGMENT_COLORS = [
+  "var(--accent)",
+  "var(--accent-2)",
+  "var(--accent-3)",
+  "#5b6fdb",
+] as const;
+
 function isIntegerInRange(
   value: unknown,
   minimum: number,
@@ -84,4 +91,24 @@ export function parseRouletteResult(value: unknown): RouletteResult | null {
 /** 결과 수가 많아도 전체 공개 시간이 과도하게 길어지지 않도록 간격을 제한한다. */
 export function getRevealDelay(resultCount: number): number {
   return Math.max(90, Math.min(420, Math.floor(4_200 / resultCount)));
+}
+
+/** 전체 추첨 대상 수와 같은 개수의 색상 구획을 가진 룰렛 배경을 만든다. */
+export function createWheelGradient(candidateCount: number): string {
+  const segmentAngle = 360 / candidateCount;
+  const dividerAngle = Math.min(1.2, segmentAngle * 0.12);
+  const formatAngle = (angle: number) => `${Number(angle.toFixed(4))}deg`;
+  const segments = Array.from({ length: candidateCount }, (_, index) => {
+    const start = segmentAngle * index;
+    const colorStart = start + dividerAngle;
+    const end = segmentAngle * (index + 1);
+    const color = WHEEL_SEGMENT_COLORS[index % WHEEL_SEGMENT_COLORS.length];
+
+    return [
+      `var(--line) ${formatAngle(start)} ${formatAngle(colorStart)}`,
+      `${color} ${formatAngle(colorStart)} ${formatAngle(end)}`,
+    ].join(", ");
+  });
+
+  return `conic-gradient(from -8deg, ${segments.join(", ")})`;
 }

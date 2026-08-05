@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getRevealDelay, parseRouletteResult } from "./model";
+import {
+  createWheelGradient,
+  getRevealDelay,
+  parseRouletteResult,
+} from "./model";
 
 const validResult = {
   candidateCount: 3,
@@ -42,4 +46,14 @@ describe("MCP App 룰렛 결과 모델", () => {
     expect(getRevealDelay(45)).toBe(93);
     expect(getRevealDelay(100)).toBe(90);
   });
+
+  it.each([2, 6, 45])(
+    "추첨 대상 %i개와 같은 수의 룰렛 구획을 만든다",
+    (candidateCount) => {
+      const gradient = createWheelGradient(candidateCount);
+
+      expect(gradient.match(/var\(--line\)/g)).toHaveLength(candidateCount);
+      expect(gradient).toContain("360deg");
+    },
+  );
 });

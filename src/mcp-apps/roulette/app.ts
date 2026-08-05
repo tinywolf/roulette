@@ -1,5 +1,6 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 import {
+  createWheelGradient,
   getRevealDelay,
   parseRouletteResult,
   type RouletteResult,
@@ -69,7 +70,8 @@ async function renderResult(result: RouletteResult): Promise<void> {
   const reducedMotion = prefersReducedMotion();
 
   status.textContent = "룰렛을 돌리고 있어요";
-  summary.textContent = `${result.candidateCount}명 중 ${result.drawCount}명을 추첨합니다.`;
+  summary.textContent = `후보 ${result.candidateCount}개 중 ${result.drawCount}개를 추첨합니다.`;
+  wheel.style.background = createWheelGradient(result.candidateCount);
   wheel.classList.add("is-spinning");
 
   if (!reducedMotion) {
@@ -100,8 +102,8 @@ async function renderResult(result: RouletteResult): Promise<void> {
   stage.classList.add("is-complete");
   summary.textContent =
     result.remainingCount > 0
-      ? `${result.drawCount}명 당첨 · ${result.remainingCount}명 미추첨`
-      : `${result.drawCount}명 전체 순서 추첨 완료`;
+      ? `${result.drawCount}개 추첨 완료 · ${result.remainingCount}개 남음`
+      : `전체 ${result.drawCount}개 순서 추첨 완료`;
 }
 
 /** MCP Apps 호스트의 tool-result 통지를 받아 UI에 전달한다. */

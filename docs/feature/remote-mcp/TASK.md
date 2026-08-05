@@ -7,7 +7,7 @@
 - 대상 브랜치: `feature/remote-mcp`
 - 최종 갱신일: 2026-08-05
 - 전체 상태: `done`
-- 진행률: 12/12
+- 진행률: 13/13
 - 다음 작업: Deferred Work에서 Vercel Preview 배포와 원격 호스트별 검증을 별도 계획으로 시작한다.
 - 현재 작업 완료 기준: 기존 텍스트 fallback을 유지하면서 MCP Apps 호환 호스트에 추첨 애니메이션을 제공하고, UI·서버·정적 웹의 빌드 경계와 로컬 검증을 모두 통과한다.
 - 현재 작업 범위 제외: Vercel Preview·Production 배포, 배포 URL 검증, Vercel Runtime Logs·cold start·플랫폼 한도 검증, 실제 원격 MCP 클라이언트 E2E, 다중 클라이언트 운영 검증
@@ -399,6 +399,27 @@
   - Vercel 호환 로컬 빌드 및 산출물 검사
 - `next_action`: 완료. Preview·Production 배포와 원격 MCP Apps 호스트 검증은 Deferred Work에서 별도로 진행한다.
 
+### T13. MCP App 렌더링 방향 검토 및 기존 룰렛 복원
+
+- 상태: `done`
+- 우선순위: P1
+- 진행: [x]
+- 목적: 웹 수준의 2D 추첨기 공용화가 필수가 아닌 상황에서 호스트 제약과 구조 복잡도를 재평가하고 MCP 전용 경량 룰렛 UI를 유지한다.
+- 작업 범위:
+  - 실험한 Canvas 2D 추첨기 렌더러와 관련 테스트를 제거한다.
+  - T12에서 검증한 CSS 룰렛 회전 UI, 1.45초 회전과 당첨 순차 공개를 복원한다.
+  - UI 리소스 `ui://roulette/roulette-v1.html`과 서버·문서·테스트 버전을 복원한다.
+  - 웹과 MCP 렌더링은 독립적으로 유지하고 입력·추첨 규칙과 결과 계약만 공유한다.
+- 완료 조건:
+  - Inspector에서 기존 원형 룰렛과 당첨 결과가 표시된다.
+  - Canvas 추첨기 코드와 신규 UI 리소스 버전 참조가 남지 않는다.
+  - 기존 MCP Apps 연결, 텍스트 fallback과 제품별 빌드 경계가 유지된다.
+- 검증:
+  - 총 23개 파일·154개 테스트와 전체 빌드·경계 검사
+  - MCP Inspector Apps 실제 렌더링 및 브라우저 오류 확인
+  - Vercel 호환 로컬 빌드 및 Function 전용 산출물 검사
+- `next_action`: 완료. Preview·Production 배포와 원격 MCP Apps 호스트 검증은 Deferred Work에서 별도로 진행한다.
+
 ## Deferred Work
 
 다음 항목은 현재 작업의 완료 조건이 아니며, T8 완료 후 별도 작업 계획과 상태로 관리한다.
@@ -421,7 +442,7 @@
 | Streamable HTTP와 Vercel 배포 준비 | T4, T8 |
 | 공개 서비스 보안·개인정보의 로컬 검증 | T5, T7, T8 |
 | 자동 테스트와 배포 전 로컬 검증 | T6, T8 |
-| MCP Apps UI와 텍스트 fallback | T2, T7, T9, T10, T11, T12 |
+| MCP Apps UI와 텍스트 fallback | T2, T7, T9, T10, T11, T12, T13 |
 | Vercel Hobby 운영 제약 문서화 | T7 |
 
 ### 현재 작업에서 미완료로 남는 스펙 요구사항
@@ -533,3 +554,10 @@
   - 리스크_또는_차단: Inspector 2.0.0 npm 패키지의 sandbox 파일 누락은 공식 파일 복원으로 로컬 검증했으며, Codex UI 렌더링과 실제 원격 호스트 호환성은 배포 후 범위
   - 다음: Deferred Work의 Preview 배포 및 원격 호스트별 검증
   - 사용자_피드백: MCP Apps를 표준 우선으로 제공하되 비지원 호스트의 텍스트 fallback 유지
+- 2026-08-05 14:14 | 단계: T13 | 상태: `in_progress` → `done`
+  - 요약: 웹 수준 Canvas 추첨기 실험을 제거하고 T12의 경량 CSS 룰렛 회전 UI와 `roulette-v1` 리소스를 복원했다.
+  - 산출물: T13 이전 MCP App 소스·생성 리소스·서버 버전·테스트·문서 복원, 갱신된 작업 기록
+  - 검증: 총 23개 파일·154개 테스트와 세 제품 빌드·경계 검사, Inspector 룰렛 렌더링·브라우저 오류 0건, Vercel Function 전용 Build Output 통과
+  - 리스크_또는_차단: MCP UI는 웹의 사실적 추첨기와 시각적으로 다르지만 제품별 제약과 독립적인 발전을 우선함
+  - 다음: Deferred Work의 Preview 배포 및 원격 호스트별 검증
+  - 사용자_피드백: 동등 UX가 필수가 아니므로 웹과 MCP 렌더링을 별도로 유지하고 이전 룰렛 방식으로 롤백
