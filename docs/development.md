@@ -1,280 +1,158 @@
 ---
-revision: a3eb60a
-updated_at: 2026-07-30T13:51:12+09:00
+revision: 15ebddc
+updated_at: 2026-08-05T12:23:14+09:00
 ---
 
 # 개발 가이드
 
-## 로컬 구성
+## 개발 환경
 
-검증에 사용한 환경은 Node.js `22.22.1`, npm `10.9.4`다. 환경 변수, API 키, 백엔드 서비스는 필요하지 않다.
+- Node.js 22 이상
+- npm 10 이상
+- 웹 확인용 최신 Chromium, Safari, Firefox 또는 Edge
+
+저장소 루트에서 설치한다.
 
 ```bash
 npm install
+```
+
+## 코드 구조와 의존성 규칙
+
+```text
+api/          Vercel Function과 HTTP 정책
+src/core/     웹·MCP 공통 순수 규칙
+src/web/      React·브라우저 전용 제품
+src/mcp-apps/ MCP Apps UI와 생성 리소스
+src/mcp/      MCP 도구·리소스·표현 전용 제품
+tools/        로컬 실행과 빌드·경계 검증 도구
+```
+
+허용 방향은 `web → core ← mcp ← api`다. `mcp-apps`는 독립 빌드하며 MCP 서버에는 생성된 HTML 리소스만 전달한다.
+
+- `core`에서 React, DOM, MCP SDK, Vercel API를 import하지 않는다.
+- `web`과 `mcp`는 서로 import하지 않는다.
+- `mcp-apps`는 `core`, `web`, `mcp`, `api`를 import하지 않으며 서버 난수와 도구 호출을 수행하지 않는다.
+- 웹 수동·자동 일정과 렌더링 타입은 `src/web/domain`에 둔다.
+- 후보 파싱, 난수와 즉시 추첨처럼 두 제품에서 같은 의미인 규칙만 `src/core`에 둔다.
+- MCP 요청 변환과 보안 헤더는 `api`에 두고 코어로 밀어 넣지 않는다.
+- 독립 모듈·컴포넌트에는 역할과 책임을 설명하는 주석을 추가한다.
+
+## 웹 개발
+
+개발 서버를 실행한다.
+
+```bash
 npm run dev
 ```
 
-개발 서버의 기본 주소는 `http://localhost:5173`이다. 프로덕션 산출물은 다음 명령으로 `dist/`에 생성한다.
+기본 주소는 `http://localhost:5173`이다. 다른 포트는 `npm run dev -- --port 5174`처럼 지정한다.
+
+정적 빌드와 미리보기는 다음과 같다.
 
 ```bash
-npm run build
+npm run build:web
+npm exec -- vite preview
 ```
 
-`dist/`는 정적 파일이지만 특정 호스팅 서비스의 base path, 리다이렉트, 자동 배포 설정은 현재 범위에 없다.
+웹 빌드는 기존 GitHub Pages 경로 `/roulette/`를 유지한다. Vercel 설정은 MCP Function 전용이므로 이 정적 산출물을 사용하지 않는다.
 
-## 검증 명령
+## MCP 개발
+
+타입 검사와 테스트는 서버 실행 없이 가능하다.
 
 ```bash
-npm run typecheck
-npm test
-npm run build
-npm audit --omit=dev
+npm run build:mcp
+npm run test:mcp-app
+npm run test:mcp
 ```
 
-- `typecheck`: `tsc --noEmit`으로 `src/`를 검사한다.
-- `test`: jsdom 환경에서 전체 Vitest 스위트를 한 번 실행한다.
-- `build`: 타입 검사 후 Vite 프로덕션 번들을 생성한다.
-- `npm audit --omit=dev`: 런타임 의존성의 알려진 취약점을 확인한다.
+`build:mcp`는 MCP App을 단일 HTML 리소스로 먼저 생성한 뒤 서버 타입을 검사한다. `src/mcp/integration/mcpFunction.test.ts`는 실제 MCP 2 클라이언트와 Streamable HTTP transport를 메모리상의 Function에 연결해 초기화, 도구·리소스 조회와 호출을 검증한다. 로컬 HTTP 서버와 MCP Inspector 절차는 [Remote MCP 개발 가이드](feature/remote-mcp/DEVELOPMENT.md)에 기록한다.
 
-2026-07-30 기준 전체 11개 테스트 파일, 105개 테스트와 정적 빌드가 통과했다. 마지막 의존성 점검에서 프로덕션 취약점은 0건이었다.
+도구 계약 변경 시 다음을 함께 갱신한다.
 
-## 프로젝트 특화 구조와 패턴
+- `src/mcp/tools/drawRoulette.ts`의 Zod 스키마
+- `src/mcp/server.ts`의 설명·초기화 지침
+- 정상·오류·프로토콜 통합 테스트
+- `docs/feature/remote-mcp/SPEC.md`와 기능 가이드
 
-### 도메인 로직은 브라우저 UI와 분리한다
-
-`src/domain/`에는 DOM, React, Canvas 호출을 추가하지 않는다. 추첨 규칙 변경은 먼저 순수 함수와 단위 테스트에 반영한다.
-
-- `names.ts`: 이름 목록 파싱, `*` 반복식·숫자 범위 확장과 입력 제한
-- `drawCount.ts`: 전체·일부 추첨 목표 개수 검증
-- `random.ts`: 난수 생성, 순열, 자동 일정
-- `drawEngine.ts`: 수동·자동 상태 전이와 결과
-- `types.ts`: 세션과 공의 공통 계약
-
-난수 함수는 테스트용 `RandomValuesSource`를 선택적으로 받는다. 새로운 무작위 기능도 `Math.random()`을 직접 사용하지 말고 이 경계를 재사용한다.
-
-### 연출은 결과를 결정하지 않는다
-
-`LotteryMachine`은 남은 공 `balls`, 세션 텍스처용 `allBalls`, `renderMode`, `isMixing`, `isSettling`, `visualBall`을 받아 그린다. `lotteryMotion.ts`의 3축 좌표·속도·투영 결과를 `DrawEngine`에 되돌려 보내지 않는다. Canvas 2D와 WebGL 3D는 같은 운동 노드를 소비하며, 이 원칙을 깨면 렌더링 모드나 기기 성능에 따라 추첨 결과가 달라질 수 있다.
-
-`shouldMixMachine`은 자동 모드의 `running`과 수동 모드의 `ready`·`mixing`을 혼합 상태로 해석한다. 수동 UI의 `준비 완료`는 다음 버튼을 누를 수 있다는 뜻이며 Canvas가 정지했다는 뜻이 아니다. `completed`에서는 혼합을 끄고 잔여 공이 있을 때 `isSettling`을 켠다.
-
-### 자동 추첨은 절대 시각으로 계산한다
-
-남은 시간을 감소시키는 방식 대신 각 공의 `dueAt`을 저장한다. 탭 가시성 변경, 포커스 복귀, 지연된 타이머에서 현재 시각을 기준으로 `reconcileScheduledDraws`를 호출한다.
-
-타이머 코드를 변경할 때 다음 조건을 유지한다.
-
-- 이미 반영한 공은 다시 추가하지 않는다.
-- 백그라운드에서 놓친 여러 연출을 복귀 후 몰아서 재생하지 않는다.
-- 목표 개수의 마지막 결과가 반영되면 `completed`로 전환한다.
-- 재추첨이나 설정 복귀 시 이전 타이머와 이벤트 구독을 정리한다.
-
-### 혼합 효과음은 시각 상태만 따라간다
-
-`App`의 `isMachineMixing`은 Canvas와 Web Audio가 공유하는 읽기 전용 상태다. 효과음이 켜져 있으면 남은 공 수와 함께 `startMixing`에 전달한다. 남은 공이 있는 정상 완료는 Canvas의 `isSettling`과 같은 조건으로 `finishMixing`을 호출하고, 나머지 완료·음소거·오류·설정 화면에서는 `stopMixing`을 호출한다. 수동 `ready`와 `mixing` 전환, 재추첨처럼 혼합 여부가 계속 참인 경우 기존 바람 루프를 재사용해야 한다.
-
-바람음은 한 개의 반복 노이즈 소스와 필터·게인으로 유지한다. 바람·충돌 버퍼는 `AudioContext` 수명 동안 캐시하며, 충돌음만 타이머마다 새 짧은 노드를 만든다. 충돌이 끝나면 소스·필터·공명·게인 연결을 모두 해제하고, 다음 간격 계산에는 현재 남은 공 수를 사용한다. 공이 1개 이하이면 충돌 타이머를 취소하고 2개 이상으로 늘어나면 다시 예약하되 바람 루프는 유지한다.
-
-`finishMixing`은 바람 게인을 첫 350ms에 70%까지 낮춘 뒤 총 2초까지 선형으로 감쇠하고, 저역 필터는 920Hz에서 560Hz로 낮춘다. 남은 공이 2개 이상이면 공 수에 따라 최대 세 번의 감쇠 충돌음을 재생한다. 감쇠 도중 `startMixing`이 호출되면 정지·충돌 타이머를 취소하고 같은 바람 소스를 180ms 동안 정상 게인으로 복귀시켜 중복 루프를 만들지 않는다. `setEnabled(false)`, `stopMixing`, `dispose`는 모든 타이머를 지우고 바람음을 짧게 감쇠시킨 뒤 정지해야 한다.
-
-음향 질감에 쓰는 `Math.random()`은 추첨 결과와 무관하다. 무작위 선택이나 일정 코드로 전달하거나 `domain`에서 재사용하지 않는다. AudioContext 자동 재생 정책을 고려해 시작 버튼이나 효과음 토글 같은 사용자 동작에서도 `startMixing`을 호출하되, 컨트롤러 내부에서 중복 생성을 차단한다.
-
-### 재추첨은 새 세션으로 교체한다
-
-추첨 화면의 `재추첨`은 기존 세션 객체를 직접 되감지 않고 `redrawSession`으로 새 세션을 만든다. 후보 `balls`, `mode`, `drawCount`만 재사용하고 `results`, `remainingBallIds`, `pendingBallId`, `schedule`, `startedAt`은 새 추첨 기준으로 초기화한다. App에서는 `visualResult`와 `previousResultCount`도 함께 초기화해야 직전 공의 배출 연출과 완료 효과가 반복되지 않는다.
-
-`처음부터 다시`는 별도 동작이다. `resetDrawSession()`으로 설정 화면에 돌아가 입력과 옵션을 편집할 수 있게 하며, 두 제어의 의미를 합치지 않는다.
-
-### 브라우저 API 실패를 격리한다
-
-`localStorage`, Clipboard, Web Audio, Canvas, WebGL은 실패할 수 있다. 기술 예외를 UI까지 전달하지 말고 현재 모듈의 한국어 결과나 무해한 실패로 바꾼다. WebGL 실패는 Canvas 대체 연출로 이어가고, Web Crypto만 정확성 요구사항 때문에 실패 시 추첨을 중단한다.
-
-## 상태 변경 지점
-
-앱 수준 상태는 `src/App.tsx`가 소유한다.
-
-| 상태 | 변경 경로 |
-|---|---|
-| `rawInput` | 설정 입력, 입력 비우기, 초기 저장 복원 |
-| `mode` | 설정 화면의 수동·자동 선택, 변경 시 브라우저 저장 |
-| `drawCountMode` | 전체·일부 추첨 선택, 변경 시 브라우저 저장 |
-| `customDrawCount` | 일부 추첨의 숫자 입력, 변경 시 브라우저 저장 |
-| `session` | 시작, 수동 완료 타이머, 자동 일정 복구, 재추첨, 설정 복귀 |
-| `soundEnabled` | 효과음 토글, 변경 시 브라우저 저장 |
-| `renderMode` | 설정·추첨 화면의 2D/3D 토글, 변경 시 브라우저 저장 |
-| `notice` | 저장·복사·난수·Canvas·WebGL 결과 |
-| `visualResult` | 화면이 보이는 상태에서 한 공이 새로 반영될 때 |
-
-상태 분기가 더 늘어나면 `session`과 타이머 조정을 별도 `useDrawSession` 훅이나 reducer로 옮기되, 도메인 순수 함수는 유지한다.
-
-## 기능 변경 가이드
-
-### 입력 제한 변경
-
-1. `src/domain/names.ts`의 상수를 변경한다.
-2. `src/domain/names.test.ts` 경계값을 갱신한다.
-3. `SetupPanel`의 개수 배지와 안내 문구를 함께 바꾼다.
-4. 공 개수를 늘리면 Canvas와 모바일 레이아웃을 다시 검수한다.
-
-입력은 먼저 줄바꿈·콤마로 나눈 뒤 각 항목 끝의 ASCII `*반복횟수`를 분리한다. 접미사를 제외한 값에 `~`가 있으면 숫자 범위로, 없으면 일반 이름·숫자로 해석한다. `1~3, 민지*2, 7` 같은 조합은 지원하지만 `1~3*2` 같은 범위 자체의 반복은 오류로 처리한다.
-
-`*`와 `~`는 예약 문자다. `*`는 한 항목에 한 번만 사용할 수 있고 횟수는 1~45 사이 정수다. `~`는 안전한 두 정수를 오름차순으로 연결해야 한다. 이름 길이는 표현식을 제외한 일반 값으로, 전체 개수는 모든 범위와 반복식을 확장한 최종 결과로 검증한다.
-
-### 자동 간격 변경
-
-1. `createAutoSchedule`의 범위를 변경한다.
-2. 가짜 난수 기반 단위 테스트의 `dueAt` 기대값을 수정한다.
-3. `App.test.tsx`의 가짜 시계 자동 흐름을 갱신한다.
-4. `docs/SPEC.md`와 아키텍처 문서의 수치를 함께 변경한다.
-
-### 추첨 목표 개수 변경
-
-1. 설정 입력 검증은 `validateDrawCount`에서 처리한다.
-2. `createDrawSession`에는 후보 수 이내의 양의 정수 `drawCount`만 전달한다.
-3. 수동 완료 조건, 자동 일정 길이와 결과 카운터가 모두 `session.drawCount`를 기준으로 하는지 확인한다.
-4. 일부 추첨 완료 후 `remainingBallIds`가 남는 것은 정상이며 결과 수와 목표 개수가 같은지를 먼저 확인한다.
-
-### 2D·3D 연출 변경
-
-운동 규칙은 `lotteryMotion.ts`, 2D·3D 전환과 Canvas 실패 대체는 `LotteryMachine.tsx`, 단일 WebGL 장면·텍스처·버퍼는 `lottery3dRenderer.ts`에 둔다. `BallMotionNode`는 화면 중심 기준 상대 3축 좌표를 사용하므로 리사이즈 시 위치와 속도를 같은 비율로 조정한다.
-
-- 공 간 충돌은 완료 후 정착 단계에서만 사용한다. 혼합 단계에 다시 추가하면 2D·3D 투영 겹침과 45개 혼합 유동성이 줄어들 수 있다.
-- 2D의 공 반지름은 깊이와 무관하게 고정한다. `projectBallMotionNode`를 바꿀 때 기존 동일 크기 계약을 유지한다.
-- 3D의 원근 크기는 `projectBallMotionNode3d`에서만 계산한다. 카메라 거리나 크기 범위를 바꾸면 45개 공, 긴 이름, 모바일 원형 경계 침범을 함께 확인한다.
-- WebGL 공은 가로 1,024px, 128px 셀의 동적 높이 아틀라스를 사용한다. 45개 공은 1,024×768이며 `allBalls`가 바뀌는 새 세션에서만 생성한다. 추첨된 공을 아틀라스에서 제거하거나 남은 공 변화마다 다시 업로드하지 않는다.
-- 정상 3D 경로는 WebGL Canvas 하나만 표시한다. 유리구·받침은 리사이즈 시 실제 도형 경계만 정적 장면 아틀라스에 패킹하고, 배경·공·전경·배출 공을 재사용 정점 버퍼와 한 draw call로 합성한다.
-- 렌더러 수명 effect에는 동적인 공·혼합·정착·배출 값을 의존성으로 다시 넣지 않는다. 이 값들은 ref로 읽고 `renderMode`가 바뀌거나 컴포넌트가 해제될 때만 WebGL 리소스를 폐기한다.
-- 모든 정점은 Z=0이고 CPU에서 깊이순으로 정렬하므로 WebGL 컨텍스트의 `depth`, `stencil`, `antialias`는 끈다. 공과 장면의 가장자리는 Canvas 텍스처 알파가 담당한다.
-- 투영 객체와 깊이 정렬 배열은 공 목록이 바뀔 때 구성하고 프레임에서는 필드만 덮어쓴다. 렌더러는 전달된 깊이 순서를 신뢰하며 고정 `Float32Array`와 `bufferSubData`를 사용한다.
-- 2D의 기계 배경과 고정 외곽선도 도형 경계 크기의 Canvas에 캐시한다. 프레임 안에서 정적 그라디언트와 받침을 다시 그리지 않는다.
-- 숨겨진 Canvas 3D 레이어는 WebGL 초기화·프레임·context 유실 때만 표시한다. 정상 경로에서 정적 장면을 매 프레임 Canvas로 다시 그리지 않는다.
-- `webglcontextlost`, 초기화 또는 프레임 오류가 발생하면 `renderer3d`를 해제하고 Canvas 3D 투영으로 계속 진행해야 한다.
-- 중앙 횡단은 공별 위상이 다른 목표점과 횡단 제트가 담당한다. 목표점 추종력을 바꾸면 중앙 군집 없이 바깥 공과 중앙 공이 동시에 보이는지 확인한다.
-- 완료 후 정착은 중력, 구형 경계 반발, 3회의 공 간 위치 보정과 저반발 충돌로 처리한다. 공중의 저속 공에는 수면 판정을 적용하지 않는다. 이동량 0.08px 이하가 18프레임 이어지면 애니메이션을 중단하고, 3초 이후에는 감쇠를 강화한다. 4초 이후에도 움직이면 복사한 노드로 최종 정착 위치를 계산하고 현재 위치·속도에서 시작하는 1초 3차 보간으로 수렴시켜 5초 하드 리밋에 정지한다. 전환 진행도에는 경과 벽시계 시간이 아니라 실제 렌더링 프레임 시간을 사용해 백그라운드 복귀 시 순간 이동을 방지한다. 임계값이나 마찰을 바꾸면 공 관통·바닥 떨림·중단 여부·모바일 프레임을 함께 확인한다.
-- 배출 시작 시각은 공 ID별 ref에 유지해 혼합 상태 변경으로 직전 배출이 재생되지 않게 한다.
-- 렌더링 모드 전환 때문에 `DrawSession`을 수정하지 않는다. `nodesRef`를 유지한 채 effect의 Canvas·WebGL 리소스만 다시 구성하고 애니메이션 예외는 `onError`로 격리한다.
-- `lottery3dRenderer.test.ts`는 같은 크기의 반복 리사이즈가 정적 장면을 다시 만들지 않는지, 경계 패킹 크기, 45개 아틀라스 높이, 재사용 버퍼와 한 draw call을 검증한다.
-- `LotteryMachine.test.tsx`는 추첨 상태가 바뀌어도 렌더러·전체 공 아틀라스를 재생성하지 않는지, 빈 장면과 44개 공 정착 및 하드 리밋 수렴 후 animation frame을 중단하는지 검증한다.
+후보 원문과 결과를 `console`, 오류 메시지, 이벤트 콜백 또는 저장소에 추가하지 않는다. 운영 관측이 필요하면 payload를 포함하지 않는 메서드·상태·소요 시간만 별도 검토한다.
 
 ## 테스트
 
-### 설정
-
-`vitest.config.ts`는 jsdom과 `src/test/setup.ts`를 사용한다. 테스트 설정은 Canvas context, `ResizeObserver`, animation frame을 최소 구현으로 대체해 도메인·UI 검증이 실제 프레임 루프에 의존하지 않게 한다.
-
-테스트 파일은 대상 파일과 같은 디렉터리에 둔다.
-
-```text
-src/domain/names.ts
-src/domain/names.test.ts
-```
-
-### 새 테스트 작성
-
-아래 예제는 현재 `src/domain/names.test.ts`에 포함된 형태와 동일한 패턴이며 실제로 실행해 통과했다.
-
-```ts
-import { describe, expect, it } from "vitest";
-import { parseNames } from "./names";
-
-describe("parseNames", () => {
-  it("중복 이름을 허용한다", () => {
-    const result = parseNames("민지, 민지");
-
-    expect(result.errors).toEqual([]);
-    expect(result.names).toEqual(["민지", "민지"]);
-  });
-});
-```
-
-해당 테스트만 실행하려면 다음 명령을 사용한다.
+전체 검증 명령은 모든 테스트, 타입 검사, 빌드와 경계 검사를 순서대로 실행한다.
 
 ```bash
-npm test -- src/domain/names.test.ts
+npm run verify
 ```
 
-문서 작성 시 이 명령을 실제 실행했고 1개 파일의 9개 테스트가 통과했다.
+영역별로 빠르게 실행할 수 있다.
 
-### 난수 테스트
+```bash
+npm run test:core
+npm run test:web
+npm run test:mcp-app
+npm run test:mcp
+npm run verify:boundaries
+```
 
-분포를 반복 실행해 통계적으로 단정하지 않는다. `RandomValuesSource`에 미리 정한 32비트 값을 주입해 다음을 결정적으로 검증한다.
+특정 코어 파일만 실행하는 실제 예시는 다음과 같다.
 
-- 거부 구간 값은 폐기하고 다음 값을 사용한다.
-- Fisher–Yates 결과가 모든 공 ID를 한 번씩 포함한다.
-- 0과 4 인덱스가 각각 3초와 7초 간격을 만든다.
-- 난수 소스 예외가 `SecureRandomError`로 바뀐다.
+```bash
+npm run test:core -- src/core/input.test.ts
+```
 
-### 타이머 테스트
+입력 문법을 수정할 때는 일반 후보, 빈 항목, 중복, 반복, 범위, 길이와 최종 2~45개 경계를 함께 추가한다. 난수 코드는 결정론적 `RandomValuesSource`를 주입해 거부 샘플링과 오류 분기를 검증한다.
 
-React 통합 테스트에서는 `vi.useFakeTimers()`와 `vi.setSystemTime()`을 사용한다. 수동 혼합은 2,400ms, 자동 첫 결과는 주입된 난수에 따라 3,000ms 경계 전후를 검증한다. 테스트 종료 전 `vi.useRealTimers()`로 복구한다.
+## 구현 작업 순서
 
-### 수동 스모크 체크리스트
-
-- 입력 2개 미만, 46개 이상, 20자 초과에서 시작이 비활성화되는가
-- 중복 이름이 별도의 공으로 보이는가
-- `민지*2, 준호*3`과 `7*2`가 입력 순서대로 독립된 공으로 확장되는가
-- 잘못된 반복 형식·횟수와 확장 후 46개 이상 입력이 차단되는가
-- `1~45`가 45개의 숫자 공으로 보이고 입력 원문 그대로 새로고침 후 복원되는가
-- `1~3, 민지*2, 7`과 여러 범위가 입력 순서대로 확장되고 `1~3*2`는 차단되는가
-- 잘못된 범위 형식, 역순과 최종 46개 이상 결과가 차단되는가
-- 전체 추첨이 기본으로 선택되고 일부 추첨이 1~후보 수 범위만 허용하는가
-- 45개 중 6개 추첨이 여섯 번째 결과에서 완료되는가
-- 수동 시작 직후와 한 공 배출 후 다음 버튼을 기다리는 동안에도 공이 계속 섞이는가
-- 45개 혼합 프레임에서 모든 공 크기가 같고 중앙·바깥 공이 동시에 보이며 역동적으로 위치가 변하는가
-- 일부 추첨 완료 후 남은 공이 원형 바닥에 여러 층으로 쌓이고 흔들림이 감쇠하는가
-- 공중의 느린 공이 자연스럽게 낙하하고, 오래 움직이는 공이 하드 리밋 직전 1초 동안 순간 이동 없이 최종 위치로 수렴하는가
-- 정착이 끝난 완료 화면에서 animation frame이 계속 생성되지 않고 리사이즈·모드 변경 시 다시 그려지는가
-- 두 번째 수동 혼합에서 직전 배출 공이 다시 나타나지 않는가
-- 수동 버튼 연속 클릭이 결과를 중복 생성하지 않는가
-- `Space`가 수동 준비 상태에서만 동작하고 반복 키 입력이나 다른 조작 요소 포커스에서는 무시되는가
-- 수동·자동 진행 중 버튼이나 `R`로 재추첨을 요청하면 확인이 표시되고 취소 시 기존 진행을 유지하는가
-- 완료·오류 상태에서는 확인 없이 결과 0개인 새 세션으로 재추첨하는가
-- 재추첨 전의 수동 타이머와 자동 일정이 새 세션에 결과를 추가하지 않는가
-- 효과음을 켠 혼합 상태에서 바람 루프와 공 충돌음이 시작되고 남은 공 수에 따라 충돌 밀도가 달라지는가
-- 남은 공이 있는 정상 완료에서 바람과 잔여 충돌음이 감쇠하고, 감쇠 도중 재추첨해도 바람 루프가 중복 생성되지 않는가
-- 음소거·남은 공 없는 완료·오류·설정 복귀에서 혼합 효과음이 빠르게 정지하는가
-- 자동 모드에 카운트다운과 일시정지 버튼이 없는가
-- 설정 화면과 추첨 화면에서 2D/3D 토글이 효과음 토글과 함께 보이는가
-- 추첨 중 2D↔3D 전환 후 결과 수, 남은 공, 자동 일정과 버튼 상태가 유지되는가
-- 3D에서 앞뒤 공 크기와 가림이 다르고 45개 공의 이름이 표시되는가
-- 공 배출과 추첨 단계 변경 때 WebGL Canvas가 유지되고 장면·공 텍스처가 다시 업로드되지 않는가
-- WebGL 실패·context 유실에서 경고 후 Canvas 대체 연출로 계속 진행하는가
-- 새로고침과 처음부터 다시에서 입력·추첨 방식·개수·렌더링·효과음이 유지되고 추첨 결과는 초기화되는가
-- 결과 복사 형식이 `1. 이름`인가
-- 390px 모바일 폭에서 설정·Canvas·결과가 잘리거나 겹치지 않는가
-- 브라우저 콘솔에 오류가 없는가
-
-현재 데스크톱과 390×844 모바일 Chromium 스모크는 통과했다. Safari, Firefox, Edge 실제 실행은 가능한 환경에서 추가해야 한다.
+1. 변경 책임이 `core`, `web`, `mcp-apps`, `mcp`, `api` 중 어디에 속하는지 결정한다.
+2. 가장 작은 단위 테스트로 현재 계약과 실패 사례를 고정한다.
+3. 단순한 구현으로 테스트를 통과시킨다.
+4. 목적별 테스트와 타입 검사를 실행한다.
+5. `npm run verify`로 교차 제품 회귀와 번들 경계를 확인한다.
+6. MCP Function 변경은 로컬 Inspector와 Vercel 호환 검증을 추가로 수행한다.
 
 ## 디버깅
 
-### 자동 결과가 늦게 보일 때
+### 입력 오류
 
-`session.schedule`의 `dueAt`, `Date.now()`, `session.results`의 공 ID를 비교한다. 백그라운드 탭에서는 타이머가 정확한 순간에 실행되지 않는 것이 정상이며, 복귀 후 일정이 중복 없이 반영되는지를 확인한다.
+`parseNames`가 반환하는 `errors`를 먼저 확인한다. MCP 오류는 `INVALID_INPUT`과 안전한 설명으로 변환되므로 원문이나 내부 예외를 응답에 삽입하지 않는다.
 
-### Canvas와 결과 개수가 다를 때
+### 무작위 테스트 실패
 
-전체 후보와 Canvas 표시의 기준은 `DrawSession.remainingBallIds`다. 완료 여부와 결과 카운터의 기준은 `DrawSession.drawCount`다. 일부 추첨 완료 시 둘의 개수가 다른 것은 정상이다. Canvas 노드는 파생 상태이므로 `nodesRef`를 데이터 원본으로 사용하지 않는다. `ballsRef`의 최신 목록과 공 ID 시그니처 동기화, 렌더 모드 effect cleanup을 먼저 확인한다.
+테스트에서는 Web Crypto 전역을 바꾸기보다 `RandomValuesSource`를 주입한다. 운영 코드에서 난수 실패를 `Math.random()`으로 대체하면 안 된다.
 
-### 저장 경고가 반복될 때
+### MCP 연결 실패
 
-브라우저의 사이트 저장 권한과 private mode를 확인한다. 앱은 입력 또는 설정 저장 실패 후에도 현재 메모리 상태로 동작해야 한다. `lottery-draw:names:v1`과 `lottery-draw:setup-options:v1` 중 어느 키의 경고인지 먼저 구분한다.
+- 요청 경로가 `/mcp`인지 확인한다.
+- `Content-Type: application/json`과 MCP 프로토콜 헤더를 Inspector 또는 SDK transport가 설정하는지 확인한다.
+- Origin이 있다면 요청 URL과 같은 origin인지 확인한다.
+- 16 KiB를 넘는 요청은 의도적으로 413을 반환한다.
+- GET·DELETE 405는 stateless 서버의 정상 동작이다.
 
-### 오디오가 재생되지 않을 때
+### MCP App이 표시되지 않음
 
-최초 토글이 사용자 클릭 안에서 실행되는지와 `AudioContext.state`를 확인한다. 오디오 실패는 핵심 추첨 결함으로 취급하지 않는다.
+- `tools/list`의 `_meta.ui.resourceUri`가 `ui://roulette/roulette-v1.html`인지 확인한다.
+- `resources/read`의 MIME이 `text/html;profile=mcp-app`인지 확인한다.
+- 호스트가 MCP Apps 확장을 지원하지 않으면 텍스트 결과만 표시되는 것이 정상이다.
+- Inspector 2.0.0에서 `sandbox_proxy.html` ENOENT가 발생하면 기능 가이드의 알려진 패키징 문제를 확인한다.
+
+### 웹·MCP 코드 혼입
+
+`npm run verify:boundaries`를 실행한다. 정적 검사 외에 `dist/assets`에서 MCP SDK나 UI 리소스 식별자가 발견되면 웹 진입점의 import 경로를 추적한다. Function은 MCP App 실행 소스가 아니라 생성된 HTML 리소스만 포함해야 한다.
 
 ## 보안 점검
 
-- 소스와 문서에서 password, API key, client secret, private key, access token 패턴을 검색했으며 직접 포함된 민감 정보는 발견되지 않았다.
-- `npm audit --omit=dev` 결과 프로덕션 취약점은 0건이었다.
-- 이름은 네트워크로 전송하지 않고 React 텍스트 노드와 Canvas `fillText`로만 표시한다. WebGL 3D 이름도 로컬 Canvas 텍스처로 만든다.
-- 이름 원문은 `localStorage`에 평문으로 남는다. 공용 기기에서는 `입력 비우기`를 사용해야 한다.
-- 새로운 원격 의존성, 분석 도구, 폰트, 이미지 CDN을 추가하면 “브라우저 안에서만 처리” 안내와 개인정보 흐름을 다시 검토한다.
+변경 후 다음을 실행한다.
 
-## 알려진 제약
+```bash
+npm audit --omit=dev
+npm run verify:boundaries
+```
 
-- 최대 공 개수는 45개다.
-- 3D 모드는 단일 WebGL 장면과 빌보드 원근 투영이며 메시 기반 구체 회전·충돌을 계산하는 고급 3D 물리 엔진은 아니다.
-- 추첨 결과와 세션은 새로고침 후 복구하지 않는다.
-- 특정 호스팅 서비스 설정, PWA, 접근성 전용 대응, 모니터링은 초기 범위 밖이다.
+커밋 전에는 토큰·비밀번호·개인 키 패턴과 후보·결과를 출력하는 `console` 호출을 검사한다. 의존성 취약점은 무시하거나 문서화만 하지 말고, 호환 가능한 보안 버전으로 올린 뒤 전체 검증을 다시 수행한다.
+
+## 배포 경계
+
+`vercel.json`은 정적 웹 빌드 없이 `/mcp`를 `api/mcp`로 rewrite하고 Function 최대 실행 시간을 10초로 제한한다. 웹은 기존 GitHub Pages workflow로 배포한다. 현재 작업은 로컬 검증까지만 수행하며 Preview·Production 생성, 실제 URL·로그·cold start 검증과 롤백은 별도 작업으로 진행한다.

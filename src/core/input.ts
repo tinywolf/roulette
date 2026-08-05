@@ -1,8 +1,9 @@
-import type { ParseNamesResult } from "./types";
+import type { ParseNamesResult } from "./types.js";
 
-export const MIN_BALLS = 2;
-export const MAX_BALLS = 45;
-export const MAX_NAME_LENGTH = 20;
+/** 후보 문자열을 웹과 MCP가 공유하는 입력 문법에 따라 확장하고 검증한다. */
+export const MIN_CANDIDATES = 2;
+export const MAX_CANDIDATES = 45;
+export const MAX_CANDIDATE_NAME_LENGTH = 20;
 
 const NUMERIC_RANGE_PATTERN = /^(\d+)[ \t]*~[ \t]*(\d+)$/;
 const REPEAT_PATTERN = /^(.*?)[ \t]*\*[ \t]*(\d+)$/;
@@ -51,10 +52,10 @@ function parseNumericRangeEntry(entry: string): ExpandedEntry | null {
 
   const rangeLength = end - start + 1;
 
-  if (rangeLength > MAX_BALLS) {
+  if (rangeLength > MAX_CANDIDATES) {
     return {
       names: [],
-      error: `숫자 범위는 최대 ${MAX_BALLS}개까지 입력할 수 있습니다.`,
+      error: `숫자 범위는 최대 ${MAX_CANDIDATES}개까지 입력할 수 있습니다.`,
     };
   }
 
@@ -83,7 +84,7 @@ function expandEntry(entry: string): ExpandedEntry {
       value.includes("*") ||
       !Number.isSafeInteger(repeatCount) ||
       repeatCount < 1 ||
-      repeatCount > MAX_BALLS
+      repeatCount > MAX_CANDIDATES
     ) {
       return {
         names: [],
@@ -129,18 +130,22 @@ export function parseNames(raw: string): ParseNamesResult {
     return expanded.names;
   });
 
-  if (names.length < MIN_BALLS) {
-    errors.push(`이름을 ${MIN_BALLS}개 이상 입력해 주세요.`);
+  if (names.length < MIN_CANDIDATES) {
+    errors.push(`이름을 ${MIN_CANDIDATES}개 이상 입력해 주세요.`);
   }
 
-  if (names.length > MAX_BALLS) {
-    errors.push(`이름은 최대 ${MAX_BALLS}개까지 입력할 수 있습니다.`);
+  if (names.length > MAX_CANDIDATES) {
+    errors.push(`이름은 최대 ${MAX_CANDIDATES}개까지 입력할 수 있습니다.`);
   }
 
-  const overlongNames = names.filter((name) => name.length > MAX_NAME_LENGTH);
+  const overlongNames = names.filter(
+    (name) => name.length > MAX_CANDIDATE_NAME_LENGTH,
+  );
 
   if (overlongNames.length > 0) {
-    errors.push(`이름은 각각 ${MAX_NAME_LENGTH}자 이하로 입력해 주세요.`);
+    errors.push(
+      `이름은 각각 ${MAX_CANDIDATE_NAME_LENGTH}자 이하로 입력해 주세요.`,
+    );
   }
 
   return { names, errors };

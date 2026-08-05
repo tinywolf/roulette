@@ -1,226 +1,199 @@
 # 로또 추첨기
 
-브라우저에서 여러 이름을 로또 공처럼 섞어 무작위 순서로 뽑는 정적 웹앱입니다. 별도의 회원가입이나 백엔드 서버 없이 실행할 수 있으며, 수동 추첨과 자동 추첨을 모두 지원합니다.
+같은 추첨 규칙을 두 가지 방식으로 제공하는 프로젝트입니다.
 
-추첨 결과는 브라우저의 Web Crypto API로 결정됩니다. Canvas 2D·WebGL 3D 애니메이션은 결과와 분리된 시각적 연출이므로 기기 성능이나 공의 화면 위치가 추첨 순서에 영향을 주지 않습니다.
+- 정적 웹앱: 브라우저에서 2D·3D 애니메이션과 함께 수동 또는 자동 추첨
+- Remote MCP: 에이전트가 옵션을 모두 확인한 뒤 텍스트 결과와, 지원 호스트에서는 룰렛 UI를 반환하는 공개·stateless 도구
+
+추첨 결과는 Web Crypto API와 거부 샘플링을 이용한 Fisher–Yates 순열로 결정합니다. 웹 애니메이션은 이미 결정된 결과의 표현만 담당합니다.
 
 ## 주요 기능
 
-- 줄바꿈 또는 콤마로 여러 이름 일괄 입력
-- `민지*2`, `7*3` 형식으로 같은 이름이나 숫자 공을 짧게 반복 입력
-- `1~45` 형식의 숫자 범위를 다른 값·반복식과 함께 순차 공으로 자동 확장
-- 최소 2개, 최대 45개의 공 지원
-- 이름당 최대 20자
-- 같은 이름을 서로 다른 공으로 중복 등록
-- 전체 또는 원하는 개수만 뽑는 비복원 추첨
-- 버튼 또는 `Space` 키로 한 공씩 진행하되 대기 중에도 공을 계속 섞는 수동 모드
-- 3~7초 사이의 무작위 간격으로 끝까지 진행하는 자동 모드
-- 현재 입력과 설정을 유지한 채 버튼 또는 `R` 키로 즉시 새로 시작하는 재추첨
-- 동일한 공 크기로 중앙과 바깥을 오가는 Canvas 2D 구형 혼합·겹침·배출 연출
-- 유리구·공·받침을 하나의 GPU 장면으로 합성하는 WebGL 3D 연출
-- 설정 화면과 추첨 중 언제든 바꿀 수 있는 2D/3D 렌더링 토글
-- 일부 추첨 완료 후 남은 공을 바닥에 쌓고, 오래 움직이는 공은 마지막 1초 동안 부드럽게 수렴시키는 정착 연출
-- 추첨 순서 누적 표시와 클립보드 복사
-- 입력 이름과 선택한 추첨 옵션을 브라우저 `localStorage`에 보존
-- 최초 음소거 상태이며 공기 흐름·공 충돌과 완료 후 감속을 합성한 혼합 효과음
-- 모바일·데스크톱 반응형 화면
+- 줄바꿈 또는 콤마로 후보 구분
+- `민지*2`, `7*3` 반복 입력과 `1~45` 숫자 범위 입력
+- 2~45개 후보, 후보 이름당 최대 20자
+- 중복 이름을 서로 다른 후보로 취급
+- 전체 또는 지정 개수 비복원 추첨
+- 웹의 수동·자동 추첨, 2D Canvas·3D WebGL 연출, 효과음과 결과 복사
+- 웹 입력·설정을 브라우저 `localStorage`에 보존
+- MCP `draw_roulette` 도구의 텍스트·구조화 결과와 MCP Apps 룰렛 애니메이션
+- 웹·MCP 목적별 빌드와 테스트 격리
 
-## 사용 방법
+## 입력 예시
 
-1. `공 이름` 입력란에 이름을 줄바꿈 또는 콤마로 구분해 입력합니다.
+```text
+민지, 준호
+서연, 민지
+```
 
-   ```text
-   민지, 준호
-   서연, 민지
-   ```
+반복식과 숫자 범위도 함께 사용할 수 있습니다.
 
-   같은 공을 여러 개 넣으려면 값 뒤에 `*`와 반복 횟수를 붙입니다.
+```text
+1~5, 민지*2, 7
+```
 
-   ```text
-   민지*2, 준호*3
-   7*2
-   ```
-
-   위 입력은 `민지` 2개, `준호` 3개, `7` 2개의 공으로 해석됩니다. 반복 횟수는 1~45 사이의 정수이며, 펼친 뒤 전체 공은 최대 45개여야 합니다.
-
-   연속된 숫자는 `~` 범위로 입력할 수 있으며, 이름·숫자·반복식·다른 범위와 함께 사용할 수 있습니다.
-
-   ```text
-   1~5, 민지*2, 7
-   ```
-
-   위 입력은 `1`부터 `5`까지의 숫자 공, `민지` 공 2개와 `7` 공 하나로 해석됩니다. 숫자 범위 자체에는 `*` 반복을 적용하지 않습니다.
-
-2. `전체 추첨` 또는 `일부만 추첨`을 선택합니다. 일부 추첨은 1부터 입력한 공 개수까지 직접 입력할 수 있습니다.
-3. `직접 뽑기` 또는 `자동 추첨`을 선택합니다.
-4. `2D` 또는 `3D` 렌더링을 선택합니다. 기본값은 3D이며 추첨 중에도 결과를 유지한 채 바꿀 수 있습니다.
-5. 필요하면 효과음 토글을 켭니다. 공이 섞이는 동안 바람 소리와 불규칙한 공 충돌음이 재생되고, 완료 후 남은 공이 떨어질 때는 송풍기가 서서히 멈추듯 감쇠합니다. 저장된 선택이 없을 때의 기본값은 음소거입니다.
-6. `추첨 시작`을 누릅니다.
-7. 수동 모드에서는 공이 계속 섞이며, `다음 공 뽑기` 버튼 또는 `Space` 키를 누를 때마다 한 공이 나옵니다.
-8. 자동 모드에서는 카운트다운 없이 3~7초 사이에 공이 하나씩 나옵니다.
-9. 목표한 개수의 추첨이 끝나면 `결과 복사`로 순서 목록을 복사할 수 있습니다.
-10. `재추첨` 버튼 또는 `R` 키를 누르면 설정 화면으로 돌아가지 않고 같은 목록과 설정으로 추첨만 새로 시작합니다. 진행 중에는 한 번 확인하고, 완료 후에는 즉시 시작합니다.
-11. 입력이나 설정을 바꾸려면 `처음부터 다시`를 눌러 설정 화면으로 돌아갑니다.
-
-예를 들어 이름 45개를 넣고 `일부만 추첨`을 6개로 설정하면 여섯 번째 결과에서 추첨이 완료되며, 나머지 39개는 결과에 포함되지 않습니다.
-
-`입력 비우기`는 입력란과 브라우저에 저장된 이름 목록을 함께 삭제하되 선택한 옵션은 유지합니다. 페이지를 새로고침하면 이름 목록, 전체/일부 추첨, 추첨 개수, 진행 방식, 2D/3D 렌더링과 효과음 설정은 복원되며 진행 결과와 순서는 초기화됩니다.
+웹에서는 전체/일부 추첨과 수동/자동 모드를 선택한 뒤 시작합니다. MCP에서는 에이전트가 후보 목록과 추첨 인원을 모두 확인한 경우에만 `draw_roulette`를 호출합니다. 전체 추첨은 `drawCount: "all"`, 일부 추첨은 양의 정수를 사용합니다.
 
 ## 기술 구성
 
 | 영역 | 기술 |
 |---|---|
-| UI | React 19, TypeScript |
-| 개발·빌드 | Vite |
+| 공통 코어 | TypeScript, Web Crypto API |
+| 정적 웹 | React 19, Vite, Canvas 2D, WebGL, Web Audio |
+| Remote MCP | MCP TypeScript SDK 2, MCP Apps, MCP-UI, `mcp-handler`, Zod, Vercel Function |
 | 테스트 | Vitest, Testing Library, jsdom |
-| 애니메이션 | HTML Canvas 2D, WebGL |
-| 난수 | Web Crypto API |
-| 저장 | 브라우저 `localStorage` |
-| 효과음 | Web Audio API |
+| 웹 저장 | 브라우저 `localStorage` |
 
-이 프로젝트는 외부 API, 데이터베이스, 분석 도구, 원격 폰트·이미지를 사용하지 않습니다.
+MCP 서버는 데이터베이스·캐시·분석 도구를 사용하지 않습니다. 후보와 결과를 애플리케이션 로그나 영구 저장소에 기록하지 않습니다.
 
-## 실행 환경
+## 실행 환경과 설치
 
 - Node.js 22 이상 권장
 - npm 10 이상 권장
-- 최신 안정 버전 Chrome, Safari, Firefox 또는 Edge
-
-현재 자동 검사와 실제 스모크 테스트에 사용한 환경은 Node.js `22.22.1`, npm `10.9.4`, Chromium 기반 브라우저입니다.
-
-## 설치
-
-저장소 루트에서 의존성을 설치합니다.
+- 웹 사용 시 최신 안정 버전 Chrome, Safari, Firefox 또는 Edge
 
 ```bash
 npm install
 ```
 
-## 로컬 개발 서버 실행
+## 웹 개발과 빌드
 
 ```bash
 npm run dev
-```
-
-터미널에 출력된 주소를 브라우저에서 엽니다. 기본 주소는 다음과 같습니다.
-
-```text
-http://localhost:5173
-```
-
-기본 포트를 사용할 수 없다면 다른 포트를 지정할 수 있습니다.
-
-```bash
-npm run dev -- --port 5174
-```
-
-같은 네트워크의 다른 기기에서 테스트해야 할 때만 호스트 바인딩을 엽니다.
-
-```bash
-npm run dev -- --host 0.0.0.0
-```
-
-이 경우 로컬 네트워크에 개발 서버가 노출될 수 있으므로 신뢰할 수 있는 환경에서만 사용하세요.
-
-## 프로덕션 빌드
-
-TypeScript 검사 후 정적 프로덕션 파일을 `dist/`에 생성합니다.
-
-```bash
-npm run build
-```
-
-빌드 결과를 로컬 미리보기 서버로 확인하려면 다음 명령을 사용합니다.
-
-```bash
+npm run build:web
 npm exec -- vite preview
 ```
 
-기본 미리보기 주소는 `http://localhost:4173`입니다. `dist/`는 정적 파일이므로 GitHub Pages, Vercel, Cloudflare Pages 같은 정적 호스팅 환경에 배포할 수 있지만, 서비스별 배포 설정과 자동화는 아직 포함하지 않습니다.
+기본 개발 주소는 `http://localhost:5173`, 미리보기 주소는 `http://localhost:4173`입니다. 웹 빌드는 GitHub Pages 배포를 위해 `/roulette/` 경로를 유지합니다. Vercel 프로젝트는 MCP Function 전용이며 정적 웹을 다시 배포하지 않습니다.
+
+## 로컬 MCP 서버 실행
+
+저장소 루트에서 다음 명령을 실행합니다.
+
+```bash
+npm run dev:mcp
+```
+
+이 명령은 자체 포함 MCP App 리소스를 먼저 빌드한 뒤 서버를 실행합니다. 3000번 포트를 사용 중이면 다른 포트를 지정할 수 있습니다.
+
+```bash
+MCP_PORT=3100 npm run dev:mcp
+```
+
+서버가 준비되면 다음 주소가 출력됩니다.
+
+```text
+Local MCP server: http://127.0.0.1:3000/mcp
+```
+
+로컬 MCP 서버를 사용하는 동안 이 터미널을 계속 실행해 둡니다. 서버를 종료할 때는 `Ctrl+C`를 누릅니다.
+
+다른 터미널에서 MCP Inspector로 연결과 도구 호출을 확인할 수 있습니다.
+
+```bash
+npm run inspect:mcp:list
+npm run inspect:mcp:call
+```
+
+Streamable HTTP를 지원하는 로컬 에이전트에는 다음 URL을 등록합니다.
+
+```text
+http://127.0.0.1:3000/mcp
+```
+
+Codex CLI에 등록하는 예시는 다음과 같습니다.
+
+```bash
+codex mcp add roulette-local --url http://127.0.0.1:3000/mcp
+codex mcp list
+```
+
+등록 후 Codex 앱·CLI·IDE 확장을 재시작하거나 새 작업을 시작합니다. `127.0.0.1`은 같은 컴퓨터에서 실행되는 에이전트만 접근할 수 있으며, Codex Cloud나 별도 컨테이너에서는 이 주소로 호스트의 MCP 서버에 연결할 수 없습니다.
+
+MCP Apps 확장을 지원하는 호스트는 같은 `draw_roulette` 호출에서 룰렛 애니메이션을 렌더링합니다. 확장을 지원하지 않는 호스트도 텍스트와 `structuredContent` 결과를 그대로 받으므로 추첨 기능은 유지됩니다. Codex는 현재 공개 호환 호스트 목록에 포함되어 있지 않아 로컬 등록 시 텍스트 결과가 표시되는 것을 정상 fallback으로 봅니다.
+
+## 공개 Preview MCP
+
+Vercel Hobby 환경의 공개 Preview는 다음 URL에서 사용할 수 있습니다.
+
+```text
+https://roulette-remote-l3lnprqhy-j-personal-projects.vercel.app/mcp
+```
+
+표준 Streamable HTTP MCP 클라이언트에 이 URL을 등록합니다. Preview는 기능·호환성 검증용이며, 실제 개인정보나 민감정보를 후보로 사용하지 않습니다. 현재 Production 배포는 없습니다.
 
 ## 테스트와 검증
 
-전체 테스트를 한 번 실행합니다.
+전체 제품 경계와 회귀를 한 번에 검증합니다.
 
 ```bash
-npm test
+npm run verify
 ```
 
-파일 변경을 감시하며 테스트하려면 다음 명령을 사용합니다.
+영역별 명령은 다음과 같습니다.
 
 ```bash
-npm run test:watch
+npm run test:core
+npm run test:web
+npm run test:mcp-app
+npm run test:mcp
+npm run build:web
+npm run build:mcp
+npm run verify:boundaries
 ```
 
-TypeScript만 검사하려면 다음 명령을 사용합니다.
+`verify:boundaries`는 공통 코어의 역방향 의존, 웹·MCP App·MCP의 교차 import, 안전하지 않은 난수, MCP 계층의 로그·외부 요청과 웹 번들의 MCP 코드 혼입을 검사합니다.
 
-```bash
-npm run typecheck
-```
-
-현재 기준으로 11개 테스트 파일의 105개 테스트가 통과합니다. 주요 검증 범위는 다음과 같습니다.
-
-- 줄바꿈·콤마 파싱과 입력 제한
-- 이름·숫자 반복식 확장과 형식·횟수·전체 개수 오류
-- 숫자 범위 확장·조합·반복과 형식·방향·개수 오류
-- 중복 이름의 개별 공 ID
-- 편향 없는 암호학적 난수
-- 전체·일부 비복원 추첨과 추첨 개수 경계
-- 수동 중복 클릭 방지
-- 자동 추첨 일정과 백그라운드 복구
-- 수동·자동 진행 중 재추첨의 결과·타이머·일정 초기화
-- 3축 운동, 구형 경계, 동일한 공 크기, 중앙 횡단과 완료 후 중력 적층
-- 3D 기본값, 3D 원근 투영, 설정 저장·복원과 추첨 중 2D/3D 전환
-- 단일 WebGL Canvas의 경계 패킹 정적 장면·세션 공 아틀라스 캐시와 프레임당 1회 합성
-- 렌더러·정점 버퍼 재사용과 44개 공 정착·하드 리밋 수렴 후 애니메이션 중단
-- 새로고침·재시작의 입력·옵션 복원과 추첨 상태 초기화
-- 입력·설정 저장과 손상 데이터·저장 실패 처리
-- 클립보드·효과음 실패 처리
-- 지속형 바람음·공 충돌음의 중복 방지, 공 수별 밀도, 버퍼 재사용과 종료 노드 정리
+Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](docs/feature/remote-mcp/DEVELOPMENT.md)를 따릅니다. 실제 Vercel 배포 전 확인 사항과 단계별 명령은 [배포 가이드](docs/feature/remote-mcp/DEPLOYMENT.md)에 정리되어 있습니다.
 
 ## 프로젝트 구조
 
 ```text
 .
+├── api/
+│   └── mcp.ts                   # Vercel Function 진입점
 ├── docs/
-│   ├── SPEC.md           # 제품·기술 요구사항
-│   ├── TASK.md           # 구현 작업과 진행 이력
-│   ├── architecture.md   # 컴포넌트·데이터·상태 구조
-│   └── development.md    # 개발·테스트·디버깅 가이드
+│   ├── architecture.md
+│   ├── development.md
+│   └── feature/remote-mcp/      # Remote MCP SPEC·TASK·가이드
 ├── src/
-│   ├── components/       # 설정, Canvas 2D·WebGL 3D 추첨기, 결과, 제어 UI
-│   ├── domain/           # 파싱, 난수, 추첨 엔진, 도메인 타입
-│   ├── services/         # 브라우저 저장소와 효과음
-│   ├── test/             # 공통 테스트 환경
-│   ├── App.tsx           # 앱 상태와 브라우저 수명주기 통합
-│   └── index.css         # 반응형 디자인
-├── index.html
-├── package.json
-├── vite.config.ts
-└── vitest.config.ts
+│   ├── core/                    # 양쪽에서 재사용하는 파싱·난수·즉시 추첨
+│   ├── web/                     # React·렌더링·저장·오디오 전용 코드
+│   ├── mcp-apps/                # MCP Apps 전용 UI와 생성 리소스
+│   └── mcp/                     # 도구 계약·UI 리소스 등록·HTTP 정책·표현
+├── tools/remote-mcp/            # 로컬 서버와 경계·Vercel 검증 도구
+├── vercel-static/               # Vercel에 웹앱을 싣지 않는 빈 정적 출력
+├── tsconfig.web.json
+├── tsconfig.mcp.json
+├── tsconfig.mcp-app.json
+├── vercel.json
+└── vite.config.ts
 ```
 
-핵심 추첨 로직은 React와 렌더러에서 분리되어 있습니다. `src/domain/`이 결과와 상태 전이를 담당하고, `LotteryMachine`과 `Lottery3dRenderer`는 결정된 결과를 시각화만 합니다.
-
-## 관련 문서
-
-- [제품·기술 스펙](docs/SPEC.md)
-- [구현 작업 기록](docs/TASK.md)
-- [아키텍처](docs/architecture.md)
-- [개발 가이드](docs/development.md)
+의존성 방향은 `web → core ← mcp ← api`이며 MCP App UI는 별도로 빌드됩니다. MCP 서버는 생성된 단일 HTML 리소스만 포함하고 UI 런타임 소스는 import하지 않습니다. `web`과 `mcp`는 서로 import하지 않으며 `core`는 React, DOM, MCP SDK 또는 Vercel API를 참조하지 않습니다.
 
 ## 데이터와 개인정보
 
-- 이름은 외부 서버로 전송되지 않습니다.
-- 입력 원문과 선택한 추첨 옵션은 현재 브라우저의 `localStorage`에 저장됩니다.
-- 공용 기기에서는 사용 후 `입력 비우기`를 눌러 저장된 이름을 삭제하세요.
-- 추첨 결과와 진행 상태는 영구 저장하지 않습니다.
+- 웹 입력 원문과 설정은 사용자의 브라우저 `localStorage`에만 저장됩니다.
+- MCP 후보와 결과는 요청 처리 중 메모리에서만 사용하고 로그·데이터베이스·캐시에 남기지 않습니다.
+- 공개 MCP에는 인증이 없으므로 민감한 개인정보를 후보로 입력하지 않는 것이 좋습니다.
+- Vercel 등 호스팅 플랫폼의 인프라 수준 요청 메타데이터는 애플리케이션의 무로그 정책과 별개일 수 있습니다.
+
+## 관련 문서
+
+- [기존 웹 제품 스펙](docs/SPEC.md)
+- [아키텍처](docs/architecture.md)
+- [개발 가이드](docs/development.md)
+- [Remote MCP 스펙](docs/feature/remote-mcp/SPEC.md)
+- [Remote MCP 작업 기록](docs/feature/remote-mcp/TASK.md)
+- [Remote MCP 로컬 검증](docs/feature/remote-mcp/DEVELOPMENT.md)
+- [Remote MCP Vercel 배포](docs/feature/remote-mcp/DEPLOYMENT.md)
+- [Remote MCP Preview 검증 기록](docs/feature/remote-mcp/PREVIEW-VALIDATION.md)
 
 ## 현재 제한사항
 
-- 공은 최대 45개까지 지원합니다.
-- 3D 모드는 정적 장면 텍스처와 WebGL 빌보드 공을 단일 draw call로 합성하며, 메시 기반 구체 회전·충돌을 계산하는 고급 3D 물리 엔진은 아닙니다.
-- 자동 추첨에는 일시정지와 카운트다운이 없습니다.
-- 새로고침 후 추첨 결과를 복구하지 않습니다.
-- PWA, 다국어, 접근성 전용 대응, 운영 모니터링은 초기 범위 밖입니다.
-- Safari, Firefox, Edge는 웹 표준 호환성을 고려했지만 현재 환경에서는 실제 브라우저 스모크 테스트를 수행하지 않았습니다.
+- 후보는 최대 45개입니다.
+- MCP Apps UI는 호스트가 확장을 구현한 경우에만 표시되며, 나머지 호스트는 텍스트 결과를 사용합니다.
+- MCP는 인증, 상태 저장, 결과 복구와 재현 가능한 난수 시드를 제공하지 않습니다.
+- Vercel Preview의 Function·프로토콜·로그 검증은 통과했지만 실제 원격 MCP Apps 호스트 E2E는 아직 수행하지 않았습니다.
+- Production 배포는 아직 없으며 검증된 Preview만 공개 상태입니다.

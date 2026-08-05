@@ -1,11 +1,10 @@
-import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
+/** MCP App의 신뢰 경계와 표현 모델을 브라우저형 환경에서 검증한다. */
 export default defineConfig({
-  plugins: [react()],
   test: {
     environment: "jsdom",
-    setupFiles: ["./src/web/test/setup.ts"],
+    include: ["src/mcp-apps/**/*.test.ts"],
     restoreMocks: true,
   },
 });
