@@ -1,8 +1,7 @@
-import type { Ball, ScheduledDraw } from "./types";
+import type { Candidate } from "./types.js";
 
+/** Web Crypto로 편향 없는 인덱스와 비복원 추첨 순서를 생성한다. */
 const UINT32_RANGE = 0x1_0000_0000;
-export const AUTO_DRAW_MIN_SECONDS = 3;
-export const AUTO_DRAW_MAX_SECONDS = 7;
 
 export type RandomValuesSource = (values: Uint32Array<ArrayBuffer>) => void;
 
@@ -13,7 +12,7 @@ export class SecureRandomError extends Error {
   }
 }
 
-export const browserRandomValues: RandomValuesSource = (values) => {
+export const webCryptoRandomValues: RandomValuesSource = (values) => {
   const cryptoApi = globalThis.crypto;
 
   if (!cryptoApi?.getRandomValues) {
@@ -29,7 +28,7 @@ export const browserRandomValues: RandomValuesSource = (values) => {
 
 export function secureRandomIndex(
   length: number,
-  randomValues: RandomValuesSource = browserRandomValues,
+  randomValues: RandomValuesSource = webCryptoRandomValues,
 ): number {
   if (!Number.isInteger(length) || length <= 0 || length > UINT32_RANGE) {
     throw new RangeError("난수 범위는 1 이상 2^32 이하여야 합니다.");
@@ -58,9 +57,13 @@ export function secureRandomIndex(
 export function secureRandomInteger(
   minimum: number,
   maximum: number,
-  randomValues: RandomValuesSource = browserRandomValues,
+  randomValues: RandomValuesSource = webCryptoRandomValues,
 ): number {
-  if (!Number.isInteger(minimum) || !Number.isInteger(maximum) || minimum > maximum) {
+  if (
+    !Number.isInteger(minimum) ||
+    !Number.isInteger(maximum) ||
+    minimum > maximum
+  ) {
     throw new RangeError("유효한 정수 범위를 입력해야 합니다.");
   }
 
@@ -68,10 +71,10 @@ export function secureRandomInteger(
 }
 
 export function createDrawOrder(
-  balls: Ball[],
-  randomValues: RandomValuesSource = browserRandomValues,
+  candidates: Candidate[],
+  randomValues: RandomValuesSource = webCryptoRandomValues,
 ): string[] {
-  const orderedIds = balls.map((ball) => ball.id);
+  const orderedIds = candidates.map((candidate) => candidate.id);
 
   for (let index = orderedIds.length - 1; index > 0; index -= 1) {
     const swapIndex = secureRandomIndex(index + 1, randomValues);
@@ -82,27 +85,4 @@ export function createDrawOrder(
   }
 
   return orderedIds;
-}
-
-export function createAutoSchedule(
-  orderedBallIds: string[],
-  startedAt: number,
-  randomValues: RandomValuesSource = browserRandomValues,
-): ScheduledDraw[] {
-  let dueAt = startedAt;
-
-  return orderedBallIds.map((ballId, index) => {
-    dueAt +=
-      secureRandomInteger(
-        AUTO_DRAW_MIN_SECONDS,
-        AUTO_DRAW_MAX_SECONDS,
-        randomValues,
-      ) * 1_000;
-
-    return {
-      order: index + 1,
-      ballId,
-      dueAt,
-    };
-  });
 }
