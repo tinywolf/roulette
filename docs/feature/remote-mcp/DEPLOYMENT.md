@@ -6,16 +6,16 @@
 - 외부 엔드포인트는 `https://<배포 도메인>/mcp`다.
 - 정적 웹앱은 계속 GitHub Pages에서 빌드·배포한다.
 - `j-personal-projects/roulette-remote-mcp` Vercel 프로젝트와 로컬 연결을 생성했다.
-- Hobby 플랜과 공개 Preview 배포를 확인했다.
-- 정상 Preview MCP는 `https://roulette-remote-l3lnprqhy-j-personal-projects.vercel.app/mcp`다.
-- 첫 배포 자동 지정으로 생성된 수정 전 Production은 삭제했다. 현재 Production 대상은 없고 정상 Preview를 승격하지 않았다.
+- Hobby 플랜의 공개 Preview 검증을 완료했고 Preview 배포 2개는 Production 확인 후 삭제했다.
+- 병합된 `main` 커밋 `38fdfdc`로 Production을 새로 빌드해 `https://roulette-remote-mcp.vercel.app/mcp`에 배포했다.
+- Production Deployment는 `dpl_5nJj91sxSSYLBfvw7iUMceNPtQb3`이며 프로젝트에 남은 유일한 Deployment다.
 - 현재 구현에는 환경 변수, 데이터베이스, KV, 캐시, 외부 API 키가 필요하지 않다.
 
-2026-08-05 Preview 검증에서 23개 파일·157개 테스트, 웹·MCP App·MCP 빌드, 소스 경계, Vercel Function 전용 Build Output과 공개 원격 MCP 호출이 모두 통과했다. 상세 결과는 [Preview 검증 기록](PREVIEW-VALIDATION.md)을 참고한다.
+2026-08-05 Preview와 Production 검증에서 23개 파일·157개 테스트, 웹·MCP App·MCP 빌드, 소스 경계, Vercel Function 전용 Build Output과 공개 원격 MCP 호출이 모두 통과했다. 상세 결과는 [Preview 검증 기록](PREVIEW-VALIDATION.md)과 [Production 검증 기록](PRODUCTION-VALIDATION.md)을 참고한다.
 
-## 사용자 확인이 필요한 항목
+## 운영 설정과 후속 확인
 
-Production을 만들기 전에 아래 항목을 확정한다.
+현재 설정과 운영 후 확인할 항목은 다음과 같다.
 
 | 항목 | 권장값 | 확인 이유 |
 | --- | --- | --- |
@@ -23,10 +23,10 @@ Production을 만들기 전에 아래 항목을 확정한다.
 | 프로젝트 이름 | `roulette-remote-mcp`, 생성 완료 | 정적 웹 프로젝트와 역할을 구분한다. 실제 `vercel.app` 도메인은 Preview 배포 후 생성된다. |
 | 최초 배포 방식 | 첫 배포 자동 Production 지정 확인 | 빈 프로젝트에서는 `--prod`가 없어도 첫 배포가 Production이 될 수 있다. 자동 지정된 구버전 Production은 검증 후 삭제했다. |
 | Preview 보호 | `None` 적용 완료 | 일반 MCP 호스트가 Vercel Authentication 로그인 리다이렉트를 처리한다고 가정할 수 없어 공개 검증 동안 보호를 비활성화했다. |
-| Production 도메인 | 기본 `*.vercel.app` | MCP 연결에는 충분하다. 사용자 소유 커스텀 도메인은 선택 사항이다. |
-| Git 연동 | Preview 통과와 `main` 병합 후 연결 | 현재 원격 `main`에는 MCP용 `vercel.json`이 없으므로 지금 저장소를 Import하면 정적 웹이 Vercel에 배포될 수 있다. |
+| Production 도메인 | `roulette-remote-mcp.vercel.app`, 적용 완료 | MCP 운영 주소로 사용한다. 사용자 소유 커스텀 도메인은 선택 사항이다. |
+| Git 연동 | `main` 병합 완료, Vercel Git 연결은 선택 | 현재 Production은 CLI prebuilt 배포다. 자동 배포가 필요할 때 Production Branch를 `main`으로 연결한다. |
 | 공개 엔드포인트 정책 | 인증 없음에 동의, WAF rate limit 검토 | 누구나 `/mcp`를 호출할 수 있으므로 사용량과 남용을 관찰해야 한다. |
-| 데이터 학습 설정 | `Team Settings → Data Preferences`에서 Model Training 비활성화 | 2026년 Vercel 정책상 Hobby는 선택적 AI 모델 학습이 기본 활성화될 수 있다. 애플리케이션 무로그 정책과 별개로 배포 전에 opt-out한다. |
+| 데이터 학습 설정 | `Team Settings → Data Preferences`에서 Model Training 비활성화 상태 확인 | CLI/API 검증 항목이 아니므로 사용자가 Dashboard에서 최종 확인한다. |
 
 Vercel 토큰은 채팅, 저장소, 문서에 전달하거나 기록하지 않는다. CLI 배포를 진행할 때 사용자가 자기 터미널에서 `vercel login`을 완료하는 방식이 가장 단순하다. CI용 토큰이 나중에 필요하면 Vercel 또는 GitHub Secrets에만 저장한다.
 
@@ -72,7 +72,7 @@ npx vercel@58.5.1 deploy --prebuilt
 
 이미 배포 이력이 있는 프로젝트에서는 `--prod`를 붙이지 않아야 Preview로 생성된다. 다만 빈 프로젝트의 첫 배포는 이 명령도 Production으로 자동 지정될 수 있으므로 CLI 결과의 `Environment`를 즉시 확인한다. 생성된 URL은 배포 검증 기록에 남기되 인증 토큰이나 보호 우회 값을 함께 기록하지 않는다.
 
-이 프로젝트에서는 첫 배포가 자동으로 Production이 됐고, 수정 전 두 배포에서 Vercel Node 요청과 Web `Request` 형식 불일치가 발견됐다. 어댑터 수정 후 생성한 정상 Preview는 다음과 같다.
+이 프로젝트에서는 첫 배포가 자동으로 Production이 됐고, 수정 전 두 배포에서 Vercel Node 요청과 Web `Request` 형식 불일치가 발견됐다. 어댑터 수정 후 검증한 Preview는 다음과 같았으며 Production 확인 후 삭제했다.
 
 ```text
 https://roulette-remote-l3lnprqhy-j-personal-projects.vercel.app/mcp
@@ -116,11 +116,14 @@ npx vercel@58.5.1 deploy --prebuilt --prod
 
 운영 URL은 `https://<production-domain>/mcp`다. Production 검증까지 통과한 뒤 Vercel 프로젝트를 GitHub의 `tinywolf/roulette` 저장소와 연결하고 Production Branch를 `main`으로 설정하면 이후 push 기반 자동 배포를 사용할 수 있다. GitHub Pages workflow와 Vercel의 `build:mcp`는 서로 다른 제품을 빌드한다.
 
+2026-08-05에는 사용자의 결정에 따라 별도 staged Production 검증을 생략하고 검증된 구조를 병합한 `main`에서 위 명령으로 운영 도메인에 직접 배포했다. 배포 직후 운영 도메인 smoke test와 Runtime Logs 비노출 검증을 통과했다.
+
 ## 실패와 롤백
 
 - Preview 실패: Production으로 승격하지 않고 로그와 Build Output을 확인해 수정한 뒤 새 Preview를 만든다.
 - 빈 프로젝트의 첫 배포가 자동 Production으로 지정됨: 해당 배포를 승격된 Preview로 간주하지 말고, Deployment 목록과 별칭 상태를 기록한 뒤 삭제 또는 교체 전에 사용자 승인을 받는다.
 - 첫 Production 실패: 수정 Preview를 다시 검증한 뒤 Production을 재배포한다.
+- 현재 정상 Production은 첫 운영 배포라 이전 Production 롤백 대상이 없다. 문제가 발생하면 수정본을 새 Production으로 즉시 배포한다.
 - 이후 Production 회귀: Dashboard의 Instant Rollback 또는 `vercel rollback`으로 직전 Production으로 되돌린다.
 - Hobby에서는 즉시 롤백 대상이 바로 이전 Production 하나로 제한된다.
 - 롤백 후에는 새 Production의 자동 도메인 연결이 중지될 수 있으므로, 수정본 검증 후 `vercel promote <deployment-url>`로 정상 배포 흐름을 복구한다.

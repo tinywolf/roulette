@@ -7,12 +7,12 @@
 - 대상 브랜치: `feature/remote-mcp`
 - 최종 갱신일: 2026-08-05
 - 전체 상태: `done`
-- 진행률: 17/17
-- 다음 작업: T17 결과에 대한 사용자 피드백 후 Model Training opt-out 확인과 커밋·PR·Production 단계를 별도로 진행한다.
-- 현재 작업 완료 기준: 기존 텍스트 fallback을 유지하면서 MCP Apps 호환 호스트에 추첨 애니메이션을 제공하고, UI·서버·정적 웹의 빌드 경계와 로컬 검증을 모두 통과한다.
-- 현재 작업 범위 제외: 신규 Production 배포·승격, 커스텀 도메인, 실제 원격 MCP Apps 호스트 E2E, 다중 클라이언트 운영 검증
+- 진행률: 20/20
+- 다음 작업: T20 결과에 대한 사용자 피드백 후 변경을 커밋·push하고 Git 자동 Production 배포를 별도로 검증한다.
+- 현재 작업 완료 기준: 기존 텍스트 fallback과 MCP Apps 애니메이션을 유지하면서 룰렛 의도의 도구 호출 명세를 명확히 하고, UI·서버·정적 웹의 빌드 경계와 로컬 검증을 모두 통과한다.
+- 현재 작업 범위 제외: 커스텀 도메인, 실제 원격 MCP Apps 호스트 E2E, 다중 클라이언트 운영 검증
 - 기능 범위 제외: 인증·OAuth, 데이터베이스·KV·캐시, 추첨 감사·재현 기능, 상업적 운영
-- 외부 작업: 공개 Preview와 Runtime Logs 검증을 완료했고, Vercel이 자동 지정한 구버전 Production과 진단용 자동화 우회 토큰을 사용자 승인에 따라 삭제했다.
+- 외부 작업: Production 배포와 검증을 마친 뒤 사용자 승인에 따라 남은 Preview 2개를 삭제해 Production 하나만 유지한다.
 
 ### Open Questions
 
@@ -20,7 +20,9 @@
 2. 해결됨: `vercel build`는 ID 없는 임시 로컬 설정으로 통과했고, `vercel dev`는 OAuth·프로젝트 연결을 요구해 동등한 로컬 어댑터로 대체했다. 배포는 수행하지 않았다.
 3. 해결됨: 신규 UI는 레거시 MCP-UI 프로토콜이 아니라 공식 MCP Apps 확장 표준의 `_meta.ui.resourceUri`와 `text/html;profile=mcp-app`을 사용한다.
 4. 확인됨: MCP Apps는 코어 MCP가 아닌 확장 표준이므로 UI 렌더링을 지원하지 않는 호스트가 있다. Codex는 현재 공개된 MCP-UI 호환 호스트 목록에 없으므로 텍스트 fallback을 필수로 유지한다.
-5. 해결됨: 빈 Vercel 프로젝트의 첫 `vercel deploy --prebuilt`는 `--prod`가 없어도 Production으로 자동 지정될 수 있다. 해당 구버전 배포와 자동화 우회 토큰을 T17에서 제거했고 수정 Preview만 공개 검증 대상으로 유지한다.
+5. 해결됨: 빈 Vercel 프로젝트의 첫 `vercel deploy --prebuilt`는 `--prod`가 없어도 Production으로 자동 지정될 수 있다. 해당 구버전 Production과 자동화 우회 토큰은 T17에서, 남은 Preview 2개는 T19에서 제거했다.
+6. 해결됨: `main` 병합 커밋 `38fdfdc`에서 Production Build Output을 새로 생성해 `roulette-remote-mcp.vercel.app`에 직접 배포하고 운영 smoke test를 통과했다.
+7. 해결됨: Production 확인 후 정상 검증 Preview와 수정 전 실패 Preview를 모두 삭제하고 운영 Deployment 하나만 남겼다.
 
 ## Execution Order
 
@@ -33,6 +35,7 @@
 7. Preview·Production 배포와 배포 후 검증은 별도 작업 계획으로 수립한다.
 8. T9에서 2차 MCP Apps 계약을 확정하고 T10에서 격리된 UI를 만든 뒤, T11에서 기존 도구와 UI 리소스를 연결한다.
 9. T12에서 프로토콜·UI·번들 경계를 로컬 검증하고 사용 가이드를 갱신한다.
+10. T20에서 서버 지침과 도구·입력 설명을 보강해 에이전트의 룰렛 도구 선택 가능성을 높이고 실제 MCP 계약으로 회귀 검증한다.
 
 ## Tasks
 
@@ -516,7 +519,79 @@
   - 프로젝트 Production 대상 `null`, `roulette-remote-mcp.vercel.app/mcp` 404 확인
   - 자동화 우회 토큰 1개 폐기 후 프로젝트 우회 토큰 0개 확인
   - 정상 Preview Deployment는 `Ready`이며 원격 `tools/list` 재검증 통과
-- `next_action`: 완료. 사용자 피드백 후 Model Training opt-out 확인과 커밋·PR·Production 작업을 별도로 진행한다.
+- `next_action`: 완료. T18에서 병합된 `main`을 Production으로 직접 배포하고 운영 도메인을 검증한다.
+
+### T18. Vercel Production 직접 배포 및 검증
+
+- 상태: `done`
+- 우선순위: P0
+- 진행: [x]
+- 목적: 병합된 `main`에서 Production Function 산출물을 만들고 운영 도메인에 직접 배포한 뒤 핵심 계약과 개인정보 경계를 확인한다.
+- 작업 범위:
+  - 로컬 `main`과 `origin/main`, 깨끗한 worktree를 확인한다.
+  - Production 프로젝트 설정을 pull하고 전체 자동 검증을 재실행한다.
+  - Production Build Output의 Function·rewrite·제품 격리 경계를 확인한다.
+  - 사용자의 결정에 따라 staged Production 검증을 생략하고 운영 도메인에 직접 배포한다.
+  - 운영 도메인의 라우팅·도구 호출·MCP App 리소스·응답 헤더와 Runtime Logs를 smoke test한다.
+- 완료 조건:
+  - Production Deployment가 `Ready`이며 운영 별칭이 해당 Deployment에 연결된다.
+  - 루트 404, `/mcp` 정책, `tools/list`, 정상 `tools/call`, UI 리소스가 정상이다.
+  - 후보·결과 payload와 오류가 Production Runtime Logs에 남지 않는다.
+  - 자동화 우회 토큰 없이 공개 MCP 접근이 유지된다.
+- 결과:
+  - Production Deployment: `dpl_5nJj91sxSSYLBfvw7iUMceNPtQb3`
+  - 운영 MCP: `https://roulette-remote-mcp.vercel.app/mcp`
+  - 23개 파일·157개 테스트, 세 제품 빌드·경계 검사와 Production Function 전용 Build Output 검사 통과
+  - `draw_roulette` 정상 호출과 330,042자 MCP App HTML 리소스 확인
+  - Runtime Logs 35건에서 메서드·경로 외 후보·결과·요청 본문·오류 없음
+  - 프로젝트 Production 대상 ID 일치, Vercel Authentication 비활성화와 우회 토큰 0개 확인
+- 리스크:
+  - 첫 정상 Production이라 이전 Production 롤백 대상이 없다. 장애 시 수정본을 새 Production으로 배포한다.
+  - Model Training opt-out 상태는 CLI에서 검증할 수 없어 사용자 Dashboard 확인이 남아 있다.
+- `next_action`: 완료. 사용자 피드백 후 실제 원격 MCP Apps 호스트 E2E와 rate limit·자동 배포 등 운영 안정화 작업을 별도로 진행한다.
+
+### T19. Vercel Preview 배포 정리
+
+- 상태: `done`
+- 우선순위: P1
+- 진행: [x]
+- 목적: Production 확인 후 더 이상 필요하지 않은 Preview 배포를 제거하고 운영 Deployment만 유지한다.
+- 작업 범위:
+  - 배포 목록에서 삭제 대상 두 개가 모두 Preview이고 현재 Production과 다른 ID인지 확인한다.
+  - 정상 검증 Preview `dpl_HVFjSkjURrpKNm8pyDqGGnTNJamc`를 삭제한다.
+  - 수정 전 실패 Preview `dpl_GUj8hRUM7p8zKAAGS97p2A2JAvmh`를 삭제한다.
+  - Production 상태와 MCP 도구 목록을 재검증한다.
+- 완료 조건:
+  - 두 Preview URL이 더 이상 서비스되지 않는다.
+  - 프로젝트 배포 목록에 Production 하나만 남는다.
+  - 운영 `/mcp`의 `draw_roulette` 계약이 유지된다.
+- 결과:
+  - Preview Deployment 2개 삭제 완료, 두 고유 URL 404 확인
+  - 프로젝트 배포 목록에 Production `dpl_5nJj91sxSSYLBfvw7iUMceNPtQb3` 하나만 존재
+  - 운영 MCP `tools/list` 재검증 통과
+- `next_action`: 완료. 사용자 피드백 후 실제 원격 MCP Apps 호스트 E2E와 운영 안정화 작업을 별도로 진행한다.
+
+### T20. 룰렛 도구 사용 유도 명세 개선
+
+- 상태: `done`
+- 우선순위: P1
+- 진행: [x]
+- 목적: 에이전트가 룰렛·추첨 의도를 인식하고, 필수 입력을 모두 확인한 뒤 모델이 직접 결과를 만들지 않고 `draw_roulette`를 호출하도록 도구 발견 명세를 명확히 한다.
+- 작업 범위:
+  - 서버 지침에 룰렛·무작위 추첨의 대표 의도, 누락 옵션 질문, 입력 완성 후 즉시 호출, 모델의 직접 추첨 금지를 명시한다.
+  - 도구 제목과 설명에 룰렛, 랜덤 뽑기, 당첨자 선정, 무작위 순서 정하기 등 사용 의도를 포함한다.
+  - `rawInput`과 `drawCount` 설명에 대화에서 확인된 값을 그대로 전달하고 추측하지 않는 규칙을 추가한다.
+  - 실제 초기화 지침과 `tools/list` 응답을 검사하는 회귀 테스트를 보강한다.
+- 완료 조건:
+  - 입력이 부족할 때는 사용자에게 필요한 값만 질문하고 도구를 호출하지 않는다는 흐름이 명시된다.
+  - 후보와 추첨 개수가 모두 준비되면 추가 확인 없이 `draw_roulette`를 호출한다는 흐름이 명시된다.
+  - 도구를 호출하지 않은 채 모델이 직접 후보를 선택·섞거나 추첨 결과를 작성하지 않도록 명시된다.
+  - MCP 초기화 지침, 도구 설명과 입력 스키마 설명이 실제 프로토콜 응답으로 노출된다.
+  - 기존 텍스트·구조화 결과와 MCP Apps 연결 계약이 유지되고 전체 로컬 검증이 통과한다.
+- 검증:
+  - MCP 통합 테스트에서 `Client.getInstructions()`와 `tools/list` 명세 확인
+  - `npm run verify`
+- `next_action`: 완료. 사용자 피드백 후 변경을 커밋·push하고 Git 자동 Production 배포에서 갱신된 명세를 확인한다.
 
 ## Deferred Work
 
@@ -524,8 +599,8 @@
 
 1. 완료: Vercel Preview 배포 및 검증
    - 실제 `/mcp` HTTPS 라우팅, cold start, Function Runtime Logs, 플랫폼 실행·번들 제한과 정적 웹앱 미배포를 확인했다.
-2. Vercel Production 배포 및 실제 원격 MCP 클라이언트 E2E
-   - 옵션 누락 시 대화 수집, 옵션 완성 시 즉시 호출, 텍스트·구조화 결과, Production 로그와 롤백을 확인한다.
+2. 부분 완료: Vercel Production 배포 및 실제 원격 MCP 클라이언트 E2E
+   - Production 배포·텍스트/구조화 결과·로그는 확인했다. 실제 호스트의 옵션 누락 대화 수집과 MCP Apps 렌더링 E2E는 남아 있다.
 3. 출시 후 운영 안정화
    - 다중 클라이언트 호환성, payload 비포함 관측, Hobby 한도·남용 대응과 의존성 업데이트 절차를 관리한다.
 
@@ -533,12 +608,12 @@
 
 | 스펙 영역 | 대응 작업 |
 | --- | --- |
-| 사용자 흐름과 입력 문법 | T1, T3, T8 |
+| 사용자 흐름과 입력 문법 | T1, T3, T8, T20 |
 | 난수·추첨 규칙 | T1, T3, T6 |
-| MCP 도구·응답·오류 계약 | T3, T5, T8 |
+| MCP 도구·응답·오류 계약 | T3, T5, T8, T20 |
 | 공통 코어·웹·MCP 구조 격리 | T1, T2, T4, T6 |
-| Streamable HTTP와 Vercel Preview 배포 | T4, T8, T14, T15, T16 |
-| 공개 서비스 보안·개인정보 검증 | T5, T7, T8, T16 |
+| Streamable HTTP와 Vercel Preview·Production 배포 | T4, T8, T14, T15, T16, T18 |
+| 공개 서비스 보안·개인정보 검증 | T5, T7, T8, T16, T18 |
 | 자동 테스트와 배포 전 로컬 검증 | T6, T8 |
 | MCP Apps UI와 텍스트 fallback | T2, T7, T9, T10, T11, T12, T13 |
 | Vercel Hobby 운영 제약 문서화 | T7, T14 |
@@ -547,8 +622,6 @@
 
 | 스펙 요구사항 | 후속 작업 |
 | --- | --- |
-| Vercel Production 배포 | Deferred Work 2 |
-| Production 환경의 HTTPS·cold start·Runtime Logs·플랫폼 한도 재검증 | Deferred Work 2 |
 | 실제 원격 MCP 클라이언트의 대화 기반 E2E | Deferred Work 2 |
 | 다중 클라이언트 및 출시 후 운영 안정화 | Deferred Work 3 |
 
@@ -687,3 +760,24 @@
   - 리스크_또는_차단: 삭제한 Production은 즉시 롤백할 수 없다. 첫 실패 Preview는 이 승인 범위에 포함되지 않아 남겨뒀으며 서비스 별칭과 연결되지 않는다.
   - 다음: Model Training opt-out 확인과 커밋·PR·Production 단계를 별도 진행
   - 사용자_피드백: 구버전 Production 배포와 자동화 우회 토큰 삭제 승인
+- 2026-08-05 15:36 | 단계: T18 | 상태: `in_progress` → `done`
+  - 요약: 병합된 `main` 커밋에서 Production Function 산출물을 새로 만들고 사용자의 결정에 따라 운영 도메인에 직접 배포한 뒤 핵심 MCP 계약과 Runtime Logs 비노출을 확인했다.
+  - 산출물: Production `dpl_5nJj91sxSSYLBfvw7iUMceNPtQb3`, `https://roulette-remote-mcp.vercel.app/mcp`, `docs/feature/remote-mcp/PRODUCTION-VALIDATION.md`
+  - 검증: 23개 파일·157개 테스트, 세 제품 빌드·경계와 Function 전용 산출물, 운영 루트 404·MCP GET 405/보안 헤더·`tools/list/call`·UI 리소스, Runtime Logs 35건 payload 비노출 통과
+  - 리스크_또는_차단: 첫 정상 Production이라 이전 Production 롤백 대상이 없다. Model Training opt-out 상태는 CLI에서 확인할 수 없어 사용자 Dashboard 확인이 남아 있다.
+  - 다음: 실제 MCP Apps 호스트 E2E와 rate limit·Git 자동 배포 등 운영 안정화
+  - 사용자_피드백: Preview에서 동일 계약을 검증했으므로 staged Production 검증을 생략하고 운영 도메인 직접 연결 승인, PR의 `main` 병합 완료
+- 2026-08-05 15:41 | 단계: T19 | 상태: `in_progress` → `done`
+  - 요약: 사용자 승인에 따라 정상 검증 Preview와 수정 전 실패 Preview를 삭제하고 Production Deployment 하나만 유지했다.
+  - 산출물: Preview 2개가 제거된 `roulette-remote-mcp` Vercel 프로젝트, 갱신된 README·Preview/Production 검증 기록
+  - 검증: 두 Preview의 `target=preview` 확인 후 삭제, 각 고유 URL 404, Deployment 목록에 Production 하나만 존재, 운영 `tools/list` 통과
+  - 리스크_또는_차단: 삭제한 Preview는 복구할 수 없다. 운영 Production에는 영향이 없으며 첫 정상 Production이라 이전 Production 롤백 대상은 여전히 없다.
+  - 다음: 실제 MCP Apps 호스트 E2E와 rate limit·Git 자동 배포 등 운영 안정화
+  - 사용자_피드백: 직전 Preview 배포 2개 삭제 승인
+- 2026-08-05 16:01 | 단계: T20 | 상태: `in_progress` → `done`
+  - 요약: 룰렛·무작위 추첨의 대표 의도, 누락 입력 질문, 입력 완성 후 즉시 호출과 모델의 직접 추첨 금지를 서버 지침과 도구·입력 설명에 명시했다.
+  - 산출물: 갱신된 `src/mcp/server.ts`, `src/mcp/tools/drawRoulette.ts`, MCP 통합 테스트와 `docs/feature/remote-mcp/SPEC.md`
+  - 검증: 초기화 지침·서버 버전·`tools/list` 명세 회귀 테스트, 총 23개 파일·157개 테스트와 웹·MCP Apps·MCP 빌드 및 소스·번들 경계 통과
+  - 리스크_또는_차단: 서버 명세는 호스트의 도구 선택 가능성을 높이지만 MCP 프로토콜만으로 모든 호스트의 호출을 강제할 수는 없음
+  - 다음: 사용자 피드백 후 커밋·push하고 Git 자동 Production 배포에서 운영 명세 확인
+  - 사용자_피드백: 승인 대기

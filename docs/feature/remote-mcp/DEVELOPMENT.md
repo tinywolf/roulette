@@ -75,7 +75,7 @@ HOST=127.0.0.1 npx mcp-inspector --web \
   --server-url http://127.0.0.1:3000/mcp
 ```
 
-브라우저의 Apps 탭에서 `룰렛 추첨`을 선택하고 두 입력을 채운 뒤 `Open App`을 누른다. 결과가 정해진 뒤 룰렛 회전과 당첨 순서 공개가 표시되는지, Protocol 패널에 `tools/call`과 `resources/read`가 각각 한 번씩 성공하는지 확인한다.
+브라우저의 Apps 탭에서 `룰렛·무작위 추첨 실행`을 선택하고 두 입력을 채운 뒤 `Open App`을 누른다. 결과가 정해진 뒤 룰렛 회전과 당첨 순서 공개가 표시되는지, Protocol 패널에 `tools/call`과 `resources/read`가 각각 한 번씩 성공하는지 확인한다.
 
 Inspector 2.0.0 npm 배포본에는 공식 저장소의 `clients/web/static/sandbox_proxy.html`이 누락된 패키징 문제가 있다. `Sandbox not loaded: ENOENT`가 나오면 MCP 서버 문제가 아니며, 수정된 Inspector 버전을 사용하거나 공식 저장소의 같은 파일을 설치 경로에 복원해야 한다. 이 저장소의 로컬 검증은 공식 파일을 복원한 환경에서 수행했다.
 

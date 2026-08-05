@@ -76,13 +76,27 @@ afterEach(async () => {
 });
 
 describe("Vercel MCP Function", () => {
-  it("Streamable HTTP로 초기화하고 UI가 연결된 단일 도구를 조회한다", async () => {
+  it("적극적인 사용 지침으로 초기화하고 UI가 연결된 단일 도구를 조회한다", async () => {
     const client = await createTestClient();
     const tools = await client.listTools();
+    const instructions = client.getInstructions();
+
+    expect(client.getServerVersion()).toMatchObject({
+      name: "roulette-remote-mcp",
+      version: "1.2.0",
+    });
+    expect(instructions).toContain("룰렛, 추첨, 랜덤 뽑기");
+    expect(instructions).toContain("필요한 값만 사용자에게 질문");
+    expect(instructions).toContain("추가 확인 없이 즉시 draw_roulette를 호출");
+    expect(instructions).toContain(
+      "draw_roulette를 호출하지 않고 후보를 직접 선택",
+    );
 
     expect(tools.tools).toHaveLength(1);
     expect(tools.tools[0]).toMatchObject({
       name: "draw_roulette",
+      title: "룰렛·무작위 추첨 실행",
+      description: expect.stringContaining("반드시 이 도구를 호출"),
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -91,6 +105,16 @@ describe("Vercel MCP Function", () => {
       _meta: {
         ui: { resourceUri: "ui://roulette/roulette-v1.html" },
         "openai/outputTemplate": "ui://roulette/roulette-v1.html",
+      },
+      inputSchema: {
+        properties: {
+          rawInput: {
+            description: expect.stringContaining("후보 목록 원문을 그대로 전달"),
+          },
+          drawCount: {
+            description: expect.stringContaining("추첨 개수"),
+          },
+        },
       },
     });
     expect(tools.tools[0].inputSchema.required).toEqual([

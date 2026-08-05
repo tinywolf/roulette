@@ -17,10 +17,14 @@ export const drawRouletteInputSchema = z
   .object({
     rawInput: z
       .string()
-      .describe("사용자가 제공한 후보 목록 원문. 콤마·줄바꿈·반복·숫자 범위를 지원합니다."),
+      .describe(
+        "대화에서 확인된 후보 목록 원문을 그대로 전달합니다. 콤마·줄바꿈·이름*반복·숫자 범위(예: 1~45)를 지원하며 후보를 추측하거나 추가하지 않습니다.",
+      ),
     drawCount: z
       .union([z.literal("all"), z.number()])
-      .describe("전체 추첨은 all, 일부 추첨은 양의 정수를 사용합니다."),
+      .describe(
+        "대화에서 확인된 추첨 개수입니다. 전체 후보의 무작위 순서는 all, 일부 추첨은 양의 정수를 사용하며 값을 추측하지 않습니다.",
+      ),
   })
   .strict();
 
