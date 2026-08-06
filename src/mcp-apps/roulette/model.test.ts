@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createWheelGradient,
   getRevealDelay,
+  parseRouletteDrawInput,
   parseRouletteResult,
 } from "./model";
 
@@ -16,7 +17,20 @@ const validResult = {
 };
 
 describe("MCP App 룰렛 결과 모델", () => {
-  it("서버의 유효한 구조화 결과를 받아들인다", () => {
+  it("재추첨에 필요한 최초 도구 입력만 검증한다", () => {
+    expect(
+      parseRouletteDrawInput({ rawInput: "민지,준호", drawCount: 1 }),
+    ).toEqual({ rawInput: "민지,준호", drawCount: 1 });
+    expect(
+      parseRouletteDrawInput({ rawInput: "1~45", drawCount: "all" }),
+    ).toEqual({ rawInput: "1~45", drawCount: "all" });
+    expect(parseRouletteDrawInput({ rawInput: "민지,준호" })).toBeNull();
+    expect(
+      parseRouletteDrawInput({ rawInput: "민지,준호", drawCount: 1.5 }),
+    ).toBeNull();
+  });
+
+  it("서버의 유효한 UI 전용 결과를 받아들인다", () => {
     expect(parseRouletteResult(validResult)).toEqual(validResult);
   });
 

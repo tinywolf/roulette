@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createMcpHandler } from "mcp-handler";
 import {
-  MCP_SERVER_INFO,
   MCP_SERVER_OPTIONS,
+  MCP_SERVER_VERSION,
   registerRouletteMcp,
 } from "../src/mcp/server.js";
 import {
@@ -13,14 +13,17 @@ import {
 
 const MAX_REQUEST_BYTES = 16 * 1_024;
 
-const internalHandler = createMcpHandler(
-  registerRouletteMcp,
-  {
-    ...MCP_SERVER_OPTIONS,
-    serverInfo: MCP_SERVER_INFO,
-    verboseLogs: false,
-  },
-);
+type McpServerInfo = {
+  name: string;
+  version: string;
+};
+
+type McpWebRequestHandler = (request: Request) => Promise<Response>;
+
+const PRODUCTION_MCP_SERVER_INFO = {
+  name: "roulette-remote-mcp",
+  version: MCP_SERVER_VERSION,
+} as const;
 
 function cloneRequestWithBody(
   request: Request,
@@ -82,39 +85,63 @@ async function sendWebResponse(
   outgoing.end(Buffer.from(await response.arrayBuffer()));
 }
 
-/** 공개 `/mcp` 요청을 payload 기록 없이 stateless MCP 처리기로 전달한다. */
-export async function handleMcpRequest(request: Request): Promise<Response> {
-  if (!isRequestOriginAllowed(request)) {
-    return createPolicyErrorResponse(403, "Origin not allowed.");
-  }
+/** 서버 식별자만 주입해 운영과 로컬 개발이 같은 정책·도구 계약을 사용하게 한다. */
+export function createMcpRequestHandler(
+  serverInfo: McpServerInfo,
+): McpWebRequestHandler {
+  const internalHandler = createMcpHandler(registerRouletteMcp, {
+    ...MCP_SERVER_OPTIONS,
+    serverInfo,
+    verboseLogs: false,
+  });
 
-  const contentLength = Number(request.headers.get("content-length"));
+  return async (request: Request): Promise<Response> => {
+    if (!isRequestOriginAllowed(request)) {
+      return createPolicyErrorResponse(403, "Origin not allowed.");
+    }
 
-  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
-    return createPolicyErrorResponse(413, "Request body too large.");
-  }
+    const contentLength = Number(request.headers.get("content-length"));
 
-  const body =
-    request.method === "GET" || request.method === "HEAD"
-      ? undefined
-      : await request.arrayBuffer();
+    if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+      return createPolicyErrorResponse(413, "Request body too large.");
+    }
 
-  if (body && body.byteLength > MAX_REQUEST_BYTES) {
-    return createPolicyErrorResponse(413, "Request body too large.");
-  }
+    const body =
+      request.method === "GET" || request.method === "HEAD"
+        ? undefined
+        : await request.arrayBuffer();
 
-  const response = await internalHandler(cloneRequestWithBody(request, body));
+    if (body && body.byteLength > MAX_REQUEST_BYTES) {
+      return createPolicyErrorResponse(413, "Request body too large.");
+    }
 
-  return secureMcpResponse(response);
+    const response = await internalHandler(cloneRequestWithBody(request, body));
+
+    return secureMcpResponse(response);
+  };
 }
 
-/** Vercel Node Function 요청을 표준 Web Request 기반 MCP 처리기에 연결한다. */
-export default async function handleVercelMcpRequest(
-  incoming: IncomingMessage,
-  outgoing: ServerResponse,
-): Promise<void> {
-  const request = await createWebRequest(incoming);
-  const response = await handleMcpRequest(request);
+/** 공개 `/mcp` 요청을 운영 식별자의 stateless MCP 처리기로 전달한다. */
+export const handleMcpRequest = createMcpRequestHandler(
+  PRODUCTION_MCP_SERVER_INFO,
+);
 
-  await sendWebResponse(response, outgoing);
+/** Node HTTP 요청을 선택한 Web Request 기반 MCP 처리기에 연결한다. */
+export function createNodeMcpRequestHandler(
+  requestHandler: McpWebRequestHandler,
+): (incoming: IncomingMessage, outgoing: ServerResponse) => Promise<void> {
+  return async (
+    incoming: IncomingMessage,
+    outgoing: ServerResponse,
+  ): Promise<void> => {
+    const request = await createWebRequest(incoming);
+    const response = await requestHandler(request);
+
+    await sendWebResponse(response, outgoing);
+  };
 }
+
+/** Vercel Function은 항상 운영 서버 식별자를 사용한다. */
+const handleVercelMcpRequest = createNodeMcpRequestHandler(handleMcpRequest);
+
+export default handleVercelMcpRequest;

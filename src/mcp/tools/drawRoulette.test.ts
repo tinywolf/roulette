@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RandomValuesSource } from "../../core/random";
 import {
+  ROULETTE_RESULT_META_KEY,
   drawRouletteInputSchema,
   executeDrawRoulette,
 } from "./drawRoulette";
@@ -9,7 +10,7 @@ const zeroSource: RandomValuesSource = (target) => {
   target[0] = 0;
 };
 
-function resultText(result: ReturnType<typeof executeDrawRoulette>): string {
+function errorText(result: ReturnType<typeof executeDrawRoulette>): string {
   const firstContent = result.content[0];
 
   if (firstContent?.type !== "text") {
@@ -38,13 +39,26 @@ describe("drawRouletteInputSchema", () => {
 });
 
 describe("executeDrawRoulette", () => {
-  it("전체 추첨 결과를 텍스트와 structuredContent로 함께 반환한다", () => {
+  it("MCP Apps 비지원 호스트용 텍스트와 구조화 결과를 반환한다", () => {
     const result = executeDrawRoulette(
       { rawInput: "민지,민지,준호", drawCount: "all" },
       { randomValues: zeroSource },
     );
 
     expect(result.isError).not.toBe(true);
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: [
+          "추첨 결과",
+          "1. 민지",
+          "2. 준호",
+          "3. 민지",
+          "",
+          "전체 후보 3개 · 추첨 3개 · 미추첨 0개",
+        ].join("\n"),
+      },
+    ]);
     expect(result.structuredContent).toEqual({
       candidateCount: 3,
       drawCount: 3,
@@ -55,8 +69,24 @@ describe("executeDrawRoulette", () => {
         { order: 3, id: "candidate-1", name: "민지" },
       ],
     });
-    expect(resultText(result)).toContain("추첨 결과\n1. 민지");
-    expect(resultText(result)).toContain("미추첨 0개");
+  });
+
+  it("MCP Apps 호스트에는 결과를 컴포넌트 전용 _meta로만 반환한다", () => {
+    const result = executeDrawRoulette(
+      { rawInput: "가,나,다", drawCount: 1 },
+      { randomValues: zeroSource },
+      "mcp-app",
+    );
+
+    expect(result.isError).not.toBe(true);
+    expect(result.content).toEqual([]);
+    expect(result.structuredContent).toBeUndefined();
+    expect(result._meta?.[ROULETTE_RESULT_META_KEY]).toEqual({
+      candidateCount: 3,
+      drawCount: 1,
+      remainingCount: 2,
+      results: [{ order: 1, id: "candidate-2", name: "나" }],
+    });
   });
 
   it("일부 추첨에서 미추첨 이름을 노출하지 않는다", () => {
@@ -70,7 +100,9 @@ describe("executeDrawRoulette", () => {
       drawCount: 1,
       remainingCount: 2,
     });
-    expect(resultText(result)).not.toContain("비공개후보");
+    expect(JSON.stringify(result.structuredContent)).not.toContain(
+      "비공개후보",
+    );
   });
 
   it("후보 입력과 추첨 인원 오류를 안정적인 코드로 반환한다", () => {
@@ -84,9 +116,9 @@ describe("executeDrawRoulette", () => {
     });
 
     expect(invalidInput.isError).toBe(true);
-    expect(resultText(invalidInput)).toContain("INVALID_INPUT");
+    expect(errorText(invalidInput)).toContain("INVALID_INPUT");
     expect(invalidDrawCount.isError).toBe(true);
-    expect(resultText(invalidDrawCount)).toContain("INVALID_DRAW_COUNT");
+    expect(errorText(invalidDrawCount)).toContain("INVALID_DRAW_COUNT");
   });
 
   it("난수 실패와 예상하지 못한 오류의 세부 정보를 숨긴다", () => {
@@ -107,9 +139,9 @@ describe("executeDrawRoulette", () => {
       },
     );
 
-    expect(resultText(randomFailure)).toContain("RANDOM_UNAVAILABLE");
-    expect(resultText(internalFailure)).toContain("INTERNAL_ERROR");
-    expect(resultText(randomFailure)).not.toContain("민감후보");
-    expect(resultText(internalFailure)).not.toContain("stack detail");
+    expect(errorText(randomFailure)).toContain("RANDOM_UNAVAILABLE");
+    expect(errorText(internalFailure)).toContain("INTERNAL_ERROR");
+    expect(errorText(randomFailure)).not.toContain("민감후보");
+    expect(errorText(internalFailure)).not.toContain("stack detail");
   });
 });

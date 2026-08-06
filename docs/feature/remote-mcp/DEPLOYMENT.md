@@ -82,7 +82,7 @@ https://roulette-remote-l3lnprqhy-j-personal-projects.vercel.app/mcp
 
 1. `https://<preview-domain>/mcp`에서 MCP 초기화와 `tools/list`가 성공하는지 확인한다.
 2. 일부 추첨, 전체 추첨, 입력 문법, 잘못된 입력, 병렬 호출을 검증한다.
-3. MCP Apps 지원 호스트에서 UI가 표시되고, 비지원 호스트에서 텍스트 결과가 유지되는지 확인한다.
+3. MCP Apps 지원 호스트에서 현재 텍스트 결과와 애니메이션이 표시되고 대화 결과가 중복되지 않으며, 비지원 호스트에는 텍스트 fallback이 반환되는지 확인한다.
 4. 첫 호출과 후속 호출 시간을 비교해 cold start가 10초 제한 안에 들어오는지 확인한다.
 5. Vercel Runtime Logs에서 요청 메타데이터 외 후보 원문·추첨 결과·요청 본문이 출력되지 않는지 확인한다.
 6. 루트에 정적 웹앱이 제공되지 않고 기존 GitHub Pages 배포가 영향을 받지 않는지 확인한다.

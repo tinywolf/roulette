@@ -11,6 +11,11 @@ export type RouletteResult = {
   results: RouletteResultItem[];
 };
 
+export type RouletteDrawInput = {
+  rawInput: string;
+  drawCount: "all" | number;
+};
+
 const WHEEL_SEGMENT_COLORS = [
   "var(--accent)",
   "var(--accent-2)",
@@ -29,6 +34,25 @@ function isIntegerInRange(
     value >= minimum &&
     value <= maximum
   );
+}
+
+/** 호스트가 전달한 최초 추첨 입력 중 재추첨에 필요한 값만 검증해 보관한다. */
+export function parseRouletteDrawInput(value: unknown): RouletteDrawInput | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const { rawInput, drawCount } = candidate;
+  if (
+    typeof rawInput !== "string" ||
+    rawInput.length === 0 ||
+    (drawCount !== "all" && !isIntegerInRange(drawCount, 1, 45))
+  ) {
+    return null;
+  }
+
+  return { rawInput, drawCount };
 }
 
 /** 신뢰하지 않는 tool result를 애니메이션에 사용할 수 있는 최소 계약으로 검증한다. */

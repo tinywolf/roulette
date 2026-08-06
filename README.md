@@ -3,7 +3,7 @@
 같은 추첨 규칙을 두 가지 방식으로 제공하는 프로젝트입니다.
 
 - 정적 웹앱: 브라우저에서 2D·3D 애니메이션과 함께 수동 또는 자동 추첨
-- Remote MCP: 에이전트가 옵션을 모두 확인한 뒤 텍스트 결과와, 지원 호스트에서는 룰렛 UI를 반환하는 공개·stateless 도구
+- Remote MCP: 에이전트가 옵션을 모두 확인한 뒤 구조화 결과를 확정하고 MCP Apps UI에서 표시하는 공개·stateless 도구
 
 추첨 결과는 Web Crypto API와 거부 샘플링을 이용한 Fisher–Yates 순열로 결정합니다. 웹 애니메이션은 이미 결정된 결과의 표현만 담당합니다.
 
@@ -16,7 +16,7 @@
 - 전체 또는 지정 개수 비복원 추첨
 - 웹의 수동·자동 추첨, 2D Canvas·3D WebGL 연출, 효과음과 결과 복사
 - 웹 입력·설정을 브라우저 `localStorage`에 보존
-- MCP `draw_roulette` 도구의 텍스트·구조화 결과와 MCP Apps 룰렛 애니메이션
+- MCP `draw_roulette` 도구의 구조화 결과, MCP Apps 룰렛 애니메이션과 현재 카드 재추첨
 - 웹·MCP 목적별 빌드와 테스트 격리
 
 ## 입력 예시
@@ -83,10 +83,12 @@ MCP_PORT=3100 npm run dev:mcp
 서버가 준비되면 다음 주소가 출력됩니다.
 
 ```text
-Local MCP server: http://127.0.0.1:3000/mcp
+[roulette-mcp-dev] development mode enabled
+[roulette-mcp-dev] server: roulette-remote-mcp-dev
+[roulette-mcp-dev] endpoint: http://127.0.0.1:3000/mcp
 ```
 
-로컬 MCP 서버를 사용하는 동안 이 터미널을 계속 실행해 둡니다. 서버를 종료할 때는 `Ctrl+C`를 누릅니다.
+`dev:mcp`로 실행한 서버는 MCP 초기화 응답에서도 운영 이름 대신 `roulette-remote-mcp-dev`를 사용합니다. 요청마다 HTTP 메서드·경로·상태·소요시간을 출력하지만 후보 원문과 추첨 결과는 기록하지 않습니다. 로컬 MCP 서버를 사용하는 동안 이 터미널을 계속 실행해 둡니다. 서버를 종료할 때는 `Ctrl+C`를 누릅니다.
 
 다른 터미널에서 MCP Inspector로 연결과 도구 호출을 확인할 수 있습니다.
 
@@ -110,7 +112,7 @@ codex mcp list
 
 등록 후 Codex 앱·CLI·IDE 확장을 재시작하거나 새 작업을 시작합니다. `127.0.0.1`은 같은 컴퓨터에서 실행되는 에이전트만 접근할 수 있으며, Codex Cloud나 별도 컨테이너에서는 이 주소로 호스트의 MCP 서버에 연결할 수 없습니다.
 
-MCP Apps 확장을 지원하는 호스트는 같은 `draw_roulette` 호출에서 룰렛 애니메이션을 렌더링합니다. 확장을 지원하지 않는 호스트도 텍스트와 `structuredContent` 결과를 그대로 받으므로 추첨 기능은 유지됩니다. Codex는 현재 공개 호환 호스트 목록에 포함되어 있지 않아 로컬 등록 시 텍스트 결과가 표시되는 것을 정상 fallback으로 봅니다.
+MCP Apps 확장을 협상한 호스트와 ChatGPT UI 호출은 같은 `draw_roulette` 호출에서 현재 추첨 결과와 룰렛 애니메이션을 렌더링합니다. 이때 결과는 모델에 보이는 `content`·`structuredContent`가 아니라 컴포넌트 전용 `_meta`로 전달되어 대화에 결과 텍스트가 중복되지 않습니다. App의 도구 호출까지 지원하는 호스트에서는 재추첨 버튼이 app-only `redraw_roulette`를 호출하고, 새 카드나 앱 컨텍스트를 만들지 않은 채 현재 카드의 결과 목록·선택 가능한 `추첨 결과: …` 텍스트·애니메이션을 함께 교체합니다. MCP Apps 비지원 호스트에는 기존처럼 텍스트와 구조화 결과를 반환합니다.
 
 ## 공개 Remote MCP
 
@@ -194,6 +196,6 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 ## 현재 제한사항
 
 - 후보는 최대 45개입니다.
-- MCP Apps UI는 호스트가 확장을 구현한 경우에만 표시되며, 나머지 호스트는 텍스트 결과를 사용합니다.
+- MCP Apps UI는 호스트가 확장을 협상한 경우에만 표시되며, 비지원 호스트에는 친화적 텍스트와 구조화 결과가 반환됩니다.
 - MCP는 인증, 상태 저장, 결과 복구와 재현 가능한 난수 시드를 제공하지 않습니다.
 - Vercel Preview와 Production의 Function·프로토콜·로그 검증은 통과했지만 실제 원격 MCP Apps 호스트 E2E는 아직 수행하지 않았습니다.

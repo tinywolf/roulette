@@ -93,9 +93,24 @@ async function verifySources() {
 
       if (
         kind === "mcp-app" &&
-        /(?:\bfetch\s*\(|\blocalStorage\b|\bsessionStorage\b|\bcallServerTool\b)/.test(source)
+        /(?:\bfetch\s*\(|\blocalStorage\b|\bsessionStorage\b|\.(?:sendMessage|sendFollowUpMessage)\s*\()/.test(
+          source,
+        )
       ) {
-        failures.push(`${relativeFile}: MCP App의 외부 요청·저장·도구 재호출 금지`);
+        failures.push(`${relativeFile}: MCP App의 외부 요청·저장·메시지 전송 금지`);
+      }
+
+      const serverToolCalls = source.match(/\.callServerTool\s*\(/g) ?? [];
+      if (
+        kind === "mcp-app" &&
+        serverToolCalls.length > 0 &&
+        (serverToolCalls.length !== 1 ||
+          !source.includes('const REDRAW_ROULETTE_TOOL_NAME = "redraw_roulette"') ||
+          !source.includes("name: REDRAW_ROULETTE_TOOL_NAME"))
+      ) {
+        failures.push(
+          `${relativeFile}: MCP App에서는 app-only redraw_roulette 호출 하나만 허용`,
+        );
       }
 
       for (const specifier of findImports(source)) {
@@ -168,8 +183,9 @@ async function verifyMcpAppResource() {
     "utf8",
   );
   const requiredMarkers = [
-    "ui://roulette/roulette-v1.html",
+    "ui://roulette/roulette-v6.html",
     "text/html;profile=mcp-app",
+    "redraw_roulette",
     '\"connectDomains\":[]',
     '\"resourceDomains\":[]',
   ];
@@ -210,8 +226,9 @@ async function verifyWebBundle() {
     "@modelcontextprotocol",
     "mcp-handler",
     "draw_roulette",
+    "redraw_roulette",
     "roulette-remote-mcp",
-    "ui://roulette/roulette-v1.html",
+    "ui://roulette/roulette-v6.html",
     "text/html;profile=mcp-app",
   ];
 
