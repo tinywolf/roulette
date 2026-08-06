@@ -26,7 +26,7 @@ const server = createServer(async (incoming, outgoing) => {
   outgoing.once("finish", () => {
     const duration = Math.round(performance.now() - startedAt);
     console.info(
-      `[roulette-mcp-dev] ${method} ${pathname} ${outgoing.statusCode} ${duration}ms`,
+      `[roulette-mcp-dev] [${new Date().toISOString()}] ${method} ${pathname} ${outgoing.statusCode} ${duration}ms`,
     );
   });
 
@@ -34,7 +34,9 @@ const server = createServer(async (incoming, outgoing) => {
     await developmentMcpHandler(incoming, outgoing);
   } catch (error) {
     const errorName = error instanceof Error ? error.name : "UnknownError";
-    console.error(`[roulette-mcp-dev] request failed: ${errorName}`);
+    console.error(
+      `[roulette-mcp-dev] [${new Date().toISOString()}] request failed: ${errorName}`,
+    );
 
     if (!outgoing.headersSent) outgoing.statusCode = 500;
     if (!outgoing.writableEnded) outgoing.end();
