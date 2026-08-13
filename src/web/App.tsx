@@ -60,7 +60,7 @@ type ToastInput = {
   duration: number | null;
 };
 
-export function shouldMixMachine(
+function shouldMixMachine(
   session: Pick<DrawSession, "mode" | "phase">,
 ): boolean {
   if (session.mode === "auto") {

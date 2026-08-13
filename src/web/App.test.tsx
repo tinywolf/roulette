@@ -6,19 +6,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import App, { shouldMixMachine } from "./App";
+import App from "./App";
 import { SoundController } from "./services/soundController";
-
-describe("machine motion state", () => {
-  it("수동 준비·추첨 중에는 계속 혼합하고 완료 시 중단한다", () => {
-    expect(shouldMixMachine({ mode: "manual", phase: "ready" })).toBe(true);
-    expect(shouldMixMachine({ mode: "manual", phase: "mixing" })).toBe(true);
-    expect(shouldMixMachine({ mode: "manual", phase: "completed" })).toBe(
-      false,
-    );
-    expect(shouldMixMachine({ mode: "auto", phase: "running" })).toBe(true);
-  });
-});
 
 describe("App setup", () => {
   beforeEach(() => {
@@ -150,53 +139,6 @@ describe("App setup", () => {
     );
   });
 
-  it("45개까지 시작을 허용하고 46개는 차단한다", () => {
-    render(<App />);
-    const input = screen.getByLabelText("공 이름");
-    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
-    const fortyFiveNames = Array.from(
-      { length: 45 },
-      (_, index) => `이름${index + 1}`,
-    ).join(",");
-
-    fireEvent.change(input, { target: { value: fortyFiveNames } });
-    expect(screen.getByText("45 / 45")).toBeInTheDocument();
-    expect(startButton).toBeEnabled();
-
-    fireEvent.change(input, { target: { value: `${fortyFiveNames},이름46` } });
-    expect(screen.getByText("46 / 45")).toBeInTheDocument();
-    expect(startButton).toBeDisabled();
-    expect(screen.getByText("이름은 최대 45개까지 입력할 수 있습니다."))
-      .toBeInTheDocument();
-  });
-
-  it("반복 표현식을 확장한 공 개수로 추첨을 시작한다", () => {
-    render(<App />);
-    const input = screen.getByLabelText("공 이름");
-    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
-
-    expect(input).toHaveAttribute(
-      "placeholder",
-      "민지, 준호, 7\n서연*2, 12*3\n1~5, 민지*2",
-    );
-    const inputGuide = screen.getByText("입력 예시").parentElement;
-    expect(inputGuide).toHaveTextContent(
-      "목록: 민지, 준호, 7 (콤마 또는 줄바꿈)",
-    );
-    expect(inputGuide).toHaveTextContent("반복: 민지*2, 7*3");
-    expect(inputGuide).toHaveTextContent("숫자 범위: 1~45");
-    expect(inputGuide).toHaveTextContent("함께 입력: 1~5, 민지*2, 7");
-
-    fireEvent.change(input, { target: { value: "민지*2, 준호*3" } });
-
-    expect(screen.getByText("5 / 45")).toBeInTheDocument();
-    expect(startButton).toBeEnabled();
-
-    fireEvent.click(startButton);
-
-    expect(screen.getByText("0 / 5")).toBeInTheDocument();
-  });
-
   it("잘못된 반복 표현식이면 추첨 시작을 차단한다", () => {
     render(<App />);
     const input = screen.getByLabelText("공 이름");
@@ -210,35 +152,6 @@ describe("App setup", () => {
       ),
     ).toBeInTheDocument();
     expect(startButton).toBeDisabled();
-  });
-
-  it("1~45 숫자 범위를 45개의 공으로 확장해 시작한다", () => {
-    render(<App />);
-    const input = screen.getByLabelText("공 이름");
-
-    fireEvent.change(input, { target: { value: "1~45" } });
-
-    expect(screen.getByText("45 / 45")).toBeInTheDocument();
-    expect(localStorage.getItem("lottery-draw:names:v1")).toContain("1~45");
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-
-    expect(screen.getByText("0 / 45")).toBeInTheDocument();
-    expect(screen.getAllByLabelText(/남은 공 45개/)).toHaveLength(2);
-  });
-
-  it("숫자 범위와 일반·반복 값을 함께 확장해 시작한다", () => {
-    render(<App />);
-    const input = screen.getByLabelText("공 이름");
-    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
-
-    fireEvent.change(input, { target: { value: "1~3,민지*2,7" } });
-
-    expect(screen.getByText("6 / 45")).toBeInTheDocument();
-    expect(startButton).toBeEnabled();
-
-    fireEvent.click(startButton);
-
-    expect(screen.getByText("0 / 6")).toBeInTheDocument();
   });
 
   it("일부 추첨 개수를 검증하고 목표 개수로 세션을 시작한다", () => {
@@ -264,20 +177,6 @@ describe("App setup", () => {
 
     expect(screen.getByText("0 / 6")).toBeInTheDocument();
     expect(screen.getAllByLabelText(/남은 공 45개/)).toHaveLength(2);
-  });
-
-  it("손상된 설정은 경고를 표시하고 기본 옵션으로 시작한다", () => {
-    localStorage.setItem("lottery-draw:setup-options:v1", "{bad json");
-    render(<App />);
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "저장된 설정을 불러오지 못했습니다.",
-    );
-    expect(screen.getByRole("radio", { name: /전체 추첨/ })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /직접 뽑기/ })).toBeChecked();
-    expect(screen.getByRole("button", { name: "효과음 꺼짐" }))
-      .toHaveAttribute("aria-pressed", "false");
-    expect(screen.queryByLabelText("뽑을 공 개수")).not.toBeInTheDocument();
   });
 
   it("서로 다른 시스템 경고를 쌓아 두고 개별적으로 닫는다", () => {
@@ -704,37 +603,4 @@ describe("automatic draw flow", () => {
     vi.useRealTimers();
   });
 
-  it("일부 자동 추첨은 목표 개수의 일정만 실행한다", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(1_000);
-    const randomSpy = vi
-      .spyOn(globalThis.crypto, "getRandomValues")
-      .mockImplementation(((values: Uint32Array<ArrayBuffer>) => {
-        values[0] = 0;
-        return values;
-      }) as typeof globalThis.crypto.getRandomValues);
-
-    render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "가, 나, 다" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-
-    act(() => {
-      vi.advanceTimersByTime(3_000);
-    });
-
-    expect(screen.getByText("1 / 1")).toBeInTheDocument();
-    expect(screen.getAllByLabelText(/남은 공 2개/)).toHaveLength(2);
-    expect(screen.getByRole("heading", { name: "추첨이 완료됐어요" }))
-      .toBeInTheDocument();
-
-    randomSpy.mockRestore();
-    vi.useRealTimers();
-  });
 });

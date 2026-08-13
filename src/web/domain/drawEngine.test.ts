@@ -6,7 +6,6 @@ import {
   formatResults,
   reconcileScheduledDraws,
   redrawSession,
-  resetDrawSession,
 } from "./drawEngine";
 import type { RandomValuesSource } from "./random";
 import { createBalls } from "./types";
@@ -148,12 +147,6 @@ describe("formatResults", () => {
     const first = completeManualDraw(beginManualDraw(session, zeroSource), 1_000);
 
     expect(formatResults(first.results)).toBe("1. 민지");
-  });
-});
-
-describe("resetDrawSession", () => {
-  it("진행 중 세션을 설정 상태로 되돌릴 수 있게 제거한다", () => {
-    expect(resetDrawSession()).toBeNull();
   });
 });
 

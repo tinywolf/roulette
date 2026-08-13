@@ -14,7 +14,7 @@ describe("core parseNames", () => {
   });
 
   it("반복식과 숫자 범위를 함께 확장한다", () => {
-    const result = parseNames("1~3, 민지*2\n7");
+    const result = parseNames(" 01 ~ 03 , 민지 * 2\n7");
 
     expect(result).toEqual({
       names: ["1", "2", "3", "민지", "민지", "7"],
@@ -53,6 +53,13 @@ describe("core parseNames", () => {
       parseNames(`${"가".repeat(MAX_CANDIDATE_NAME_LENGTH + 1)},준호`).errors,
     ).toContain(
       `이름은 각각 ${MAX_CANDIDATE_NAME_LENGTH}자 이하로 입력해 주세요.`,
+    );
+    expect(parseNames("1~1,민지")).toEqual({
+      names: ["1", "민지"],
+      errors: [],
+    });
+    expect(parseNames("1~40,민지*6").errors).toContain(
+      `이름은 최대 ${MAX_CANDIDATES}개까지 입력할 수 있습니다.`,
     );
   });
 
