@@ -205,6 +205,70 @@
         white-space: nowrap;
       }
 
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .redraw-button {
+        min-height: 42px;
+        padding: 9px 16px;
+        border: 1px solid color-mix(in srgb, var(--accent) 65%, var(--line));
+        border-radius: 999px;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: filter 160ms ease, opacity 160ms ease, transform 160ms ease;
+      }
+
+      .redraw-button:hover:not(:disabled) {
+        filter: brightness(1.06);
+        transform: translateY(-1px);
+      }
+
+      .redraw-button:focus-visible {
+        outline: 3px solid color-mix(in srgb, var(--accent) 32%, transparent);
+        outline-offset: 2px;
+      }
+
+      .redraw-button:disabled {
+        cursor: wait;
+        opacity: 0.56;
+      }
+
+      .action-status {
+        min-width: 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.35;
+      }
+
+      .action-status.has-error {
+        color: #d4483f;
+      }
+
+      .text-result {
+        margin: 14px 0 0;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+        font-size: 0.9rem;
+        font-weight: 650;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+        user-select: text;
+      }
+
+      .text-result:empty {
+        display: none;
+      }
+
       .has-error .eyebrow,
       .has-error h1 {
         color: #d4483f;
@@ -237,6 +301,11 @@
         .results {
           text-align: left;
         }
+
+        .actions {
+          justify-content: center;
+          text-align: left;
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -263,7 +332,25 @@
         <p class="eyebrow">Roulette draw</p>
         <h1 data-status>결과를 기다리는 중</h1>
         <p class="summary" data-summary>서버에서 추첨 결과를 확정하고 있습니다.</p>
-        <ol class="results" data-results aria-label="당첨 결과"></ol>
+        <ol class="results" data-results aria-label="현재 추첨 결과"></ol>
+        <p
+          class="text-result"
+          data-text-result
+          aria-label="복사 가능한 추첨 결과"
+          aria-live="polite"
+        ></p>
+        <div class="actions">
+          <button
+            class="redraw-button"
+            type="button"
+            data-redraw
+            disabled
+            hidden
+          >
+            재추첨
+          </button>
+          <span class="action-status" data-action-status role="status"></span>
+        </div>
       </section>
     </main>
     <script type="module" src="./app.ts"></script>

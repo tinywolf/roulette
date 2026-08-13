@@ -5,21 +5,21 @@
 - 기준 스펙: `docs/feature/remote-mcp/SPEC.md`
 - 보조 요구사항 문서: 없음
 - 대상 브랜치: `feature/remote-mcp`
-- 최종 갱신일: 2026-08-05
+- 최종 갱신일: 2026-08-06
 - 전체 상태: `done`
-- 진행률: 20/20
-- 다음 작업: T20 결과에 대한 사용자 피드백 후 변경을 커밋·push하고 Git 자동 Production 배포를 별도로 검증한다.
-- 현재 작업 완료 기준: 기존 텍스트 fallback과 MCP Apps 애니메이션을 유지하면서 룰렛 의도의 도구 호출 명세를 명확히 하고, UI·서버·정적 웹의 빌드 경계와 로컬 검증을 모두 통과한다.
+- 진행률: 27/27
+- 다음 작업: 현재 변경을 배포한 뒤 실제 MCP Apps 호스트에서 재추첨과 운영 서버 식별자를 E2E 검증한다.
+- 현재 작업 완료 기준: Apps 지원 호스트는 UI 전용 결과만 받고, 비지원 호스트는 기존 텍스트 fallback을 받으며, 최초·재추첨 목록과 선택 가능한 한 줄 텍스트 결과는 앱 컨텍스트 추가 없이 현재 MCP App 카드에서 함께 갱신된다.
 - 현재 작업 범위 제외: 커스텀 도메인, 실제 원격 MCP Apps 호스트 E2E, 다중 클라이언트 운영 검증
 - 기능 범위 제외: 인증·OAuth, 데이터베이스·KV·캐시, 추첨 감사·재현 기능, 상업적 운영
-- 외부 작업: Production 배포와 검증을 마친 뒤 사용자 승인에 따라 남은 Preview 2개를 삭제해 Production 하나만 유지한다.
+- 외부 작업: 현재 변경을 Production에 배포한 뒤 실제 MCP Apps 호스트에서 현재 카드 재추첨을 검증한다.
 
 ### Open Questions
 
 1. 해결됨: MCP SDK 2.0.0과 `mcp-handler` 2.1.0으로 고정하고 운영 의존성 취약점 0건을 확인했다.
 2. 해결됨: `vercel build`는 ID 없는 임시 로컬 설정으로 통과했고, `vercel dev`는 OAuth·프로젝트 연결을 요구해 동등한 로컬 어댑터로 대체했다. 배포는 수행하지 않았다.
 3. 해결됨: 신규 UI는 레거시 MCP-UI 프로토콜이 아니라 공식 MCP Apps 확장 표준의 `_meta.ui.resourceUri`와 `text/html;profile=mcp-app`을 사용한다.
-4. 확인됨: MCP Apps는 코어 MCP가 아닌 확장 표준이므로 UI 렌더링을 지원하지 않는 호스트가 있다. Codex는 현재 공개된 MCP-UI 호환 호스트 목록에 없으므로 텍스트 fallback을 필수로 유지한다.
+4. 해결됨: 결과 표현을 capability-aware 방식으로 전환했다. UI 지원 호스트에는 컴포넌트 전용 `_meta`만 제공하고, 비지원 호스트에는 친화적 텍스트와 구조화 결과를 제공한다.
 5. 해결됨: 빈 Vercel 프로젝트의 첫 `vercel deploy --prebuilt`는 `--prod`가 없어도 Production으로 자동 지정될 수 있다. 해당 구버전 Production과 자동화 우회 토큰은 T17에서, 남은 Preview 2개는 T19에서 제거했다.
 6. 해결됨: `main` 병합 커밋 `38fdfdc`에서 Production Build Output을 새로 생성해 `roulette-remote-mcp.vercel.app`에 직접 배포하고 운영 smoke test를 통과했다.
 7. 해결됨: Production 확인 후 정상 검증 Preview와 수정 전 실패 Preview를 모두 삭제하고 운영 Deployment 하나만 남겼다.
@@ -36,6 +36,13 @@
 8. T9에서 2차 MCP Apps 계약을 확정하고 T10에서 격리된 UI를 만든 뒤, T11에서 기존 도구와 UI 리소스를 연결한다.
 9. T12에서 프로토콜·UI·번들 경계를 로컬 검증하고 사용 가이드를 갱신한다.
 10. T20에서 서버 지침과 도구·입력 설명을 보강해 에이전트의 룰렛 도구 선택 가능성을 높이고 실제 MCP 계약으로 회귀 검증한다.
+11. T21에서 app-only `redraw_roulette`와 현재 카드 재추첨 버튼을 연결하고, 중복 렌더링·오류 복구·텍스트 fallback을 회귀 검증한다.
+12. T22에서 `dev:mcp` 전용 서버 이름과 payload 비포함 요청 로그를 추가하고 운영 식별자와 분리해 검증한다.
+13. T23에서 환경별 서버 정보 객체를 핵심 모듈에서 제거하고 운영·개발 실행 지점의 명시적 주입으로 정리한다.
+14. T24에서 성공 응답의 대화용 텍스트를 제거하고 현재 iframe의 텍스트 결과가 재추첨과 함께 갱신되게 한다.
+15. T25에서 MCP Apps capability에 따라 UI 전용 `_meta`와 텍스트 fallback을 분기하고 현재 결과 컨텍스트를 갱신한다.
+16. T26에서 ChatGPT의 capability 유실 경로를 보완하고 UI가 기존 구조화 결과도 호환 처리하게 한다.
+17. T27에서 불필요한 모델 컨텍스트 갱신을 제거하고 선택 가능한 한 줄 텍스트 결과를 현재 UI 안에 추가한다.
 
 ## Tasks
 
@@ -593,6 +600,169 @@
   - `npm run verify`
 - `next_action`: 완료. 사용자 피드백 후 변경을 커밋·push하고 Git 자동 Production 배포에서 갱신된 명세를 확인한다.
 
+### T21. MCP App 기존 카드 재추첨
+
+- 상태: `done`
+- 우선순위: P0(2차)
+- 진행: [x]
+- 목적: 재추첨이 새 에이전트 답변이나 UI 카드를 생성하지 않고 기존 MCP App 안에서 새 추첨과 애니메이션을 실행하게 한다.
+- 작업 범위:
+  - 모델용 `draw_roulette`와 App 전용 `redraw_roulette`의 가시성·UI 리소스 계약을 분리한다.
+  - MCP App이 최초 tool input을 보관하고 재추첨 버튼에서 같은 입력으로 `redraw_roulette`를 호출한다.
+  - 재추첨 결과를 현재 iframe에서 다시 검증·렌더링하고 애니메이션을 재시작한다.
+  - 로컬 호출 응답과 호스트 tool-result 통지가 중복될 때 한 번만 렌더링한다.
+  - 재추첨 실패 시 기존 결과를 유지하고 버튼으로 재시도할 수 있게 한다.
+  - 새 결과를 모델 컨텍스트에 반영하되 사용자 메시지·후속 답변 전송 API는 사용하지 않는다.
+- 완료 조건:
+  - `draw_roulette`에만 `ui://roulette/roulette-v2.html`이 연결된다.
+  - `redraw_roulette`는 app-only/private이며 UI 리소스가 없는 데이터 도구다.
+  - 같은 입력으로 재추첨하고 현재 카드의 결과와 애니메이션만 교체한다.
+  - 호스트가 App tool call을 지원하지 않으면 재추첨 버튼을 숨기고 최초 결과와 텍스트 fallback은 유지한다.
+  - MCP App·MCP 통합 테스트와 전체 로컬 검증이 통과한다.
+- 검증:
+  - MCP App DOM 테스트에서 호출 인수, 단일 렌더, 오류 복구, 미지원 호스트 fallback 확인
+  - MCP 통합 테스트에서 두 도구의 가시성·리소스 메타데이터와 실행 결과 확인
+  - `npm run verify`
+- `next_action`: 완료. 배포 후 실제 MCP Apps 호스트에서 현재 카드 재추첨과 운영 메타데이터를 확인한다.
+
+### T22. 로컬 MCP 개발 식별자와 요청 로그
+
+- 상태: `done`
+- 우선순위: P1
+- 진행: [x]
+- 목적: 로컬 MCP 연결을 운영 연결과 즉시 구분하고 개발 중 요청 흐름을 payload 노출 없이 관찰할 수 있게 한다.
+- 작업 범위:
+  - `dev:mcp` 로컬 실행기에 `roulette-remote-mcp-dev` 서버 정보를 주입한다.
+  - Vercel Function은 기존 `roulette-remote-mcp` 서버 정보를 유지한다.
+  - 로컬 서버 시작 시 개발 모드, 서버 이름, endpoint를 출력한다.
+  - 요청 완료 시 HTTP 메서드·경로·상태·소요시간만 출력한다.
+  - 후보 원문, 추첨 결과, 요청 본문과 오류 상세는 로그에서 제외한다.
+- 완료 조건:
+  - MCP 초기화 응답에서 로컬·운영 서버 이름이 각각 검증된다.
+  - 실제 `dev:mcp` 실행과 Inspector 호출에서 시작·요청 로그가 출력된다.
+  - 기존 개인정보·로그 비노출 테스트와 전체 검증이 통과한다.
+- 검증:
+  - MCP 통합 테스트
+  - `dev:mcp` + MCP Inspector `tools/list`
+  - `npm run verify`
+- `next_action`: 완료. 배포 후 운영 서버 이름이 `roulette-remote-mcp`로 유지되는지 확인한다.
+
+### T23. 환경별 MCP 서버 정보의 실행 지점 주입
+
+- 상태: `done`
+- 우선순위: P1
+- 진행: [x]
+- 목적: 핵심 MCP 모듈이 실행 환경을 알지 않게 하고 운영·개발 서버 이름의 소유 위치를 각 진입점으로 명확히 한다.
+- 작업 범위:
+  - 핵심 모듈의 운영·개발 서버 정보 객체를 제거한다.
+  - 핵심에는 공통 구현 버전만 유지한다.
+  - Vercel 진입점이 운영 서버 정보를 구성해 처리기에 주입한다.
+  - `dev:mcp` 실행기가 개발 서버 정보를 구성해 같은 처리기에 주입한다.
+- 완료 조건:
+  - `createMcpRequestHandler`가 기본 환경을 추론하지 않고 서버 정보를 필수로 받는다.
+  - 운영·개발 이름이 기존과 동일하게 초기화 응답에 노출된다.
+  - 실제 `dev:mcp` smoke test와 전체 검증이 통과한다.
+- 검증:
+  - MCP 통합 테스트
+  - `dev:mcp` + MCP Inspector `tools/list`
+  - `npm run verify`
+- `next_action`: 완료. 배포 후 운영 진입점의 서버 이름을 재확인한다.
+
+### T24. UI 중심 현재 결과 표현
+
+- 상태: `done`
+- 우선순위: P0(2차)
+- 진행: [x]
+- 목적: 최초 추첨 결과가 대화 텍스트로 고정되지 않게 하고 현재 iframe을 최신 추첨 결과의 단일 사용자 표현으로 사용한다.
+- 작업 범위:
+  - 정상 `draw_roulette`·`redraw_roulette` 응답의 대화용 `content`를 빈 배열로 반환한다.
+  - 오류 응답의 복구 가능한 텍스트 안내는 유지한다.
+  - UI 결과 제목을 `현재 추첨 결과`로 명확히 한다.
+  - 재추첨 시 결과 목록·요약·애니메이션을 현재 카드에서 함께 갱신한다.
+  - 텍스트 결과 포매터와 해당 테스트를 제거한다.
+  - UI 캐시 구분을 위해 리소스 URI를 `ui://roulette/roulette-v3.html`로 올린다.
+- 완료 조건:
+  - 정상 도구 결과는 빈 `content`와 전체 `structuredContent`를 반환한다.
+  - 최초·재추첨 모두 UI가 구조화 결과만으로 현재 결과 목록을 렌더링한다.
+  - 재추첨이 사용자 메시지·후속 assistant 답변·새 UI 카드를 생성하지 않는다.
+  - UI 비지원 호스트의 친화적 텍스트 fallback 제거가 문서에 명시된다.
+  - 전체 검증이 통과한다.
+- 검증:
+  - MCP 도구·통합 테스트
+  - MCP App DOM·소스 경계 테스트
+  - `npm run verify`
+- `next_action`: 완료. 배포 후 실제 MCP Apps 호스트에서 대화용 결과 텍스트 없이 현재 카드만 갱신되는지 확인한다.
+
+### T25. capability-aware 결과 표현 재설계
+
+- 상태: `done`
+- 우선순위: P0(2차)
+- 진행: [x]
+- 목적: MCP Apps 호스트에서는 UI를 결과의 단일 사용자 표현으로 사용하면서 일반 MCP 호스트의 기존 텍스트 사용성을 복원한다.
+- 작업 범위:
+  - `io.modelcontextprotocol/ui`와 MCP App MIME capability를 요청별로 판별한다.
+  - UI 지원 `draw_roulette`와 app-only `redraw_roulette` 결과를 컴포넌트 전용 `_meta["roulette/result"]`로 반환한다.
+  - UI 비지원 `draw_roulette` 결과에는 친화적 텍스트 `content`와 `structuredContent`를 함께 반환한다.
+  - 동적으로 달라지는 결과 가시성과 충돌하는 정적 도구 `outputSchema`를 제거한다.
+  - MCP App이 `_meta` 결과를 검증·렌더링하고 최초·재추첨 후 현재 모델 컨텍스트를 갱신한다.
+  - UI 계약 변경에 맞춰 리소스 URI를 `ui://roulette/roulette-v4.html`로 올린다.
+- 완료 조건:
+  - UI 지원 응답의 `content`가 비고 결과 `structuredContent`가 없으며 전체 결과가 `_meta`에만 존재한다.
+  - UI 비지원 응답은 기존과 같은 한국어 텍스트와 구조화 결과를 제공한다.
+  - 최초·재추첨 모두 현재 카드의 결과 목록·요약·애니메이션을 교체하며 새 메시지나 카드를 만들지 않는다.
+  - capability 분기, UI DOM, 과거 리소스 URI fallback과 빌드 경계 테스트가 통과한다.
+- 검증:
+  - MCP 도구·통합 테스트
+  - MCP App 모델·DOM·소스 경계 테스트
+  - `npm run verify`
+- `next_action`: 완료. 배포 후 실제 MCP Apps 호스트에서 UI 전용 응답과 비지원 클라이언트의 텍스트 fallback을 각각 확인한다.
+
+### T26. ChatGPT UI 결과 전달 호환성 보완
+
+- 상태: `done`
+- 우선순위: P0(회귀 수정)
+- 진행: [x]
+- 목적: ChatGPT가 UI를 렌더링하면서 표준 Apps capability를 stateless 도구 호출에 보존하지 않는 경우에도 추첨 결과를 현재 카드에 표시한다.
+- 작업 범위:
+  - 표준 Apps capability를 우선하고 호출별 `openai/session` 메타데이터를 ChatGPT UI 표현 경로의 호환 힌트로 추가한다.
+  - MCP App이 `_meta["roulette/result"]`를 우선하되 기존 `structuredContent`도 fallback으로 검증·렌더링한다.
+  - 변경된 App 번들의 캐시를 구분하도록 리소스 URI를 `ui://roulette/roulette-v5.html`로 올리고 `v1`~`v4` 요청 호환을 유지한다.
+  - ChatGPT 호출 분기와 App 구조화 결과 fallback을 자동 테스트한다.
+- 완료 조건:
+  - `openai/session` 메타데이터가 있는 호출은 빈 `content`와 UI 전용 결과 `_meta`를 반환한다.
+  - capability·호출 메타데이터가 모두 없는 CLI는 기존 텍스트와 구조화 결과를 유지한다.
+  - App은 UI 전용 `_meta`와 기존 `structuredContent` 양쪽 결과를 표시한다.
+  - 현재 리소스는 `v5`이며 과거 `v1`~`v4` URI도 현재 App HTML로 해석된다.
+- 검증:
+  - MCP 통합 테스트
+  - MCP App DOM·소스 경계 테스트
+  - `npm run verify`
+- `next_action`: 완료. 배포 후 ChatGPT에서 최초 추첨 결과와 재추첨이 현재 카드에 표시되고 대화 결과 텍스트가 중복되지 않는지 확인한다.
+
+### T27. UI 내부 텍스트 결과와 앱 컨텍스트 제거
+
+- 상태: `done`
+- 우선순위: P0(UX 회귀 수정)
+- 진행: [x]
+- 목적: UI에 이미 표시된 추첨 결과를 composer의 앱 컨텍스트로 중복 첨부하지 않고, 기존 호스트 답변과 같은 한 줄 결과 문자열을 현재 카드에서 선택·복사할 수 있게 한다.
+- 작업 범위:
+  - 최초·재추첨 후 호출하던 `ui/update-model-context`를 제거한다.
+  - 결과 목록과 별도로 `추첨 결과: 이름1, 이름2` 형식의 일반 텍스트를 UI에 표시한다.
+  - 별도 textarea나 복사 버튼 없이 브라우저 기본 텍스트 선택·복사를 사용한다.
+  - 호스트가 생성하는 짧은 후속 답변은 허용하고 별도 억제 계약을 추가하지 않는다.
+  - 변경된 App 번들의 캐시를 구분하도록 리소스 URI를 `ui://roulette/roulette-v6.html`로 올리고 `v1`~`v5` 요청 호환을 유지한다.
+  - App 소스에 모델 컨텍스트 갱신이 없고 한 줄 결과가 추첨 순서대로 렌더링되는지 자동 테스트한다.
+- 완료 조건:
+  - 최초·재추첨 후 composer에 새로운 앱 컨텍스트가 추가되지 않는다.
+  - UI가 결과 목록과 `추첨 결과: …` 문자열을 함께 표시하고 재추첨 시 둘을 같은 결과로 교체한다.
+  - 호스트 후속 답변 여부와 무관하게 현재 카드의 결과와 애니메이션은 정상 갱신된다.
+  - 현재 리소스는 `v6`이며 과거 `v1`~`v5` URI도 현재 App HTML로 해석된다.
+- 검증:
+  - MCP App DOM·소스 경계 테스트
+  - MCP 통합 테스트
+  - `npm run verify`
+- `next_action`: 완료. 배포 후 ChatGPT에서 재추첨을 반복해 앱 컨텍스트가 추가되지 않는지 확인한다.
+
 ## Deferred Work
 
 다음 항목은 T15의 프로젝트 연결 완료 후 실제 배포 상태를 변경하는 별도 작업 계획과 상태로 관리한다.
@@ -610,12 +780,12 @@
 | --- | --- |
 | 사용자 흐름과 입력 문법 | T1, T3, T8, T20 |
 | 난수·추첨 규칙 | T1, T3, T6 |
-| MCP 도구·응답·오류 계약 | T3, T5, T8, T20 |
-| 공통 코어·웹·MCP 구조 격리 | T1, T2, T4, T6 |
+| MCP 도구·응답·오류 계약 | T3, T5, T8, T20, T21, T22, T23, T24, T25, T26, T27 |
+| 공통 코어·웹·MCP 구조 격리 | T1, T2, T4, T6, T23 |
 | Streamable HTTP와 Vercel Preview·Production 배포 | T4, T8, T14, T15, T16, T18 |
-| 공개 서비스 보안·개인정보 검증 | T5, T7, T8, T16, T18 |
-| 자동 테스트와 배포 전 로컬 검증 | T6, T8 |
-| MCP Apps UI와 텍스트 fallback | T2, T7, T9, T10, T11, T12, T13 |
+| 공개 서비스 보안·개인정보 검증 | T5, T7, T8, T16, T18, T22 |
+| 자동 테스트와 배포 전 로컬 검증 | T6, T8, T22 |
+| MCP Apps UI와 현재 결과 표현 | T2, T7, T9, T10, T11, T12, T13, T21, T24, T25 |
 | Vercel Hobby 운영 제약 문서화 | T7, T14 |
 
 ### 현재 작업에서 미완료로 남는 스펙 요구사항
@@ -624,6 +794,7 @@
 | --- | --- |
 | 실제 원격 MCP 클라이언트의 대화 기반 E2E | Deferred Work 2 |
 | 다중 클라이언트 및 출시 후 운영 안정화 | Deferred Work 3 |
+| ChatGPT stateless UI 호출과 기존 구조화 결과 호환 | T26 |
 
 ## Resume Guide
 
@@ -781,3 +952,52 @@
   - 리스크_또는_차단: 서버 명세는 호스트의 도구 선택 가능성을 높이지만 MCP 프로토콜만으로 모든 호스트의 호출을 강제할 수는 없음
   - 다음: 사용자 피드백 후 커밋·push하고 Git 자동 Production 배포에서 운영 명세 확인
   - 사용자_피드백: 승인 대기
+- 2026-08-06 14:14 | 단계: T21 | 상태: `in_progress` → `done`
+  - 요약: 모델용 최초 추첨과 App 전용 재추첨 도구를 분리하고, 기존 MCP App 카드에서 같은 입력으로 새 결과와 애니메이션을 실행하는 재추첨 버튼을 추가했다.
+  - 산출물: `redraw_roulette`, `ui://roulette/roulette-v2.html`, MCP App 재추첨 UI·모델 컨텍스트 갱신, DOM·통합·경계 회귀 테스트와 갱신 문서
+  - 검증: 총 24개 파일·162개 테스트, 웹·MCP App·MCP 타입 검사와 빌드, 소스·웹 번들 경계 검사 통과
+  - 리스크_또는_차단: 실제 호스트가 MCP Apps의 App tool call을 지원해야 버튼이 노출된다. 현재 변경은 아직 원격 Production에 배포하지 않았다.
+  - 다음: 배포 후 실제 MCP Apps 호스트에서 별도 답변·카드 없이 현재 카드만 갱신되는지 E2E 검증
+  - 사용자_피드백: `redraw_roulette` 방식으로 재추첨 버튼 추가 요청 반영
+- 2026-08-06 15:08 | 단계: T22 | 상태: `in_progress` → `done`
+  - 요약: `dev:mcp` 로컬 실행기에 별도 서버 이름을 주입하고 payload를 제외한 시작·요청 완료 로그를 추가했으며 운영 Vercel 식별자는 유지했다.
+  - 산출물: MCP 처리기 팩터리, `roulette-remote-mcp-dev` 개발 서버 정보, 로컬 HTTP 로그, 통합 테스트와 개발 문서
+  - 검증: 로컬 `dev:mcp` + Inspector `tools/list` smoke test, 총 24개 파일·163개 테스트, 웹·MCP App·MCP 빌드와 소스·웹 번들 경계 검사 통과
+  - 리스크_또는_차단: 실제 Production 배포는 수행하지 않았으며 운영 이름의 배포 후 확인은 남아 있다.
+  - 다음: 배포 후 운영 서버 이름과 MCP Apps 재추첨 E2E 검증
+  - 사용자_피드백: 로컬 개발 MCP 이름 구분과 개발 로그 출력 요청 반영
+- 2026-08-06 15:13 | 단계: T23 | 상태: `in_progress` → `done`
+  - 요약: 환경별 서버 정보 객체를 핵심 MCP 모듈에서 제거하고 운영·개발 진입점이 각각 서버 이름과 공통 버전을 구성해 처리기에 주입하도록 정리했다.
+  - 산출물: 필수 서버 정보 인자를 받는 MCP 처리기 팩터리, 실행 지점별 운영·개발 구성, 갱신된 통합 테스트
+  - 검증: 로컬 `dev:mcp` + Inspector `tools/list` smoke test, 총 24개 파일·163개 테스트, 전체 빌드와 경계 검사 통과
+  - 리스크_또는_차단: 없음
+  - 다음: 배포 후 운영 서버 이름과 MCP Apps 재추첨 E2E 검증
+  - 사용자_피드백: 환경 정보는 실행 지점에서 주입하도록 책임 경계 정리 요청 반영
+- 2026-08-06 15:26 | 단계: T24 | 상태: `in_progress` → `done`
+  - 요약: 정상 추첨 응답의 대화용 텍스트를 제거하고 현재 MCP App 카드가 최초·재추첨의 텍스트 결과와 애니메이션을 함께 갱신하도록 전환했다.
+  - 산출물: 빈 성공 `content`, `ui://roulette/roulette-v3.html`, `현재 추첨 결과` UI, 제거된 텍스트 포매터, 갱신된 계약·회귀 테스트와 문서
+  - 검증: 총 23개 파일·162개 테스트, 웹·MCP App·MCP 빌드와 소스·웹 번들 경계 검사 통과
+  - 리스크_또는_차단: UI 비지원 호스트에는 구조화 결과만 제공되며 친화적 텍스트 표현을 보장하지 않는다. 현재 변경은 아직 Production에 배포하지 않았다.
+  - 다음: 배포 후 실제 MCP Apps 호스트에서 대화 텍스트 없이 현재 카드만 갱신되는지 E2E 검증
+  - 사용자_피드백: 결과 텍스트를 대화에 남기지 않고 iframe 안에서 재추첨과 함께 갱신하도록 요청 반영
+- 2026-08-06 15:59 | 단계: T25 | 상태: `in_progress` → `done`
+  - 요약: MCP Apps capability에 따라 UI 전용 결과와 텍스트 fallback을 분리하고, App이 숨겨진 결과 메타데이터로 최초·재추첨 UI와 현재 모델 컨텍스트를 갱신하도록 재설계했다.
+  - 산출물: `_meta["roulette/result"]` UI 계약, 비지원 호스트 텍스트 포매터, `ui://roulette/roulette-v4.html`, capability 통합 테스트와 갱신 문서
+  - 검증: 총 24개 파일·165개 테스트, 웹·MCP App·MCP 빌드와 소스·웹 번들 경계 검사 통과
+  - 리스크_또는_차단: 호스트가 MCP Apps capability를 선언하지 않으면 실제 UI 렌더링 가능 여부와 무관하게 텍스트 fallback을 선택한다. 현재 변경은 아직 Production에 배포하지 않았다.
+  - 다음: 배포 후 실제 MCP Apps 호스트와 일반 MCP 호스트에서 두 응답 경로를 각각 E2E 검증
+  - 사용자_피드백: 이전 구현 의도보다 새로운 UX 타당성을 우선하고 UI 지원 여부에 따라 결과 표현을 분리하라는 요청 반영
+- 2026-08-06 16:44 | 단계: T26 | 상태: `in_progress` → `done`
+  - 요약: ChatGPT UI 호출에서 표준 Apps capability가 서버에 보존되지 않아 UI 전용 결과가 누락되는 경로를 보완하고, App이 기존 구조화 결과도 호환 표시하도록 수정했다.
+  - 산출물: `openai/session` 기반 ChatGPT 표현 경로 보완, `_meta` 우선·`structuredContent` fallback 파싱, `ui://roulette/roulette-v5.html`, 통합·DOM 회귀 테스트와 갱신 문서
+  - 검증: 총 24개 파일·167개 테스트, 웹·MCP App·MCP 타입 검사와 빌드, 소스·웹 번들 경계 검사 통과
+  - 리스크_또는_차단: `openai/session`은 ChatGPT가 제공하는 호환 메타데이터이므로 다른 UI 호스트는 표준 Apps capability를 선언해야 대화 텍스트 중복 없이 UI 전용 경로를 선택한다. 현재 변경은 아직 Production에 배포하지 않았다.
+  - 다음: 배포 후 ChatGPT에서 최초 결과와 재추첨을 E2E 검증
+  - 사용자_피드백: CLI는 정상이나 UI에 `표시할 수 없는 추첨 결과입니다.`가 노출된다는 회귀 제보 반영
+- 2026-08-06 16:53 | 단계: T27 | 상태: `in_progress` → `done`
+  - 요약: UI 결과를 composer 앱 컨텍스트로 다시 첨부하던 호출을 제거하고, 결과 목록 아래에 선택·복사 가능한 `추첨 결과: 이름1, 이름2` 일반 텍스트를 추가했다.
+  - 산출물: 제거된 `ui/update-model-context`, 재추첨과 함께 갱신되는 일반 텍스트 결과, `ui://roulette/roulette-v6.html`, DOM·소스 경계 테스트와 갱신 문서
+  - 검증: 총 24개 파일·166개 테스트, 웹·MCP App·MCP 타입 검사와 빌드, 소스·웹 번들 경계 검사 통과
+  - 리스크_또는_차단: 일반 텍스트 복사는 호스트 브라우저의 기본 선택·복사 UX를 사용한다. 현재 변경은 아직 Production에 배포하지 않았다.
+  - 다음: 배포 후 ChatGPT에서 재추첨을 반복해 텍스트 결과 갱신과 앱 컨텍스트 미생성을 E2E 검증
+  - 사용자_피드백: textarea나 복사 버튼 없이 일반 텍스트 결과를 UI에 표시하고 기본 선택·복사를 사용하도록 요청 반영

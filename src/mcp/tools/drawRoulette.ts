@@ -11,6 +11,7 @@ import { createToolError } from "../errors.js";
 import { formatDrawResult } from "../presentation/textResult.js";
 
 export const DRAW_ROULETTE_TOOL_NAME = "draw_roulette";
+export const REDRAW_ROULETTE_TOOL_NAME = "redraw_roulette";
 
 /** 에이전트가 모든 옵션을 수집한 뒤 한 번에 전달하는 엄격한 입력 계약이다. */
 export const drawRouletteInputSchema = z
@@ -48,6 +49,10 @@ export const drawRouletteOutputSchema = z
 export type DrawRouletteInput = z.infer<typeof drawRouletteInputSchema>;
 export type DrawRouletteOutput = z.infer<typeof drawRouletteOutputSchema>;
 
+export const ROULETTE_RESULT_META_KEY = "roulette/result";
+
+export type DrawRoulettePresentation = "mcp-app" | "text";
+
 type DrawRouletteDependencies = {
   randomValues?: RandomValuesSource;
   draw?: typeof drawCandidates;
@@ -79,14 +84,19 @@ function resolveDrawCount(
   return drawCount;
 }
 
-function createSuccessResult(selection: DrawSelection): CallToolResult {
+function createSuccessResult(
+  selection: DrawSelection,
+  presentation: DrawRoulettePresentation,
+): CallToolResult {
+  if (presentation === "mcp-app") {
+    return {
+      content: [],
+      _meta: { [ROULETTE_RESULT_META_KEY]: selection },
+    };
+  }
+
   return {
-    content: [
-      {
-        type: "text",
-        text: formatDrawResult(selection),
-      },
-    ],
+    content: [{ type: "text", text: formatDrawResult(selection) }],
     structuredContent: selection,
   };
 }
@@ -95,6 +105,7 @@ function createSuccessResult(selection: DrawSelection): CallToolResult {
 export function executeDrawRoulette(
   input: DrawRouletteInput,
   dependencies: DrawRouletteDependencies = {},
+  presentation: DrawRoulettePresentation = "text",
 ): CallToolResult {
   const parsed = parseNames(input.rawInput);
 
@@ -119,7 +130,7 @@ export function executeDrawRoulette(
       dependencies.randomValues,
     );
 
-    return createSuccessResult(selection);
+    return createSuccessResult(selection, presentation);
   } catch (error) {
     if (error instanceof SecureRandomError) {
       return createToolError("RANDOM_UNAVAILABLE");

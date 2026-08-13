@@ -1,6 +1,6 @@
 import type { DrawSelection } from "../../core/types.js";
 
-/** 확정된 추첨 데이터만 받아 범용 MCP 클라이언트용 일반 텍스트를 만든다. */
+/** MCP Apps를 지원하지 않는 호스트가 그대로 표시할 수 있는 추첨 결과를 만든다. */
 export function formatDrawResult(selection: DrawSelection): string {
   const resultLines = selection.results.map(
     (result) => `${result.order}. ${result.name}`,

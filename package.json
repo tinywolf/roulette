@@ -23,6 +23,7 @@
     "verify": "npm run test:core && npm run test:web && npm run test:mcp-app && npm run build:web && npm run build:mcp && npm run test:mcp && npm run verify:boundaries"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/server": "2.0.0",
     "html-to-image": "^1.11.13",
     "mcp-handler": "2.1.0",
@@ -33,7 +34,6 @@
   "devDependencies": {
     "@mcp-ui/server": "6.1.0",
     "@modelcontextprotocol/client": "2.0.0",
-    "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/inspector": "2.0.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",

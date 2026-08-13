@@ -4,8 +4,8 @@
 
 - 문서 경로: `docs/feature/remote-mcp/SPEC.md`
 - 대상 브랜치: `feature/remote-mcp`
-- 상태: 1차 텍스트 및 2차 MCP Apps UI 구현·로컬 검증 완료, 배포 전
-- 문서 목적: 기존 룰렛의 핵심 입력·추첨 규칙을 재사용하면서 범용 MCP 클라이언트가 호출할 수 있는 공개 원격 MCP 서버의 텍스트 계약과 선택적 MCP Apps UI의 기술 경계를 정의한다.
+- 상태: MCP Apps UI 중심 결과 표현과 현재 카드 재추첨 구현·로컬 검증 완료, 배포 전
+- 문서 목적: 기존 룰렛의 핵심 입력·추첨 규칙을 재사용하면서 공개 원격 MCP 서버의 구조화 결과와 MCP Apps UI의 기술 경계를 정의한다.
 - 기존 제품 스펙: `docs/SPEC.md`
 
 이 문서는 기존 정적 웹앱 스펙을 대체하거나 변경하지 않는다. 기존 정적 웹앱과 원격 MCP 서버가 공유할 순수 도메인 규칙만 분리하며, 각 제품의 런타임·표현·배포 코드는 독립적으로 유지한다.
@@ -23,12 +23,13 @@
 - 표준 Streamable HTTP 전송을 사용하는 범용 원격 MCP 서버를 제공한다.
 - 에이전트가 후보 목록과 추첨 인원을 모두 확보한 뒤에만 추첨 도구를 호출하게 한다.
 - 기존의 후보 입력 문법과 비복원 추첨 규칙을 동일하게 지원한다.
-- 결과를 서버에서 암호학적으로 먼저 확정하고 일반 텍스트로 즉시 반환한다.
+- 결과를 서버에서 암호학적으로 먼저 확정하고 호스트 capability에 맞는 MCP 결과 표현으로 반환한다.
 - 기존 웹앱과 MCP 서버가 순수 핵심 로직만 공유하고 목적별 코드는 서로의 빌드에 포함하지 않는다.
 - 인증 없이 사용할 수 있는 공개 MCP로 운영하되 후보와 결과를 애플리케이션 로그나 저장소에 남기지 않는다.
 - 개인·비상업 용도의 Vercel Hobby 배포를 1차 운영 환경으로 사용한다.
-- 2차 개선에서 MCP Apps 호환 호스트에는 서버가 확정한 결과를 룰렛 애니메이션으로 제공한다.
-- MCP Apps를 렌더링하지 않는 호스트에서도 기존 텍스트 결과만으로 동일한 추첨을 완료한다.
+- MCP Apps 호환 호스트에는 서버가 확정한 현재 결과를 텍스트와 룰렛 애니메이션으로 제공한다.
+- MCP App의 재추첨은 기존 결과 카드 안에서 같은 옵션으로 새 결과를 요청하고 애니메이션을 다시 실행한다.
+- MCP Apps를 렌더링하지 않는 호스트에는 기존처럼 친화적 텍스트와 구조화 결과를 반환한다.
 
 ### 2.3 성공 기준
 
@@ -39,8 +40,9 @@
 - 결과 결정에 Web Crypto 기반 난수와 거부 샘플링을 사용하며 난수 실패 시 추첨을 중단한다.
 - 웹 빌드에 MCP 서버·Vercel 런타임 코드가 포함되지 않고, MCP 빌드에 React·Canvas·WebGL·브라우저 저장 코드가 포함되지 않는다.
 - 정상·오류 요청 모두 후보 원문과 추첨 결과를 애플리케이션 로그에 기록하지 않는다.
-- MCP Apps를 지원하지 않는 표준 MCP 클라이언트에서도 텍스트만으로 전체 흐름을 완료할 수 있다.
+- 정상 도구 응답은 Apps 지원 호출과 `openai/session` 메타데이터가 있는 ChatGPT 호출에서 결과를 컴포넌트 전용 `_meta`로만 반환하고, 그 외 호스트에서 텍스트와 `structuredContent`를 반환한다.
 - MCP Apps 호환 호스트는 `draw_roulette`와 연결된 `ui://` 리소스를 조회해 서버의 동일한 결과를 애니메이션으로 표시할 수 있다.
+- 재추첨 버튼은 별도 답변이나 새 UI 카드를 만들지 않고 현재 iframe에서 `redraw_roulette`를 호출해 결과와 애니메이션을 교체한다.
 
 ## 3. 범위
 
@@ -58,7 +60,7 @@
 - 후보 2~45개, 이름당 20자 제한
 - 전체 또는 지정 개수 비복원 추첨
 - Web Crypto와 편향 없는 무작위 순열
-- 한 번의 최종 텍스트 결과와 기계 판독 가능한 구조화 결과
+- 호스트 capability에 따른 UI 전용 결과와 텍스트 fallback
 - 입력·난수·내부 오류의 안전한 MCP 오류 응답
 - 후보·결과 무저장·무로그 정책
 - 공통 코어, 웹 전용, MCP 전용 코드와 빌드의 격리
@@ -83,13 +85,15 @@
 - 공식 MCP Apps 확장 표준의 `_meta.ui.resourceUri` 도구 메타데이터
 - `text/html;profile=mcp-app` MIME의 버전이 포함된 `ui://` 리소스
 - MCP-UI TypeScript 서버 패키지를 사용한 자체 포함 UI 리소스 생성
-- `draw_roulette`의 최종 `structuredContent`를 입력으로 받는 룰렛 애니메이션
-- UI 비지원 호스트를 위한 기존 텍스트·구조화 결과 fallback
+- `draw_roulette`의 컴포넌트 전용 `_meta` 결과를 입력으로 받는 룰렛 애니메이션
+- UI 비지원 호스트에 전달할 텍스트와 표준 구조화 결과
 - 별도 `src/mcp-apps/roulette/` 소스와 독립 타입 검사·빌드·테스트
 - 외부 네트워크, 영속 저장소, 분석, 후보·결과 로깅이 없는 sandbox UI
 - 애니메이션 감소 설정과 작은 iframe 화면을 고려한 접근성·반응형 표현
+- 현재 카드 안에서 같은 입력으로 새 추첨을 실행하는 재추첨 버튼
+- UI에서만 호출 가능한 `redraw_roulette` 데이터 도구와 UI 내부 한 줄 텍스트 결과 갱신
 
-2차 범위에도 수동 재추첨, UI에서의 도구 호출, 결과 수정, 오디오, 외부 자산 로드, 사용자 상태 저장은 포함하지 않는다.
+2차 범위에도 클라이언트 자체 난수 생성·결과 수정, 오디오, 외부 자산 로드, 사용자 상태 저장은 포함하지 않는다.
 
 ## 4. 우선순위
 
@@ -97,7 +101,7 @@
 |---|---|---|
 | P0 | 1차 출시 필수 | 공통 코어 격리, Streamable HTTP, `draw_roulette`, 대화 입력 계약, 기존 문법·제한, Web Crypto 비복원 추첨, 텍스트·구조화 결과, 오류 코드, 무로그 정책, 독립 빌드·테스트와 번들 격리 검증, Vercel 배포 |
 | P1 | 출시 안정화 | 복수 MCP 클라이언트 호환성 확대, 비식별 운영 메타데이터 모니터링, 공개 엔드포인트 남용 대응 정책 |
-| P0(2차) | MCP Apps 개선 필수 | 표준 UI 리소스, 결과 애니메이션, 텍스트 fallback, UI 빌드 격리와 로컬 호스트 검증 |
+| P0(2차) | MCP Apps 개선 필수 | 표준 UI 리소스, 현재 텍스트 결과, 결과 애니메이션, 현재 카드 재추첨, UI 빌드 격리와 로컬 호스트 검증 |
 | 후속 | 별도 스펙 필요 | 인증, 감사·재현 가능한 추첨, 상업 운영, 사용자별 제한과 영속 상태 |
 
 ## 5. 기능 요구사항
@@ -156,29 +160,25 @@
 
 ### 5.5 결과 반환
 
-- 정상 결과는 MCP `content`에 일반 텍스트를 포함한다.
-- 텍스트는 다음 형식을 기본으로 한다.
-
-```text
-추첨 결과
-1. 민지
-2. 준호
-```
-
-- 결과에는 추첨 순서와 전체 후보 이름을 표시한다.
+- `io.modelcontextprotocol/ui` capability가 `text/html;profile=mcp-app`을 지원하거나 ChatGPT 호출에 `openai/session` 메타데이터가 있으면 정상 결과의 `content`는 비고 `structuredContent`는 생략하며, 전체 추첨 데이터는 컴포넌트 전용 `_meta["roulette/result"]`에만 담는다.
+- Apps capability와 ChatGPT UI 호출 메타데이터가 모두 없는 호스트에는 친화적 텍스트 `content`와 기계 판독 가능한 `structuredContent`를 함께 반환한다.
+- MCP App은 `_meta["roulette/result"]`를 우선하고 `structuredContent`를 호환 fallback으로 읽어 현재 카드 안에서 순서, 후보 이름과 요약을 텍스트로 표시한다.
 - 일부 추첨에서는 미추첨 후보 이름을 반환하지 않고 전체 후보 수와 미추첨 수만 반환한다.
-- 기계 판독과 후속 MCP Apps 확장을 위해 같은 결과를 `structuredContent`로 반환한다.
-- `structuredContent`는 텍스트 UX를 대체하지 않으며 1차 버전에 사용자 인터페이스 리소스를 연결하지 않는다.
-- 2차 버전에서도 텍스트와 `structuredContent`를 유지하며, 호환 호스트만 같은 결과를 UI에 전달한다.
+- 입력·난수·내부 오류는 사용자가 복구할 수 있는 오류 코드와 텍스트 설명을 유지한다.
 - 정상 결과에 전체 후보 원문, 미추첨 후보 목록, 내부 난수 값 또는 스택 정보를 포함하지 않는다.
 - Streamable HTTP 연결을 사용하더라도 1차 도구 결과는 부분 당첨자 스트림이 아닌 단일 최종 결과다.
 
 ### 5.7 MCP Apps 룰렛 UI
 
-- UI는 기존 `draw_roulette` 도구에 직접 연결한다. 별도 렌더 도구를 두지 않아 모든 옵션이 준비된 뒤 한 번의 도구 호출로 결과 확정과 표시가 이어지게 한다.
-- 서버의 `structuredContent`가 추첨 결과의 유일한 원본이다.
-- UI는 난수 생성, 후보 파싱, 결과 변경 또는 `draw_roulette` 재호출을 수행하지 않는다.
-- UI는 도구 결과 통지를 받은 뒤 당첨자를 순서대로 공개하는 연출만 담당한다.
+- 최초 UI는 모델이 호출하는 `draw_roulette`에 연결하고, 이 도구만 `ui.resourceUri`를 제공한다.
+- UI는 최초 tool input을 보관하고 사용자가 재추첨 버튼을 누르면 같은 입력으로 app-only `redraw_roulette`를 호출한다.
+- `redraw_roulette`는 UI 리소스를 연결하지 않으므로 새 결과 카드나 별도 에이전트 답변을 만들지 않고 기존 iframe이 반환값을 소비한다.
+- 서버 내부에서 확정한 `DrawSelection`이 추첨 결과의 유일한 원본이며, UI 경로에서는 같은 데이터를 결과 `_meta`로 전달한다.
+- UI는 난수 생성, 후보 파싱 또는 결과 변경을 수행하지 않는다.
+- UI는 최초 결과와 재추첨 결과를 받은 뒤 동일한 카드에서 룰렛 회전과 당첨자 순차 공개를 다시 실행한다.
+- UI의 결과 제목은 `현재 추첨 결과`이며 재추첨할 때 결과 목록·요약·애니메이션을 함께 교체한다.
+- 로컬 `redraw_roulette` 요청 중 호스트가 같은 결과를 tool-result 통지로도 전달하면 중복 렌더링하지 않는다.
+- 최초 추첨과 재추첨 결과는 목록과 선택 가능한 `추첨 결과: 이름1, 이름2` 한 줄 텍스트로 현재 UI 안에서 함께 갱신한다. 별도 복사 버튼은 제공하지 않으며 이미 표시된 결과를 `ui/update-model-context`로 composer에 첨부하지 않는다.
 - 동일한 tool result를 다시 렌더링하더라도 결과 순서와 내용은 변하지 않는다.
 - 후보 이름은 HTML로 삽입하지 않고 DOM의 텍스트 값으로만 표현한다.
 - 결과 데이터가 스키마와 맞지 않으면 안전한 오류 상태를 보여주고 임의의 후보나 결과를 만들지 않는다.
@@ -203,6 +203,8 @@
 ### 6.1 서버 정보와 지침
 
 - 서버는 안정적인 이름과 명시적 버전을 제공한다.
+- 운영·Vercel 진입점은 `roulette-remote-mcp`, `dev:mcp` 로컬 진입점은 `roulette-remote-mcp-dev`를 사용한다.
+- 로컬 개발 서버는 요청의 HTTP 메서드·경로·응답 상태·소요시간만 기록하고 후보 원문·결과·요청 본문은 기록하지 않는다.
 - 서버 지침은 다음 원칙을 짧고 명확하게 포함한다.
   - 사용자가 룰렛, 추첨, 랜덤 뽑기, 당첨 항목 선정 또는 무작위 순서 정하기를 요청하면 `draw_roulette`를 사용한다.
   - 후보 목록이나 추첨 인원이 누락되거나 모호하면 필요한 값만 사용자에게 질문한다.
@@ -237,7 +239,7 @@ type DrawRouletteOutput = {
 - 입력 필드 `rawInput`과 `drawCount`는 모두 필수다.
 - 입력 필드 설명은 대화에서 확인된 후보 원문과 추첨 개수를 그대로 전달하고 값을 추측하지 않도록 안내한다.
 - 입력 스키마는 추가 속성을 허용하지 않는다.
-- 출력 스키마는 `DrawRouletteOutput`과 일치한다.
+- 결과 가시성이 capability에 따라 달라지므로 도구 descriptor에는 단일 정적 `outputSchema`를 공개하지 않는다. 서버 내부와 UI는 `DrawRouletteOutput`과 같은 데이터 계약을 각각 검증한다.
 - 도구 제목과 설명은 룰렛·무작위 추첨의 대표 의도를 포함해 에이전트가 관련 요청에서 도구를 발견할 수 있게 한다.
 - 도구 설명은 후보 수집 도구가 아니라 모든 값이 준비된 뒤 반드시 실행하는 추첨 도구이며, 모델이 직접 결과를 선택하거나 섞지 않아야 함을 명시한다.
 - 도구 안전성 주석은 실제 동작에 맞춰 다음과 같이 설정한다.
@@ -245,17 +247,28 @@ type DrawRouletteOutput = {
   - `destructiveHint: false`
   - `openWorldHint: false`
 - `readOnlyHint`는 외부 상태를 변경하지 않는다는 의미이며 같은 입력의 결과가 항상 같다는 의미가 아니다.
-- 2차 버전에서 도구 정의의 `_meta.ui.resourceUri`는 `ui://roulette/roulette-v1.html`을 가리킨다.
+- Apps 지원 호출과 `openai/session` 메타데이터가 있는 ChatGPT 호출은 결과를 `_meta["roulette/result"]`로만 반환하고, 비지원 호출은 텍스트 `content`와 `structuredContent`를 반환한다.
+- `openai/session`은 ChatGPT stateless 경로의 결과 표현 힌트로만 사용하며 인증·권한 판정에 사용하지 않는다.
+- `draw_roulette`의 `_meta.ui.resourceUri`는 `ui://roulette/roulette-v6.html`을 가리킨다.
 - ChatGPT 호환성을 위해 같은 리소스 URI를 `openai/outputTemplate` alias에도 제공할 수 있으나 표준 `ui.resourceUri`를 원본 계약으로 사용한다.
 
-### 6.3 MCP Apps UI 리소스
+### 6.3 `redraw_roulette`
 
-- 리소스 URI: `ui://roulette/roulette-v1.html`
+- 입력 스키마와 추첨 실행 로직은 `draw_roulette`와 동일하며, 결과는 항상 호출한 App만 소비하는 `_meta["roulette/result"]`로 반환한다.
+- 도구 메타데이터는 `ui.visibility: ["app"]`, `openai/visibility: "private"`, `openai/widgetAccessible: true`로 설정한다.
+- UI 리소스 URI와 output template을 제공하지 않아 호출 결과가 새 UI 카드를 생성하지 않게 한다.
+- 모델의 일반 도구 선택 대상이 아니며 현재 MCP App의 재추첨 버튼만 호출한다.
+
+### 6.4 MCP Apps UI 리소스
+
+- 리소스 URI: `ui://roulette/roulette-v6.html`
+- 과거 버전 호환 템플릿: `ui://roulette/roulette-v{version}.html`
 - MIME type: `text/html;profile=mcp-app`
 - 리소스는 HTML, CSS, JavaScript를 하나의 문서에 포함한다.
 - 리소스 등록 정보는 외부 origin 접근을 허용하지 않는 최소 CSP를 사용한다.
 - 리소스 내용과 tool result는 캐시·저장·로그 대상으로 사용하지 않는다.
-- URI의 `v1`은 호스트 캐시 키 역할을 하며 호환성이 깨지는 UI 변경 시 새 버전으로 올린다.
+- URI의 버전은 호스트 캐시 키 역할을 하며 호환성이 깨지는 UI 변경 시 새 버전으로 올린다.
+- `resources/list`에는 현재 버전만 노출한다. 과거 숫자 버전 URI는 ResourceTemplate 하나가 현재 앱 HTML로 응답하며, 현재와 미래 버전은 정적 현재 리소스 외에는 허용하지 않는다.
 
 ## 7. 아키텍처와 코드 격리
 
@@ -265,7 +278,8 @@ type DrawRouletteOutput = {
 flowchart LR
     Web["정적 웹앱"] --> Core["공통 코어"]
     Mcp["MCP 서버"] --> Core
-    McpApp["MCP Apps 룰렛 UI"] -->|"표현만"| McpResult["draw_roulette 결과"]
+    McpApp["MCP Apps 룰렛 UI"] -->|"redraw_roulette"| Mcp
+    McpApp -->|"현재 카드에서 표현"| McpResult["도구 결과"]
     Mcp --> McpResult
     Web -. 참조 금지 .-> Mcp
     Mcp -. 참조 금지 .-> Web
@@ -360,7 +374,7 @@ test:mcp
 - MCP Apps는 기존 정적 웹앱 번들에 포함하지 않는다.
 - 별도의 `src/mcp-apps/` UI 진입점과 독립 빌드를 사용한다.
 - MCP Apps UI는 서버가 확정한 결과만 애니메이션으로 표현하며 결과 난수 생성에 관여하지 않는다.
-- UI는 공통 코어를 직접 실행해 결과를 다시 뽑지 않고 MCP 도구 결과를 입력으로 받는다.
+- UI는 공통 코어를 직접 실행하지 않고 최초 `draw_roulette`와 재추첨용 `redraw_roulette` 결과를 입력으로 받는다.
 - MCP Function은 UI 리소스를 제공하기 위해 빌드된 단일 HTML만 포함하며 UI 소스 모듈을 서버 로직으로 실행하지 않는다.
 - 정적 웹, MCP App, MCP Function은 각각의 진입점에서 도달 가능한 코드만 빌드한다.
 
@@ -372,6 +386,7 @@ test:mcp
 sequenceDiagram
     participant U as 사용자
     participant A as MCP 클라이언트의 에이전트
+    participant UI as MCP App
     participant M as 룰렛 MCP 서버
     participant C as 공통 코어
 
@@ -384,11 +399,20 @@ sequenceDiagram
     M->>C: 후보 파싱·검증
     C->>C: Web Crypto 순열과 결과 확정
     C-->>M: 최종 결과
-    M-->>A: 텍스트 + structuredContent
+    M-->>A: capability에 따른 결과 표현
     alt MCP Apps UI 지원 호스트
         A->>M: ui:// 리소스 조회
         M-->>A: 자체 포함 룰렛 UI
-        A-->>U: 결과 애니메이션 + 텍스트 fallback
+        M-->>UI: 컴포넌트 전용 _meta
+        UI-->>U: 현재 텍스트 결과 + 애니메이션
+        opt 사용자가 재추첨 선택
+            U->>UI: 재추첨 버튼
+            UI->>M: redraw_roulette(최초 입력)
+            M->>C: 후보 파싱·검증과 새 결과 확정
+            C-->>M: 새 최종 결과
+            M-->>UI: 컴포넌트 전용 _meta
+            UI-->>U: 현재 카드에서 애니메이션 재실행
+        end
     else UI 비지원 호스트
         A-->>U: 텍스트 추첨 결과
     end
@@ -399,7 +423,7 @@ sequenceDiagram
 - 서버는 요청 간 추첨 상태를 보존하지 않는다.
 - 한 도구 호출은 입력 검증, 결과 확정, 응답 생성으로 완결된다.
 - 결과 응답이 끝나면 후보, 전체 순열과 결과를 애플리케이션 메모리에서 참조하지 않는다.
-- 재추첨은 같은 옵션으로 새로운 `draw_roulette` 호출을 실행한다.
+- MCP App 재추첨은 같은 옵션으로 app-only `redraw_roulette`를 호출하며 서버는 이전 결과 상태를 참조하지 않는다.
 - 수평 확장, 콜드 스타트 또는 다른 Vercel 인스턴스 실행이 결과 정확성에 영향을 주지 않는다.
 
 ## 9. 오류·경계 조건
@@ -441,10 +465,12 @@ sequenceDiagram
 
 - 핵심 추첨 흐름은 특정 모델, ChatGPT 전용 메타데이터 또는 MCP Apps 확장에 의존하지 않는다.
 - 표준 Streamable HTTP와 MCP 도구·콘텐츠 규격을 구현한다.
-- MCP Apps를 협상하지 않는 클라이언트에서도 텍스트 결과를 사용할 수 있다.
+- MCP Apps를 협상하지 않는 클라이언트에는 성공 결과의 텍스트 `content`와 `structuredContent`를 제공한다.
 - MCP Apps UI는 코어 MCP가 아닌 선택적 확장 기능이며 호스트별 렌더링 지원 차이를 허용한다.
 - 표준 `_meta.ui.resourceUri`를 우선하고 ChatGPT 호환 alias는 보조 정보로만 제공한다.
-- 현재 공개 호환 목록에 없는 Codex에서는 텍스트 fallback을 검증 대상으로 삼고 UI 렌더링을 완료 조건으로 간주하지 않는다.
+- ChatGPT의 `openai/session` 호출 메타데이터는 capability가 보존되지 않는 UI 경로의 표현 힌트로만 사용하고 인증에는 사용하지 않는다.
+- UI는 컴포넌트 전용 `_meta`가 없는 기존 결과의 `structuredContent`도 호환 fallback으로 표시한다.
+- UI 비지원 클라이언트에서는 구조화 결과와 친화적 텍스트 fallback을 함께 검증한다.
 - MCP Inspector 검수를 필수로 하고, 배포 전 실제 Streamable HTTP MCP 클라이언트에서 최소 한 번의 종단 간 호출을 확인한다.
 
 ### 10.4 보안과 개인정보
@@ -487,7 +513,8 @@ sequenceDiagram
 - `draw_roulette` 입력·출력 스키마
 - 두 필수 입력의 누락과 추가 속성 거부
 - `drawCount: "all"`과 정수 분기
-- 정상 결과의 `content`와 `structuredContent` 일치
+- Apps capability 및 ChatGPT 호출 메타데이터에 따른 UI 전용 `_meta`와 텍스트·구조화 fallback 분기
+- MCP App의 `_meta` 우선·`structuredContent` 호환 fallback 파싱
 - 안정적인 오류 코드와 `isError` 처리
 - 내부 예외·스택·후보·결과 비노출
 - 정상·오류 처리 중 후보와 결과를 로깅하지 않음
@@ -510,7 +537,8 @@ sequenceDiagram
 
 ### 11.5 통합 검수
 
-- 로컬 MCP Inspector에서 초기화, 도구 조회, 정상·오류 호출을 확인한다.
+- 로컬 MCP Inspector에서 개발 서버 이름, 초기화, 도구 조회, 정상·오류 호출을 확인한다.
+- `dev:mcp` 터미널에 비민감 요청 로그가 출력되고 후보와 결과는 출력되지 않는지 확인한다.
 - Vercel 프리뷰 배포의 `/mcp`에서 같은 검수를 반복한다.
 - 프로덕션 URL에서 표준 MCP 클라이언트가 인증 없이 연결되는지 확인한다.
 - 후보 또는 추첨 인원이 빠진 실제 에이전트 대화에서 도구가 조기에 호출되지 않는지 확인한다.
@@ -520,9 +548,14 @@ sequenceDiagram
 ### 11.6 MCP Apps UI 검수
 
 - `tools/list`의 `draw_roulette`에 표준 UI 리소스 URI가 노출된다.
+- `redraw_roulette`는 app-only/private이며 UI 리소스 URI가 없는 데이터 도구로 노출된다.
 - `resources/read`가 정확한 URI와 `text/html;profile=mcp-app` MIME의 HTML을 반환한다.
+- `resources/list`는 현재 버전 하나만 반환하고 `resources/templates/list`는 과거 버전 fallback 하나를 반환한다.
+- 캐시된 과거 버전 URI 읽기는 현재 앱 HTML로 성공하고 미래 버전 URI 읽기는 실패한다.
 - MCP Apps 호환 로컬 참조 호스트 또는 UI Inspector가 같은 도구 결과를 iframe에 전달한다.
 - 정상 결과는 서버 순서를 보존한 애니메이션으로 표시되고 잘못된 결과는 안전한 오류 상태로 표시된다.
+- 재추첨 버튼은 최초 입력을 그대로 전달하고 새 결과를 현재 카드에서 애니메이션하며 별도 답변·카드를 만들지 않는다.
+- 재추첨 실패 시 기존 결과를 유지하고 다시 시도할 수 있다.
 - reduced motion, 좁은 viewport, 긴 후보 이름과 최대 45개 결과를 확인한다.
 - UI 문서에 외부 네트워크 요청과 저장소·분석 호출이 없음을 정적·동적 검사한다.
 - Codex와 일반 MCP Inspector에서 기존 텍스트 호출이 계속 성공한다.
@@ -560,7 +593,7 @@ sequenceDiagram
 - MCP App 전용 빌드와 테스트가 독립적으로 통과한다.
 - 기존 코어·웹·MCP 테스트와 목적별 빌드가 모두 회귀 없이 통과한다.
 - 호환 로컬 참조 호스트에서 추첨 결과 애니메이션을 확인한다.
-- UI 비지원 클라이언트에서 텍스트 fallback을 확인한다.
+- UI 지원 클라이언트에서 결과가 `_meta`에만 존재하고, 비지원 클라이언트에서 텍스트와 구조화 결과가 함께 존재하는지 확인한다.
 - Vercel Preview·Production 배포와 배포 후 UI 검증은 별도 작업으로 남긴다.
 
 ## 13. 리스크와 후속 검토

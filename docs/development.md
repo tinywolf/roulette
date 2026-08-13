@@ -125,6 +125,7 @@ npm run test:core -- src/core/input.test.ts
 
 ### MCP 연결 실패
 
+- `npm run dev:mcp`의 시작 로그에서 개발 서버 이름 `roulette-remote-mcp-dev`와 endpoint를 확인한다.
 - 요청 경로가 `/mcp`인지 확인한다.
 - `Content-Type: application/json`과 MCP 프로토콜 헤더를 Inspector 또는 SDK transport가 설정하는지 확인한다.
 - Origin이 있다면 요청 URL과 같은 origin인지 확인한다.
@@ -133,9 +134,13 @@ npm run test:core -- src/core/input.test.ts
 
 ### MCP App이 표시되지 않음
 
-- `tools/list`의 `_meta.ui.resourceUri`가 `ui://roulette/roulette-v1.html`인지 확인한다.
+- `tools/list`에서 `draw_roulette`의 `_meta.ui.resourceUri`가 `ui://roulette/roulette-v6.html`이고 app-only `redraw_roulette`에는 UI 리소스가 없는지 확인한다.
+- `resources/list`에는 현재 `v6`만, `resources/templates/list`에는 `ui://roulette/roulette-v{version}.html` 과거 버전 fallback만 노출되는지 확인한다.
 - `resources/read`의 MIME이 `text/html;profile=mcp-app`인지 확인한다.
-- 호스트가 MCP Apps 확장을 지원하지 않으면 텍스트 결과만 표시되는 것이 정상이다.
+- 기존 대화가 과거 `v1`~`v5` URI를 요청해도 현재 앱 HTML을 반환하며, 현재보다 높은 미래 버전 요청은 거부한다.
+- MCP Apps capability를 협상했거나 ChatGPT의 `openai/session` 호출 메타데이터가 있는 호출은 빈 `content`와 컴포넌트 전용 `_meta["roulette/result"]`를, 비지원 호출은 텍스트 `content`와 `structuredContent`를 받는지 확인한다.
+- UI는 `_meta["roulette/result"]`를 우선하고, capability가 유실된 기존 호출은 `structuredContent`로도 결과를 렌더링하는지 확인한다.
+- 최초·재추첨의 선택 가능한 `추첨 결과: 이름1, 이름2` 텍스트가 UI 안에서 갱신되고 `ui/update-model-context`를 호출해 composer에 앱 컨텍스트를 추가하지 않는지 확인한다.
 - Inspector 2.0.0에서 `sandbox_proxy.html` ENOENT가 발생하면 기능 가이드의 알려진 패키징 문제를 확인한다.
 
 ### 웹·MCP 코드 혼입

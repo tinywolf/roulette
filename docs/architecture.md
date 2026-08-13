@@ -7,7 +7,7 @@ updated_at: 2026-08-05T12:23:14+09:00
 
 ## 프로젝트 개요
 
-로또 추첨기는 하나의 공통 추첨 규칙을 정적 React 웹앱과 공개 Remote MCP 서버로 제공한다. 웹은 브라우저 안에서 수동·자동 추첨과 2D·3D 연출을 담당한다. MCP는 에이전트가 수집한 옵션을 한 번의 stateless 호출로 검증·추첨해 텍스트와 구조화 결과를 반환하고, MCP Apps 지원 호스트에는 확정 결과를 애니메이션하는 별도 UI 리소스를 제공한다.
+로또 추첨기는 하나의 공통 추첨 규칙을 정적 React 웹앱과 공개 Remote MCP 서버로 제공한다. 웹은 브라우저 안에서 수동·자동 추첨과 2D·3D 연출을 담당한다. MCP는 에이전트가 수집한 옵션을 stateless 호출로 검증·추첨해 구조화 결과를 반환하고, MCP Apps 지원 호스트에는 현재 결과를 텍스트와 애니메이션으로 표시하고 같은 카드에서 재추첨할 수 있는 별도 UI 리소스를 제공한다.
 
 설계 원칙은 다음과 같다.
 
@@ -31,6 +31,7 @@ flowchart LR
     Mcp --> Core
     Mcp --> Resource["자체 포함 MCP App HTML"]
     Resource --> Host["MCP Apps 지원 호스트"]
+    Host -->|"app-only redraw_roulette"| Mcp
 
     Core --> Crypto["Web Crypto"]
 ```
@@ -63,8 +64,7 @@ flowchart LR
 │       ├── http/requestPolicy.ts    # Origin·본문 크기·보안 헤더
 │       ├── integration/             # 실제 MCP 클라이언트 통합 테스트
 │       ├── resources/rouletteApp.ts # 생성 HTML 리소스 등록
-│       ├── tools/drawRoulette.ts    # Zod 계약과 실행 조정
-│       └── presentation/textResult.ts
+│       └── tools/drawRoulette.ts    # Zod 계약과 실행 조정
 ├── docs/feature/remote-mcp/          # 기능 스펙·작업·검증 문서
 ├── tools/remote-mcp/                 # 로컬 실행·경계·Vercel 검증 도구
 ├── tsconfig.base.json
@@ -89,12 +89,13 @@ flowchart LR
 | `src/web/domain/*` | 수동·자동 세션, 3~7초 일정, 웹 표시 타입 | `core`, `web` |
 | `src/web/components/*` | 설정, 결과, 2D·3D 운동과 렌더링 | `core`, `web`, 브라우저 API |
 | `src/web/services/*` | 입력·설정 저장, 이미지, 효과음 | `web`, 브라우저 API |
-| `src/mcp-apps/roulette/*` | 호스트의 최종 결과 검증, 룰렛 회전과 순차 공개 | MCP Apps 브리지, DOM |
+| `src/mcp-apps/roulette/*` | 최초 입력·결과 검증, app-only 재추첨 호출, 현재 카드의 룰렛 회전과 순차 공개 | MCP Apps 브리지, DOM |
 | `src/mcp/tools/drawRoulette.ts` | 엄격한 입력·출력 스키마, 코어 호출, 오류 변환 | `core`, `mcp`, MCP SDK, Zod |
-| `src/mcp/resources/rouletteApp.ts` | 생성된 단일 HTML을 버전 고정 `ui://` 리소스로 등록 | 생성 리소스, MCP SDK |
-| `src/mcp/server.ts` | 초기화 지침과 `draw_roulette`, UI 메타데이터 등록 | `mcp`, MCP SDK |
+| `src/mcp/resources/rouletteApp.ts` | 생성된 단일 HTML을 현재 버전 `ui://` 리소스와 과거 버전 호환 템플릿으로 등록 | 생성 리소스, MCP SDK |
+| `src/mcp/server.ts` | 초기화 지침, 모델용 `draw_roulette`, app-only `redraw_roulette`, UI 메타데이터 등록 | `mcp`, MCP SDK |
 | `src/mcp/http/requestPolicy.ts` | same-origin 검사, 16 KiB 제한, `no-store`·`nosniff` | Web Request/Response |
 | `api/mcp.ts` | `mcp-handler`와 정책을 결합한 Vercel Function | `api`, `mcp` |
+| `tools/remote-mcp/local-mcp-server.ts` | 개발 서버 이름 주입과 payload 비포함 HTTP 요청 로그 | Node HTTP, `api`, `mcp` |
 
 클래스와 모듈의 독립 책임은 코드 주석으로도 명시한다. 새 추상화는 이 경계를 유지하는 데 필요한 경우에만 추가한다.
 
@@ -116,6 +117,7 @@ sequenceDiagram
     participant A as 에이전트
     participant F as Vercel Function
     participant M as draw_roulette
+    participant R as redraw_roulette
     participant C as 공통 코어
     participant H as 호스트
     participant UI as MCP App
@@ -128,17 +130,25 @@ sequenceDiagram
     F->>M: MCP 호출
     M->>C: 파싱·비복원 추첨
     C-->>M: 확정 결과
-    M-->>A: text + structuredContent + UI 메타데이터
+    M-->>A: capability에 따른 결과 표현
     alt MCP Apps 지원
         A->>H: UI 리소스 로드
-        H->>UI: structuredContent 전달
-        UI-->>U: 확정 결과 애니메이션
+        H->>UI: 컴포넌트 전용 _meta 전달
+        UI-->>U: 현재 텍스트 결과 + 애니메이션
+        opt 사용자가 재추첨 선택
+            U->>UI: 재추첨 버튼
+            UI->>R: 최초 입력으로 app-only 호출
+            R->>C: 파싱·비복원 추첨
+            C-->>R: 새 확정 결과
+            R-->>UI: 컴포넌트 전용 _meta
+            UI-->>U: 현재 카드에서 목록·텍스트 결과·애니메이션 갱신
+        end
     else MCP Apps 미지원
-        A-->>U: 텍스트 결과 표시
+        A-->>U: 텍스트 fallback 전달
     end
 ```
 
-도구 호출 하나가 검증부터 결과 반환까지 완결된다. UI는 결과를 새로 만들거나 도구를 재호출하지 않고 서버가 확정한 순서의 공개 시점만 연출한다. 서버는 세션 ID, 후보, 전체 순열 또는 결과를 다음 요청에 유지하지 않는다. GET·DELETE 세션 연산은 stateless 정책에 따라 허용하지 않는다.
+각 도구 호출은 검증부터 결과 반환까지 독립적으로 완결된다. UI는 결과를 직접 만들지 않으며 재추첨 시에만 최초 입력으로 app-only `redraw_roulette`를 호출한다. 반환값은 기존 iframe이 소비해 같은 카드의 애니메이션을 다시 실행하고, 사용자 메시지나 별도 에이전트 답변은 만들지 않는다. 서버는 세션 ID, 후보, 전체 순열 또는 결과를 다음 요청에 유지하지 않는다. GET·DELETE 세션 연산은 stateless 정책에 따라 허용하지 않는다. 운영 Vercel 처리기는 기본 서버 식별자를 사용하고, 로컬 실행기는 같은 처리기 팩터리에 개발 식별자만 주입해 두 환경의 도구 계약을 동일하게 유지한다.
 
 ## 데이터와 신뢰 경계
 
@@ -175,7 +185,7 @@ sequenceDiagram
 
 ## 확장 지점
 
-- MCP Apps 호스트별 기능 차이는 텍스트·구조화 결과 fallback으로 흡수한다.
+- MCP Apps capability를 협상한 호스트와 ChatGPT UI 호출에는 결과를 컴포넌트 전용 `_meta`로만 전달하고, 비지원 호스트에는 텍스트 `content`와 `structuredContent`를 전달한다. App은 `_meta`를 우선하며 capability가 유실된 기존 호출의 `structuredContent`도 읽되, UI에 이미 보이는 결과를 모델 컨텍스트에 다시 추가하지 않는다.
 - 인증·사용량 제한이 필요하면 Function 앞단 정책으로 추가하되 코어 추첨 규칙은 변경하지 않는다.
 - 새 MCP 도구는 `src/mcp/tools`에 추가하고 `server.ts`에서 명시적으로 등록한다.
 - 공통 코어를 별도 패키지로 분리하는 것은 독립 배포·버전 요구가 생길 때만 고려한다.

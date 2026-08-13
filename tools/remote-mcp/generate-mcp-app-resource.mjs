@@ -17,7 +17,7 @@ const generatedPath = path.join(
   generatedDirectory,
   "rouletteAppResource.ts",
 );
-const resourceUri = "ui://roulette/roulette-v1.html";
+const resourceUri = "ui://roulette/roulette-v6.html";
 
 /** MCP-UI가 만든 표준 리소스를 현재 MCP SDK 2.x가 읽는 정적 모듈로 고정한다. */
 const html = await readFile(htmlPath, "utf8");
@@ -27,7 +27,8 @@ const embeddedResource = createUIResource({
   encoding: "text",
   metadata: {
     title: "룰렛 추첨 결과",
-    description: "서버에서 확정한 룰렛 당첨 결과를 애니메이션으로 표시합니다.",
+    description:
+      "서버에서 확정한 룰렛 당첨 결과를 애니메이션으로 표시하고 같은 옵션으로 재추첨합니다.",
     ui: {
       prefersBorder: true,
       csp: {
@@ -36,7 +37,7 @@ const embeddedResource = createUIResource({
       },
     },
     "openai/widgetDescription":
-      "서버에서 확정한 룰렛 당첨 결과를 순서대로 보여줍니다.",
+      "전체 추첨 결과와 요약을 순서대로 표시하고 현재 카드에서 재추첨하므로 대화에서 결과를 반복할 필요가 없습니다.",
     "openai/widgetPrefersBorder": true,
   },
   uiMetadata: {
