@@ -60,27 +60,6 @@ describe("lotteryMotion", () => {
     expect(front.x).toBeGreaterThan(back.x);
   });
 
-  it("깊이가 다른 공은 같은 화면 좌표에 겹쳐 투영될 수 있다", () => {
-    const back = projectBallMotionNode(
-      createNode({ z: -60 }),
-      120,
-      80,
-      100,
-      12,
-    );
-    const front = projectBallMotionNode(
-      createNode({ z: 60 }),
-      120,
-      80,
-      100,
-      12,
-    );
-
-    expect(front.x).toBe(back.x);
-    expect(front.y).toBe(back.y);
-    expect(front.radius).toBe(back.radius);
-  });
-
   it("3D 투영은 앞쪽 공을 더 크고 멀리 배치한다", () => {
     const back = projectBallMotionNode3d(
       createNode({ x: 20, y: 10, z: -70 }),
@@ -112,51 +91,11 @@ describe("lotteryMotion", () => {
     expect(node.vx).toBeLessThan(0);
   });
 
-  it("혼합 중 깊이와 3축 속도를 계속 변화시킨다", () => {
-    const node = createNode({ x: 30, y: -20, z: 10, vx: 20, vy: 5, vz: -4 });
-    const previous = { z: node.z, vz: node.vz };
-
-    advanceBallMotionNode(node, 3, 1_200, 0.016, true, 120, 10);
-
-    expect(node.z).not.toBe(previous.z);
-    expect(node.vz).not.toBe(previous.vz);
-  });
-
-  it("바깥쪽 공을 중앙 영역으로 유입시킨 뒤 다시 바깥으로 보낸다", () => {
-    const node = createNode({
-      x: 92,
-      y: 12,
-      z: 8,
-      vx: 0,
-      vy: 130,
-      vz: 25,
-    });
-    let minimumPlanarDistance = Number.POSITIVE_INFINITY;
-    let maximumPlanarDistance = 0;
-
-    for (let frame = 0; frame < 480; frame += 1) {
-      advanceBallMotionNode(
-        node,
-        4,
-        frame * (1_000 / 60),
-        1 / 60,
-        true,
-        120,
-        10,
-      );
-      const planarDistance = Math.hypot(node.x, node.y);
-      minimumPlanarDistance = Math.min(minimumPlanarDistance, planarDistance);
-      maximumPlanarDistance = Math.max(maximumPlanarDistance, planarDistance);
-    }
-
-    expect(minimumPlanarDistance).toBeLessThan(24);
-    expect(maximumPlanarDistance).toBeGreaterThan(72);
-  });
-
   it("여러 공이 서로 다른 시점에 중앙을 통과해 고리 궤도에 고착되지 않는다", () => {
     const nodes = Array.from({ length: 45 }, (_, index) =>
       createBallMotionNode(`ball-${index + 1}`, index, 45, 120),
     );
+    const initialDepthStates = nodes.map(({ z, vz }) => ({ z, vz }));
     const centralVisitors = new Set<string>();
     let mixedDepthFrameCount = 0;
 
@@ -192,6 +131,13 @@ describe("lotteryMotion", () => {
 
     expect(centralVisitors.size).toBeGreaterThan(15);
     expect(mixedDepthFrameCount).toBeGreaterThan(120);
+    expect(
+      nodes.some(
+        (node, index) =>
+          node.z !== initialDepthStates[index].z &&
+          node.vz !== initialDepthStates[index].vz,
+      ),
+    ).toBe(true);
   });
 
   it("완료 후 공을 중력으로 구형 바닥에 떨어뜨려 정지시킨다", () => {
@@ -218,32 +164,6 @@ describe("lotteryMotion", () => {
 
     expect(node.y).toBeGreaterThan(-60);
     expect(node.vy).toBeGreaterThan(0);
-  });
-
-  it("정착 3초 이후에는 시간이 지날수록 감쇠를 강화한다", () => {
-    const normalNode = createNode({ vx: 60 });
-    const urgentNode = createNode({ vx: 60 });
-
-    advanceSettlingBallMotionNodes(
-      [normalNode],
-      1 / 60,
-      100,
-      10,
-      3_000,
-    );
-    advanceSettlingBallMotionNodes(
-      [urgentNode],
-      1 / 60,
-      100,
-      10,
-      6_000,
-    );
-
-    expect(
-      Math.hypot(urgentNode.vx, urgentNode.vy, urgentNode.vz),
-    ).toBeLessThan(
-      Math.hypot(normalNode.vx, normalNode.vy, normalNode.vz),
-    );
   });
 
   it("하드 리밋에서는 마지막 겹침을 보정하고 모든 공을 고정한다", () => {

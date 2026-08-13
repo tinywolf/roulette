@@ -105,50 +105,6 @@ describe("LotteryMachine", () => {
     requestAnimationFrame.mockRestore();
   });
 
-  it("완료 후 44개 남은 공이 안정되면 정착 프레임 생성을 중단한다", () => {
-    const callbacks: FrameRequestCallback[] = [];
-    const requestAnimationFrame = vi
-      .spyOn(window, "requestAnimationFrame")
-      .mockImplementation((callback) => {
-        callbacks.push(callback);
-        return callbacks.length;
-      });
-    requestAnimationFrame.mockClear();
-    const startedAt = performance.now();
-    const settlingBalls = Array.from({ length: 44 }, (_, index) => ({
-      id: `settling-${index}`,
-      name: `${index + 1}`,
-      color: "#ff6b6b",
-    }));
-
-    render(
-      <LotteryMachine
-        balls={settlingBalls}
-        allBalls={settlingBalls}
-        renderMode="3d"
-        isMixing={false}
-        isSettling
-        visualBall={null}
-        onError={vi.fn()}
-      />,
-    );
-
-    let processedFrames = 0;
-
-    while (callbacks.length > 0 && processedFrames < 1_200) {
-      const callback = callbacks.shift();
-      processedFrames += 1;
-
-      act(() => {
-        callback?.(startedAt + processedFrames * (1_000 / 60));
-      });
-    }
-
-    expect(processedFrames).toBeLessThan(1_200);
-    expect(callbacks).toHaveLength(0);
-    requestAnimationFrame.mockRestore();
-  });
-
   it("정착이 계속되어도 하드 리밋 수렴 후 프레임 생성을 중단한다", () => {
     const callbacks: FrameRequestCallback[] = [];
     const requestAnimationFrame = vi

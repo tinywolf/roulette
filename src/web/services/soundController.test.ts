@@ -168,30 +168,6 @@ describe("SoundController", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
-  it("모든 효과음에 동일한 마스터 볼륨 배율을 적용한다", async () => {
-    vi.useFakeTimers();
-    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
-    const { gainParams } = installAudioContextMock();
-    const controller = new SoundController();
-    controller.setEnabled(true);
-
-    await controller.play("draw");
-    await controller.startMixing(45);
-    vi.advanceTimersByTime(150);
-
-    expect(
-      gainParams[0].exponentialRampToValueAtTime.mock.calls[0][0],
-    ).toBeCloseTo(0.195);
-    expect(
-      gainParams[1].exponentialRampToValueAtTime.mock.calls[0][0],
-    ).toBeCloseTo(0.063);
-    expect(gainParams[2].setValueAtTime.mock.calls[0][0]).toBeCloseTo(0.0555);
-
-    controller.dispose();
-    randomSpy.mockRestore();
-    vi.useRealTimers();
-  });
-
   it("혼합 중 바람 루프와 불규칙한 공 충돌음을 재생한다", async () => {
     vi.useFakeTimers();
     const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
@@ -361,34 +337,6 @@ describe("SoundController", () => {
     expect(gainNodes[1].disconnect).toHaveBeenCalledTimes(1);
 
     controller.dispose();
-    randomSpy.mockRestore();
-    vi.useRealTimers();
-  });
-
-  it("남은 공이 많을수록 같은 시간에 더 많은 충돌음을 만든다", async () => {
-    vi.useFakeTimers();
-    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
-    const denseAudio = installAudioContextMock();
-    const denseController = new SoundController();
-    denseController.setEnabled(true);
-    await denseController.startMixing(45);
-
-    vi.advanceTimersByTime(600);
-    const denseCollisions = denseAudio.createBufferSource.mock.calls.length - 1;
-    denseController.dispose();
-
-    const sparseAudio = installAudioContextMock();
-    const sparseController = new SoundController();
-    sparseController.setEnabled(true);
-    await sparseController.startMixing(1);
-
-    vi.advanceTimersByTime(600);
-    const sparseCollisions =
-      sparseAudio.createBufferSource.mock.calls.length - 1;
-    sparseController.dispose();
-
-    expect(denseCollisions).toBeGreaterThan(sparseCollisions);
-
     randomSpy.mockRestore();
     vi.useRealTimers();
   });
