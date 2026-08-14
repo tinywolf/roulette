@@ -4,7 +4,6 @@ import { createWheelCandidates } from "../domain/wheelSession";
 import {
   MAXIMUM_SPIN_DURATION_MS,
   MINIMUM_SPIN_DURATION_MS,
-  REDUCED_MOTION_DURATION_MS,
   WheelStage,
 } from "./WheelStage";
 
@@ -54,7 +53,9 @@ describe("WheelStage", () => {
       .toHaveClass("wheel-stage__svg--dense");
     expect(screen.getByTestId("wheel-disc")).toHaveStyle({
       transform: "rotate(2164deg)",
-      transitionDuration: `${MAXIMUM_SPIN_DURATION_MS}ms`,
+    });
+    expect(screen.getByTestId("wheel-disc")).not.toHaveStyle({
+      transitionProperty: "transform",
     });
   });
 
@@ -73,8 +74,77 @@ describe("WheelStage", () => {
 
     expect(screen.getByTestId("wheel-disc")).toHaveStyle({
       transform: "rotate(315deg)",
-      transitionDuration: `${REDUCED_MOTION_DURATION_MS}ms`,
     });
+  });
+
+  it("한 애니메이션으로 이전 각도에서 목표 각도까지 끊김 없이 이동한다", () => {
+    const originalAnimate = Object.getOwnPropertyDescriptor(
+      Element.prototype,
+      "animate",
+    );
+    const cancel = vi.fn();
+    const animate = vi.fn(
+      (keyframes: Keyframe[], options: KeyframeAnimationOptions) => {
+        void keyframes;
+        void options;
+        return { cancel };
+      },
+    );
+    Object.defineProperty(Element.prototype, "animate", {
+      configurable: true,
+      value: animate,
+    });
+
+    try {
+      const rendered = render(
+        <WheelStage
+          candidates={createWheelCandidates(["민지", "준호"])}
+          currentRotation={2_430}
+          previousRotation={0}
+          isSpinning
+          reducedMotion={false}
+          spinDurationMs={MINIMUM_SPIN_DURATION_MS}
+          statusLabel="회전 중"
+        />,
+      );
+
+      expect(animate).toHaveBeenCalledOnce();
+      const [keyframes, options] = animate.mock.calls[0];
+      expect(keyframes).toEqual([
+        { transform: "rotate(0deg)" },
+        { transform: "rotate(2430deg)" },
+      ]);
+      expect(options).toEqual({
+        duration: MINIMUM_SPIN_DURATION_MS,
+        easing: "cubic-bezier(0.12, 0.72, 0.18, 1)",
+        fill: "none",
+      });
+      expect(screen.getByTestId("wheel-disc")).toHaveStyle({
+        transform: "rotate(2430deg)",
+      });
+
+      rendered.rerender(
+        <WheelStage
+          candidates={createWheelCandidates(["민지", "준호"])}
+          currentRotation={2_430}
+          previousRotation={0}
+          isSpinning={false}
+          reducedMotion={false}
+          spinDurationMs={MINIMUM_SPIN_DURATION_MS}
+          statusLabel="민지 당첨"
+        />,
+      );
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(screen.getByTestId("wheel-disc")).toHaveStyle({
+        transform: "rotate(2430deg)",
+      });
+    } finally {
+      if (originalAnimate) {
+        Object.defineProperty(Element.prototype, "animate", originalAnimate);
+      } else {
+        delete (Element.prototype as Partial<Element>).animate;
+      }
+    }
   });
 
   it("애니메이션 API 실패를 알리고 최종 목표 transform은 유지한다", () => {

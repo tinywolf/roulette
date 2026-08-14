@@ -103,7 +103,6 @@ describe("WheelApp", () => {
 
       expect(screen.getByTestId("wheel-disc")).toHaveStyle({
         transform: `rotate(${expectedRotation}deg)`,
-        transitionDuration: `${expectedDuration}ms`,
       });
 
       act(() => vi.advanceTimersByTime(expectedDuration - 1));
@@ -129,9 +128,6 @@ describe("WheelApp", () => {
     startWheel();
     fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
 
-    expect(screen.getByTestId("wheel-disc")).toHaveStyle({
-      transitionDuration: `${MINIMUM_SPIN_DURATION_MS}ms`,
-    });
     act(() => vi.advanceTimersByTime(MINIMUM_SPIN_DURATION_MS));
     const results = screen.getByRole("region", { name: "당첨 결과" });
     expect(within(results).getByText("준호")).toBeInTheDocument();

@@ -233,8 +233,6 @@
 }
 
 .wheel-stage__disc {
-  transition-property: transform;
-  transition-timing-function: cubic-bezier(0.12, 0.62, 0.08, 1);
   will-change: transform;
 }
 
@@ -501,8 +499,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wheel-button,
-  .wheel-stage__disc {
+  .wheel-button {
     transition-duration: 0ms;
   }
 }

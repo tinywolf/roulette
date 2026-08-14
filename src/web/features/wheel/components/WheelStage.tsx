@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { normalizeAngle, getWheelSegments } from "../domain/wheelGeometry";
 import type { WheelCandidate } from "../domain/wheelSession";
 import { getWheelSegmentColor } from "./wheelPalette";
@@ -84,7 +84,7 @@ export function WheelStage({
     : spinDurationMs;
   const hasDenseLabels = candidates.length > 24;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const wheelGroup = wheelGroupRef.current;
 
     if (
@@ -96,34 +96,17 @@ export function WheelStage({
       return;
     }
 
-    const distance = visualRotation - visualPreviousRotation;
-
     try {
       const animation = wheelGroup.animate(
-        reducedMotion
-          ? [
-              { transform: `rotate(${visualPreviousRotation}deg)` },
-              { transform: `rotate(${visualRotation}deg)` },
-            ]
-          : [
-              {
-                transform: `rotate(${visualPreviousRotation}deg)`,
-                easing: "cubic-bezier(0.4, 0, 0.8, 0.35)",
-              },
-              {
-                offset: 0.12,
-                transform: `rotate(${visualPreviousRotation + distance * 0.06}deg)`,
-                easing: "cubic-bezier(0.18, 0.72, 0.18, 1)",
-              },
-              {
-                offset: 0.62,
-                transform: `rotate(${visualPreviousRotation + distance * 0.78}deg)`,
-                easing: "cubic-bezier(0.12, 0.62, 0.08, 1)",
-              },
-              { transform: `rotate(${visualRotation}deg)` },
-            ],
+        [
+          { transform: `rotate(${visualPreviousRotation}deg)` },
+          { transform: `rotate(${visualRotation}deg)` },
+        ],
         {
           duration,
+          easing: reducedMotion
+            ? "ease-out"
+            : "cubic-bezier(0.12, 0.72, 0.18, 1)",
           fill: "none",
         },
       );
@@ -160,7 +143,6 @@ export function WheelStage({
           style={{
             transform: `rotate(${visualRotation}deg)`,
             transformOrigin: `${CENTER}px ${CENTER}px`,
-            transitionDuration: isSpinning ? `${duration}ms` : "0ms",
           }}
         >
           {segments.map((segment) => {
