@@ -390,7 +390,10 @@ export function WheelApp({
       <header className="wheel-draw__header">
         <div>
           <p className="wheel-eyebrow">WHEEL DRAW</p>
-          <h1>돌림판 추첨기</h1>
+          <h1 aria-label="돌려 돌려, 돌림판">
+            돌려 돌려,{" "}
+            <span>돌림판</span>
+          </h1>
         </div>
         <p className="wheel-draw__status" role="status">
           {statusLabel}

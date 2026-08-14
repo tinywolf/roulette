@@ -764,6 +764,10 @@
   line-height: 1.15;
 }
 
+.draw-page-heading h1 span {
+  color: var(--primary);
+}
+
 .phase-pill {
   display: inline-flex;
   padding: 8px 13px;

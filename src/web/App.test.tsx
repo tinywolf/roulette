@@ -23,6 +23,27 @@ describe("추첨기 선택 셸", () => {
     ).toBeInTheDocument();
   });
 
+  it("선택한 추첨기에 맞춰 브라우저 타이틀을 변경한다", () => {
+    render(<App />);
+
+    expect(document.title).toBe("추첨기 선택");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "로또 추첨기 선택" }),
+    );
+    expect(document.title).toBe("로또 추첨기");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /다른 추첨기 선택/ }),
+    );
+    expect(document.title).toBe("추첨기 선택");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "돌림판 추첨기 선택" }),
+    );
+    expect(document.title).toBe("돌림판 추첨기");
+  });
+
   it("키보드로 추첨기를 선택할 수 있다", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -39,7 +60,7 @@ describe("추첨기 선택 셸", () => {
 
     expect(window.location.hash).toBe("#/wheel");
     expect(
-      screen.getByRole("heading", { name: "돌림판 추첨기" }),
+      screen.getByRole("heading", { name: "돌려 돌려, 돌림판" }),
     ).toBeInTheDocument();
   });
 
@@ -121,14 +142,16 @@ describe("추첨기 선택 셸", () => {
     window.history.replaceState(null, "", "#/wheel");
     render(<App />);
 
+    expect(document.title).toBe("돌림판 추첨기");
     expect(
-      screen.getByRole("heading", { name: "돌림판 추첨기" }),
+      screen.getByRole("heading", { name: "돌려 돌려, 돌림판" }),
     ).toBeInTheDocument();
 
     act(() => window.history.back());
 
     await waitFor(() => {
       expect(window.location.hash).toBe("#/");
+      expect(document.title).toBe("추첨기 선택");
       expect(
         screen.getByRole("heading", { name: "어떤 추첨기를 사용할까요?" }),
       ).toBeInTheDocument();

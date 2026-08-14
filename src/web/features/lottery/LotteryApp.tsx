@@ -632,11 +632,19 @@ export function LotteryApp() {
                 {session.mode === "manual" ? "MANUAL DRAW" : "AUTO DRAW"}
               </p>
               <h1>
-                {session.phase === "completed"
-                  ? "추첨이 완료됐어요"
-                  : session.phase === "error"
-                    ? "추첨을 계속할 수 없어요"
-                    : "두근두근, 추첨을 시작합니다"}
+                {session.phase === "completed" ? (
+                  <>
+                      추첨이 <span>완료됐어요</span>
+                  </>
+                ) : session.phase === "error" ? (
+                  <>
+                    추첨을 <span>계속할 수 없어요</span>
+                  </>
+                ) : (
+                  <>
+                    두근두근, <span>추첨을 시작합니다</span>
+                  </>
+                )}
               </h1>
             </div>
             <span className={`phase-pill phase-pill--${session.phase}`}>

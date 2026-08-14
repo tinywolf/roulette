@@ -31,11 +31,17 @@
   margin: 0;
   font-size: clamp(2.2rem, 6vw, 4.4rem);
   letter-spacing: -0.055em;
+  white-space: nowrap;
 }
 
 .wheel-hero h1 {
   font-weight: 800;
   line-height: 1.04;
+}
+
+.wheel-hero h1 span,
+.wheel-draw__header h1 span {
+  color: var(--primary);
 }
 
 .wheel-hero > p:last-child {

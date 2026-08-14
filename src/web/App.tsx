@@ -71,6 +71,13 @@ function App() {
   const [storageWarning, setStorageWarning] = useState<string | null>(
     storedSelection.warning,
   );
+  const pageTitle = activeExperience
+    ? DRAW_EXPERIENCES.find(({ type }) => type === activeExperience)?.label
+    : "추첨기 선택";
+
+  useEffect(() => {
+    document.title = pageTitle ?? "추첨기 선택";
+  }, [pageTitle]);
 
   useEffect(() => {
     setActiveExperience((current) => prepareInitialHistory(current));

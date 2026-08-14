@@ -29,7 +29,10 @@ export function WheelSetup({
     <main className="wheel-app wheel-setup">
       <header className="wheel-hero">
         <p className="wheel-eyebrow">WHEEL DRAW</p>
-        <h1>돌림판 추첨기</h1>
+        <h1 aria-label="돌려 돌려, 돌림판">
+          돌려 돌려,{" "}
+          <span>돌림판</span>
+        </h1>
         <p>
           같은 후보가 다시 나올 수 있어요. 이름이나 숫자를 넣고 필요한
           만큼 돌려보세요.
