@@ -81,6 +81,109 @@ describe("WheelApp", () => {
     expect(drawLayout?.children[2]).toHaveClass("wheel-candidates");
   });
 
+  it("동일 기능 버튼을 로또 추첨기와 같은 위치와 시각 계층으로 배치한다", () => {
+    render(<WheelApp randomValues={fixedRandom(0)} />);
+
+    const setupSoundToggle = screen.getByRole("button", {
+      name: "효과음 꺼짐",
+    });
+    const clearInputButton = screen.getByRole("button", {
+      name: "입력 비우기",
+    });
+    const startButton = screen.getByRole("button", { name: "돌림판 시작" });
+
+    expect(setupSoundToggle).toHaveClass("wheel-sound-toggle");
+    expect(setupSoundToggle.closest(".wheel-setup__heading")).not.toBeNull();
+    expect(clearInputButton).toHaveClass("wheel-input-clear-button");
+    expect(clearInputButton.closest(".wheel-input-guide-row")).not.toBeNull();
+    expect(startButton).toHaveClass("wheel-button--primary");
+    expect(startButton.closest(".wheel-setup__actions")).not.toBeNull();
+
+    startWheel();
+
+    const drawSoundToggle = screen.getByRole("button", {
+      name: "효과음 꺼짐",
+    });
+    const spinButton = screen.getByRole("button", { name: "돌림판 회전" });
+    const restartButton = screen.getByRole("button", {
+      name: "처음부터 다시",
+    });
+    const redrawButton = screen.getByRole("button", { name: "재추첨" });
+    const copyButton = screen.getByRole("button", { name: "결과 복사" });
+    const clearResultsButton = screen.getByRole("button", {
+      name: "결과 비우기",
+    });
+
+    expect(drawSoundToggle.closest(".wheel-draw__utility")).not.toBeNull();
+    expect(spinButton.closest(".wheel-controls")).not.toBeNull();
+    expect(spinButton).toHaveAttribute("aria-keyshortcuts", "Space");
+    expect(redrawButton).toHaveClass("wheel-button--redraw");
+    expect(redrawButton).toHaveAttribute("aria-keyshortcuts", "R");
+    expect(redrawButton.closest(".wheel-controls")).not.toBeNull();
+    expect(restartButton).toHaveClass("wheel-button--restart");
+    expect(restartButton.closest(".wheel-controls")).not.toBeNull();
+    expect(copyButton).toHaveClass("wheel-button--copy");
+    expect(clearResultsButton).toHaveClass("wheel-button--result-secondary");
+    expect(copyButton.parentElement).toBe(clearResultsButton.parentElement);
+  });
+
+  it("Space로 회전하고 R로 결과 이력만 비워 재추첨을 준비한다", () => {
+    render(<WheelApp randomValues={fixedRandom(0)} />);
+    startWheel();
+
+    const spinButton = screen.getByRole("button", { name: "돌림판 회전" });
+    const redrawButton = screen.getByRole("button", { name: "재추첨" });
+
+    expect(redrawButton).toBeDisabled();
+
+    fireEvent.keyDown(window, {
+      code: "Space",
+      key: " ",
+      repeat: true,
+    });
+    fireEvent.keyDown(window, {
+      code: "Space",
+      key: " ",
+      ctrlKey: true,
+    });
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "처음부터 다시" }),
+      { code: "Space", key: " " },
+    );
+    expect(spinButton).toBeEnabled();
+
+    fireEvent.keyDown(window, { code: "Space", key: " " });
+    expect(screen.getByRole("button", { name: "회전 중…" })).toBeDisabled();
+
+    fireEvent.keyDown(window, { code: "KeyR", key: "r" });
+    act(() => vi.advanceTimersByTime(MINIMUM_SPIN_DURATION_MS));
+
+    const results = screen.getByRole("region", { name: "당첨 결과" });
+    expect(within(results).getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "재추첨" })).toBeEnabled();
+
+    fireEvent.keyDown(window, {
+      code: "KeyR",
+      key: "r",
+      repeat: true,
+    });
+    fireEvent.keyDown(window, {
+      code: "KeyR",
+      key: "r",
+      metaKey: true,
+    });
+    expect(within(results).getAllByRole("listitem")).toHaveLength(1);
+
+    fireEvent.keyDown(window, { code: "KeyR", key: "r" });
+    expect(screen.getByText("0회")).toBeInTheDocument();
+    expect(
+      screen.getByText("재추첨할 준비가 되었습니다."),
+    ).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { code: "Space", key: " " });
+    expect(screen.getByRole("button", { name: "회전 중…" })).toBeDisabled();
+  });
+
   it.each([
     {
       label: "약한 회전",

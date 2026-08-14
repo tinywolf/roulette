@@ -9,6 +9,7 @@ import {
   WheelResultHistory,
 } from "./components/WheelResultHistory";
 import { WheelSetup } from "./components/WheelSetup";
+import { WheelSoundToggle } from "./components/WheelSoundToggle";
 import {
   MAXIMUM_FULL_ROTATIONS,
   MAXIMUM_SPIN_DURATION_MS,
@@ -302,6 +303,21 @@ export function WheelApp({
     setActionMessage("결과를 비웠습니다.");
   };
 
+  const handleRedraw = () => {
+    const currentSession = sessionRef.current;
+
+    if (
+      !currentSession ||
+      currentSession.phase === "spinning" ||
+      currentSession.outcomes.length === 0
+    ) {
+      return;
+    }
+
+    commitSession(clearWheelOutcomes(currentSession));
+    setActionMessage("재추첨할 준비가 되었습니다.");
+  };
+
   const handleCopyOutcomes = async () => {
     const outcomes = sessionRef.current?.outcomes ?? [];
 
@@ -365,6 +381,12 @@ export function WheelApp({
 
   return (
     <main className="wheel-app wheel-draw">
+      <div className="wheel-draw__utility">
+        <WheelSoundToggle
+          enabled={soundEnabled}
+          onToggle={handleSoundToggle}
+        />
+      </div>
       <header className="wheel-draw__header">
         <div>
           <p className="wheel-eyebrow">WHEEL DRAW</p>
@@ -389,10 +411,10 @@ export function WheelApp({
           />
           <WheelControls
             isSpinning={isSpinning}
-            soundEnabled={soundEnabled}
+            canRedraw={session.outcomes.length > 0}
             onSpin={handleSpin}
+            onRedraw={handleRedraw}
             onReset={handleReset}
-            onSoundToggle={handleSoundToggle}
           />
           {session.error ? (
             <p className="wheel-error" role="alert">

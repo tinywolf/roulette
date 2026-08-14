@@ -83,7 +83,7 @@ export function WheelResultHistory({
       <div className="wheel-results__actions">
         <button
           type="button"
-          className="wheel-button wheel-button--ghost"
+          className="wheel-button wheel-button--copy"
           disabled={outcomes.length === 0}
           onClick={onCopy}
         >
@@ -91,7 +91,7 @@ export function WheelResultHistory({
         </button>
         <button
           type="button"
-          className="wheel-button wheel-button--ghost"
+          className="wheel-button wheel-button--result-secondary"
           disabled={outcomes.length === 0 || isSpinning}
           onClick={onClear}
         >
