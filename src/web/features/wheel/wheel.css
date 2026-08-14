@@ -200,6 +200,9 @@
   display: grid;
   align-items: start;
   gap: 20px;
+  grid-template-areas:
+    "stage results"
+    "candidates candidates";
   grid-template-columns: minmax(0, 1.7fr) minmax(250px, 0.8fr);
 }
 
@@ -212,6 +215,7 @@
 .wheel-draw__stage {
   display: grid;
   min-width: 0;
+  grid-area: stage;
   place-items: center;
 }
 
@@ -294,10 +298,15 @@
 
 .wheel-candidates ol {
   display: grid;
-  max-height: 520px;
+  max-height: 260px;
   overflow: auto;
   gap: 7px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   scrollbar-gutter: stable;
+}
+
+.wheel-candidates {
+  grid-area: candidates;
 }
 
 .wheel-candidates li,
@@ -334,38 +343,72 @@
 }
 
 .wheel-results {
-  grid-column: 1 / -1;
+  display: flex;
+  min-height: 0;
+  align-self: stretch;
+  flex-direction: column;
+  grid-area: results;
 }
 
 .wheel-results__empty {
+  display: grid;
+  min-height: 260px;
   margin: 22px 0;
   padding: 22px;
+  flex: 1;
   border: 1px dashed var(--line);
   border-radius: 16px;
   color: var(--muted);
+  place-items: center;
   text-align: center;
 }
 
 .wheel-results__list {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  display: block;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  flex: 1;
+  scrollbar-gutter: stable;
 }
 
 .wheel-results__item {
+  min-height: 54px;
+  margin-bottom: 8px;
   padding: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--wheel-result-color);
   border-radius: 14px;
-  background: rgb(255 255 255 / 70%);
+  background: #fbfcfe;
+  animation: wheel-result-in 320ms ease both;
+}
+
+.wheel-results__item > span {
+  width: 32px;
+  height: 32px;
+  background: var(--navy);
+  color: #fff;
+  font-family: ui-rounded, "Arial Rounded MT Bold", sans-serif;
+  font-size: 0.76rem;
+}
+
+.wheel-results__item strong {
+  overflow: hidden;
+  flex: 1;
+  color: #344056;
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wheel-results__item--latest {
-  border-color: rgb(255 92 89 / 45%);
-  background: rgb(255 92 89 / 7%);
+  background: color-mix(in srgb, var(--wheel-result-color) 10%, #fff);
 }
 
 .wheel-results__item em {
   margin-left: auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wheel-result-color) 22%, #fff);
   color: var(--primary-dark);
   font-size: 0.68rem;
   font-style: normal;
@@ -374,6 +417,18 @@
 
 .wheel-results__actions {
   margin-top: 18px;
+}
+
+@keyframes wheel-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sr-only {
@@ -398,12 +453,20 @@
   }
 
   .wheel-draw__layout {
+    grid-template-areas:
+      "stage"
+      "results"
+      "candidates";
     grid-template-columns: 1fr;
   }
 
   .wheel-candidates,
   .wheel-results {
     grid-column: auto;
+  }
+
+  .wheel-results {
+    min-height: 420px;
   }
 
   .wheel-candidates ol {

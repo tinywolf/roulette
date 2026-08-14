@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RandomValuesSource } from "../../../core/random";
+import {
+  secureRandomInteger,
+  type RandomValuesSource,
+} from "../../../core/random";
 import { WheelControls } from "./components/WheelControls";
 import {
   formatWheelOutcomes,
@@ -7,10 +10,12 @@ import {
 } from "./components/WheelResultHistory";
 import { WheelSetup } from "./components/WheelSetup";
 import {
+  MAXIMUM_FULL_ROTATIONS,
+  MAXIMUM_SPIN_DURATION_MS,
   MINIMUM_FULL_ROTATIONS,
+  MINIMUM_SPIN_DURATION_MS,
   REDUCED_MOTION_DURATION_MS,
   WheelStage,
-  WHEEL_SPIN_DURATION_MS,
 } from "./components/WheelStage";
 import { getTargetRotation } from "./domain/wheelGeometry";
 import {
@@ -41,6 +46,40 @@ type WheelAppProps = {
   now?: () => number;
   soundService?: WheelSoundService;
 };
+
+type WheelSpinProfile = {
+  durationMs: number;
+  fullRotations: number;
+};
+
+/** 같은 회전 강도로 회전량과 시간을 함께 늘려 물리적인 편차를 표현한다. */
+function createWheelSpinProfile(
+  randomValues?: RandomValuesSource,
+): WheelSpinProfile {
+  let durationMs = MINIMUM_SPIN_DURATION_MS;
+
+  try {
+    durationMs = secureRandomInteger(
+      MINIMUM_SPIN_DURATION_MS,
+      MAXIMUM_SPIN_DURATION_MS,
+      randomValues,
+    );
+  } catch {
+    // 연출 난수만 실패하면 최소 프로필을 사용하고, 당첨 난수 실패는 세션이 별도로 처리한다.
+  }
+
+  const strength =
+    (durationMs - MINIMUM_SPIN_DURATION_MS) /
+    (MAXIMUM_SPIN_DURATION_MS - MINIMUM_SPIN_DURATION_MS);
+
+  return {
+    durationMs,
+    fullRotations: Math.round(
+      MINIMUM_FULL_ROTATIONS +
+        (MAXIMUM_FULL_ROTATIONS - MINIMUM_FULL_ROTATIONS) * strength,
+    ),
+  };
+}
 
 function useReducedMotion(): boolean {
   const [reducedMotion, setReducedMotion] = useState(() =>
@@ -83,6 +122,9 @@ export function WheelApp({
   const [session, setSession] = useState<WheelSession | null>(null);
   const [currentRotation, setCurrentRotation] = useState(0);
   const [previousRotation, setPreviousRotation] = useState(0);
+  const [spinDurationMs, setSpinDurationMs] = useState(
+    MINIMUM_SPIN_DURATION_MS,
+  );
   const sessionRef = useRef<WheelSession | null>(null);
   const rotationRef = useRef(0);
   const reducedMotion = useReducedMotion();
@@ -198,6 +240,7 @@ export function WheelApp({
     rotationRef.current = 0;
     setCurrentRotation(0);
     setPreviousRotation(0);
+    setSpinDurationMs(MINIMUM_SPIN_DURATION_MS);
     setActionMessage(null);
     setView("draw");
   };
@@ -209,14 +252,17 @@ export function WheelApp({
       return;
     }
 
-    const duration = reducedMotion
-      ? REDUCED_MOTION_DURATION_MS
-      : WHEEL_SPIN_DURATION_MS;
+    const spinProfile = reducedMotion
+      ? {
+          durationMs: REDUCED_MOTION_DURATION_MS,
+          fullRotations: MINIMUM_FULL_ROTATIONS,
+        }
+      : createWheelSpinProfile(randomValues);
     const startedAt = now();
     const nextSession = beginWheelSpin(
       currentSession,
       startedAt,
-      duration,
+      spinProfile.durationMs,
       randomValues,
     );
     commitSession(nextSession);
@@ -234,14 +280,15 @@ export function WheelApp({
       candidateIndex,
       candidateCount: nextSession.candidates.length,
       pointerAngle: 0,
-      minimumFullRotations: MINIMUM_FULL_ROTATIONS,
+      minimumFullRotations: spinProfile.fullRotations,
     });
 
     setPreviousRotation(rotationRef.current);
+    setSpinDurationMs(spinProfile.durationMs);
     rotationRef.current = nextRotation;
     setCurrentRotation(nextRotation);
     setActionMessage(null);
-    controller.startSpin(duration);
+    controller.startSpin(spinProfile.durationMs);
   };
 
   const handleClearOutcomes = () => {
@@ -280,6 +327,7 @@ export function WheelApp({
     rotationRef.current = 0;
     setCurrentRotation(0);
     setPreviousRotation(0);
+    setSpinDurationMs(MINIMUM_SPIN_DURATION_MS);
     setActionMessage(null);
     setView("setup");
   };
@@ -335,6 +383,7 @@ export function WheelApp({
             previousRotation={previousRotation}
             isSpinning={isSpinning}
             reducedMotion={reducedMotion}
+            spinDurationMs={spinDurationMs}
             statusLabel={statusLabel}
             onAnimationError={handleAnimationError}
           />
@@ -357,6 +406,15 @@ export function WheelApp({
           ) : null}
         </section>
 
+        <WheelResultHistory
+          candidates={session.candidates}
+          outcomes={session.outcomes}
+          isSpinning={isSpinning}
+          actionMessage={actionMessage}
+          onCopy={() => void handleCopyOutcomes()}
+          onClear={handleClearOutcomes}
+        />
+
         <aside className="wheel-panel wheel-candidates" aria-labelledby="wheel-candidates-title">
           <div className="wheel-section-heading">
             <div>
@@ -374,14 +432,6 @@ export function WheelApp({
             ))}
           </ol>
         </aside>
-
-        <WheelResultHistory
-          outcomes={session.outcomes}
-          isSpinning={isSpinning}
-          actionMessage={actionMessage}
-          onCopy={() => void handleCopyOutcomes()}
-          onClear={handleClearOutcomes}
-        />
       </div>
     </main>
   );

@@ -1,6 +1,6 @@
 ---
 revision: 94d57b666972420f324eb51b0445223bb9564482
-updated_at: 2026-08-14T16:30:05+09:00
+updated_at: 2026-08-14T16:56:40+09:00
 ---
 
 # 개발 가이드
@@ -150,7 +150,7 @@ npm run test:web -- src/web/features/wheel/domain/wheelSession.test.ts
 - 결과 후보는 `wheelSession`의 활성 회전에서 먼저 확정되는지 확인한다.
 - 포인터 정렬은 `wheelGeometry`의 상단 0도·시계 방향 좌표계와 후보 중심각을 확인한다.
 - 결과 공개는 transition 종료가 아니라 절대 `revealAt` 기준인지 확인한다.
-- 일반 회전은 약 4초와 최소 6회 순방향 회전을 유지하고, `prefers-reduced-motion`에서는 220ms 전환을 사용한다.
+- 일반 회전은 같은 강도 값으로 3.8~5.2초와 6~10회 순방향 회전을 함께 늘리고, `prefers-reduced-motion`에서는 220ms 전환을 사용한다.
 - 화면 이동·언마운트 시 timer, animation과 `WheelSoundController`가 정리되는지 확인한다.
 
 ### MCP 연결 실패

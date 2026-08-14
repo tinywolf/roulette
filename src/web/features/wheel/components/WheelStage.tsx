@@ -1,32 +1,25 @@
 import { useEffect, useRef } from "react";
 import { normalizeAngle, getWheelSegments } from "../domain/wheelGeometry";
 import type { WheelCandidate } from "../domain/wheelSession";
+import { getWheelSegmentColor } from "./wheelPalette";
 
-export const WHEEL_SPIN_DURATION_MS = 4_000;
+export const MINIMUM_SPIN_DURATION_MS = 3_800;
+export const MAXIMUM_SPIN_DURATION_MS = 5_200;
 export const REDUCED_MOTION_DURATION_MS = 220;
 export const MINIMUM_FULL_ROTATIONS = 6;
+export const MAXIMUM_FULL_ROTATIONS = 10;
 
 const CENTER = 120;
 const RADIUS = 106;
 const LABEL_RADIUS = 69;
 const DENSE_LABEL_RADIUS = 84;
-const SEGMENT_COLORS = [
-  "#ff6b68",
-  "#ffb84d",
-  "#ffd95a",
-  "#63cf9a",
-  "#62b8ff",
-  "#8f87ff",
-  "#d47be8",
-  "#f38ab4",
-];
-
 type WheelStageProps = {
   candidates: WheelCandidate[];
   currentRotation: number;
   previousRotation: number;
   isSpinning: boolean;
   reducedMotion: boolean;
+  spinDurationMs: number;
   statusLabel: string;
   onAnimationError?: () => void;
 };
@@ -74,6 +67,7 @@ export function WheelStage({
   previousRotation,
   isSpinning,
   reducedMotion,
+  spinDurationMs,
   statusLabel,
   onAnimationError,
 }: WheelStageProps) {
@@ -87,7 +81,7 @@ export function WheelStage({
     : previousRotation;
   const duration = reducedMotion
     ? REDUCED_MOTION_DURATION_MS
-    : WHEEL_SPIN_DURATION_MS;
+    : spinDurationMs;
   const hasDenseLabels = candidates.length > 24;
 
   useEffect(() => {
@@ -184,7 +178,7 @@ export function WheelStage({
                     segment.startAngle,
                     segment.endAngle,
                   )}
-                  fill={SEGMENT_COLORS[segment.index % SEGMENT_COLORS.length]}
+                  fill={getWheelSegmentColor(segment.index)}
                   stroke="white"
                   strokeWidth="1.2"
                 />
@@ -209,7 +203,7 @@ export function WheelStage({
         </g>
         <polygon
           className="wheel-stage__pointer"
-          points="120,5 108,29 132,29"
+          points="108,5 132,5 120,29"
           aria-hidden="true"
         />
       </svg>

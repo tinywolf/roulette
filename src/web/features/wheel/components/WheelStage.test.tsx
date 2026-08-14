@@ -2,9 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createWheelCandidates } from "../domain/wheelSession";
 import {
+  MAXIMUM_SPIN_DURATION_MS,
+  MINIMUM_SPIN_DURATION_MS,
   REDUCED_MOTION_DURATION_MS,
   WheelStage,
-  WHEEL_SPIN_DURATION_MS,
 } from "./WheelStage";
 
 describe("WheelStage", () => {
@@ -16,6 +17,7 @@ describe("WheelStage", () => {
         previousRotation={0}
         isSpinning={false}
         reducedMotion={false}
+        spinDurationMs={MINIMUM_SPIN_DURATION_MS}
         statusLabel="회전 준비"
       />,
     );
@@ -24,8 +26,13 @@ describe("WheelStage", () => {
       screen.getByRole("img", { name: "후보 2개의 돌림판. 회전 준비" }),
     ).toBeInTheDocument();
     expect(container.querySelectorAll("[data-candidate-id]")).toHaveLength(2);
+    const segmentPaths = container.querySelectorAll(
+      "[data-candidate-id] path",
+    );
+    expect(segmentPaths[0]).toHaveAttribute("fill", "#ff6b68");
+    expect(segmentPaths[1]).toHaveAttribute("fill", "#ffb84d");
     expect(container.querySelector(".wheel-stage__pointer"))
-      .toBeInTheDocument();
+      .toHaveAttribute("points", "108,5 132,5 120,29");
   });
 
   it("45개 후보를 DOM 재구성 없이 하나의 회전 그룹에 표시한다", () => {
@@ -37,6 +44,7 @@ describe("WheelStage", () => {
         previousRotation={0}
         isSpinning
         reducedMotion={false}
+        spinDurationMs={MAXIMUM_SPIN_DURATION_MS}
         statusLabel="회전 중"
       />,
     );
@@ -46,7 +54,7 @@ describe("WheelStage", () => {
       .toHaveClass("wheel-stage__svg--dense");
     expect(screen.getByTestId("wheel-disc")).toHaveStyle({
       transform: "rotate(2164deg)",
-      transitionDuration: `${WHEEL_SPIN_DURATION_MS}ms`,
+      transitionDuration: `${MAXIMUM_SPIN_DURATION_MS}ms`,
     });
   });
 
@@ -58,6 +66,7 @@ describe("WheelStage", () => {
         previousRotation={0}
         isSpinning
         reducedMotion
+        spinDurationMs={MAXIMUM_SPIN_DURATION_MS}
         statusLabel="회전 중"
       />,
     );
@@ -89,6 +98,7 @@ describe("WheelStage", () => {
           previousRotation={0}
           isSpinning
           reducedMotion={false}
+          spinDurationMs={MINIMUM_SPIN_DURATION_MS}
           statusLabel="회전 중"
           onAnimationError={onAnimationError}
         />,

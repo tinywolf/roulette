@@ -1,6 +1,9 @@
-import type { WheelOutcome } from "../domain/wheelSession";
+import type { CSSProperties } from "react";
+import type { WheelCandidate, WheelOutcome } from "../domain/wheelSession";
+import { getWheelSegmentColor } from "./wheelPalette";
 
 type WheelResultHistoryProps = {
+  candidates: WheelCandidate[];
   outcomes: WheelOutcome[];
   isSpinning: boolean;
   actionMessage: string | null;
@@ -16,6 +19,7 @@ export function formatWheelOutcomes(outcomes: WheelOutcome[]): string {
 
 /** 반복 후보도 고유 outcome ID로 모두 보존하는 돌림판 결과 이력이다. */
 export function WheelResultHistory({
+  candidates,
   outcomes,
   isSpinning,
   actionMessage,
@@ -23,6 +27,12 @@ export function WheelResultHistory({
   onClear,
 }: WheelResultHistoryProps) {
   const latestOutcome = outcomes.at(-1);
+  const candidateColorById = new Map(
+    candidates.map((candidate, index) => [
+      candidate.id,
+      getWheelSegmentColor(index),
+    ]),
+  );
 
   return (
     <section className="wheel-panel wheel-results" aria-labelledby="wheel-results-title">
@@ -54,10 +64,17 @@ export function WheelResultHistory({
                   ? "wheel-results__item wheel-results__item--latest"
                   : "wheel-results__item"
               }
+              style={
+                {
+                  "--wheel-result-color": candidateColorById.get(
+                    outcome.candidateId,
+                  ),
+                } as CSSProperties
+              }
             >
               <span>{outcome.spinNumber}</span>
               <strong>{outcome.name}</strong>
-              {index === outcomes.length - 1 ? <em>최신</em> : null}
+              {index === outcomes.length - 1 ? <em>NEW</em> : null}
             </li>
           ))}
         </ol>

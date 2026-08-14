@@ -9,6 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RandomValuesSource } from "../../../core/random";
 import { WheelApp } from "./WheelApp";
 import {
+  MAXIMUM_SPIN_DURATION_MS,
+  MINIMUM_SPIN_DURATION_MS,
+} from "./components/WheelStage";
+import {
   WHEEL_CANDIDATES_STORAGE_KEY,
   WHEEL_OPTIONS_STORAGE_KEY,
 } from "./services/wheelStorage";
@@ -47,7 +51,9 @@ describe("WheelApp", () => {
   });
 
   it("유효한 후보만 저장해 돌림판 세션을 시작한다", () => {
-    render(<WheelApp randomValues={fixedRandom(0)} />);
+    const { container } = render(
+      <WheelApp randomValues={fixedRandom(0)} />,
+    );
     const startButton = screen.getByRole("button", { name: "돌림판 시작" });
 
     expect(startButton).toBeDisabled();
@@ -70,6 +76,70 @@ describe("WheelApp", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "전체 후보" }))
       .toBeInTheDocument();
+    const drawLayout = container.querySelector(".wheel-draw__layout");
+    expect(drawLayout?.children[1]).toHaveClass("wheel-results");
+    expect(drawLayout?.children[2]).toHaveClass("wheel-candidates");
+  });
+
+  it.each([
+    {
+      label: "약한 회전",
+      randomValue: 0,
+      expectedDuration: MINIMUM_SPIN_DURATION_MS,
+      expectedRotation: 2_430,
+    },
+    {
+      label: "강한 회전",
+      randomValue: 1_400,
+      expectedDuration: MAXIMUM_SPIN_DURATION_MS,
+      expectedRotation: 3_870,
+    },
+  ])(
+    "$label은 6~10바퀴와 3.8~5.2초 범위 안에서 함께 증가한다",
+    ({ randomValue, expectedDuration, expectedRotation }) => {
+      render(<WheelApp randomValues={fixedRandom(randomValue)} />);
+      startWheel();
+      fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+
+      expect(screen.getByTestId("wheel-disc")).toHaveStyle({
+        transform: `rotate(${expectedRotation}deg)`,
+        transitionDuration: `${expectedDuration}ms`,
+      });
+
+      act(() => vi.advanceTimersByTime(expectedDuration - 1));
+      expect(screen.getByText("0회")).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByText("1회")).toBeInTheDocument();
+    },
+  );
+
+  it("연출 난수만 실패하면 최소 프로필로 복구하고 당첨 난수는 별도로 처리한다", () => {
+    let callCount = 0;
+    const transientRandom: RandomValuesSource = (values) => {
+      callCount += 1;
+
+      if (callCount === 1) {
+        throw new Error("motion random failure");
+      }
+
+      values[0] = 1;
+    };
+
+    render(<WheelApp randomValues={transientRandom} />);
+    startWheel();
+    fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+
+    expect(screen.getByTestId("wheel-disc")).toHaveStyle({
+      transitionDuration: `${MINIMUM_SPIN_DURATION_MS}ms`,
+    });
+    act(() => vi.advanceTimersByTime(MINIMUM_SPIN_DURATION_MS));
+    const results = screen.getByRole("region", { name: "당첨 결과" });
+    expect(within(results).getByText("준호")).toBeInTheDocument();
+    expect(
+      within(results).getByRole("listitem").style.getPropertyValue(
+        "--wheel-result-color",
+      ),
+    ).toBe("#ffb84d");
   });
 
   it("같은 후보를 반복 당첨 결과로 한 번씩만 누적한다", () => {
@@ -89,7 +159,15 @@ describe("WheelApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
     act(() => vi.advanceTimersByTime(4_000));
 
-    expect(within(results).getAllByText("민지")).toHaveLength(2);
+    const resultItems = within(results).getAllByRole("listitem");
+    expect(resultItems).toHaveLength(2);
+    expect(within(resultItems[0]).getByText("1")).toBeInTheDocument();
+    expect(within(resultItems[1]).getByText("2")).toBeInTheDocument();
+    expect(within(resultItems[0]).getByText("민지")).toBeInTheDocument();
+    expect(within(resultItems[1]).getByText("민지")).toBeInTheDocument();
+    expect(
+      resultItems[0].style.getPropertyValue("--wheel-result-color"),
+    ).toBe("#ff6b68");
     expect(within(results).getByText("2회")).toBeInTheDocument();
   });
 
