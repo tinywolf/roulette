@@ -292,17 +292,6 @@ export function WheelApp({
     controller.startSpin(spinProfile.durationMs);
   };
 
-  const handleClearOutcomes = () => {
-    const currentSession = sessionRef.current;
-
-    if (!currentSession || currentSession.phase === "spinning") {
-      return;
-    }
-
-    commitSession(clearWheelOutcomes(currentSession));
-    setActionMessage("결과를 비웠습니다.");
-  };
-
   const handleRedraw = () => {
     const currentSession = sessionRef.current;
 
@@ -335,6 +324,14 @@ export function WheelApp({
     } catch {
       setActionMessage("결과를 복사하지 못했습니다.");
     }
+  };
+
+  const handleImageSaveResult = (succeeded: boolean) => {
+    setActionMessage(
+      succeeded
+        ? "추첨 결과 이미지를 저장했습니다."
+        : "결과 이미지를 저장하지 못했습니다.",
+    );
   };
 
   const handleReset = () => {
@@ -437,7 +434,7 @@ export function WheelApp({
           isSpinning={isSpinning}
           actionMessage={actionMessage}
           onCopy={() => void handleCopyOutcomes()}
-          onClear={handleClearOutcomes}
+          onImageSaveResult={handleImageSaveResult}
         />
 
         <aside className="wheel-panel wheel-candidates" aria-labelledby="wheel-candidates-title">

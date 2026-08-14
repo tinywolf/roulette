@@ -1,5 +1,6 @@
-import type { CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import type { WheelCandidate, WheelOutcome } from "../domain/wheelSession";
+import { downloadWheelResultImage } from "../services/wheelResultImage";
 import { getWheelSegmentColor } from "./wheelPalette";
 
 type WheelResultHistoryProps = {
@@ -8,7 +9,7 @@ type WheelResultHistoryProps = {
   isSpinning: boolean;
   actionMessage: string | null;
   onCopy: () => void;
-  onClear: () => void;
+  onImageSaveResult: (succeeded: boolean) => void;
 };
 
 export function formatWheelOutcomes(outcomes: WheelOutcome[]): string {
@@ -24,8 +25,10 @@ export function WheelResultHistory({
   isSpinning,
   actionMessage,
   onCopy,
-  onClear,
+  onImageSaveResult,
 }: WheelResultHistoryProps) {
+  const cardRef = useRef<HTMLElement>(null);
+  const [isSavingImage, setIsSavingImage] = useState(false);
   const latestOutcome = outcomes.at(-1);
   const candidateColorById = new Map(
     candidates.map((candidate, index) => [
@@ -34,8 +37,34 @@ export function WheelResultHistory({
     ]),
   );
 
+  const handleImageSave = async () => {
+    if (
+      !cardRef.current ||
+      outcomes.length === 0 ||
+      isSpinning ||
+      isSavingImage
+    ) {
+      return;
+    }
+
+    setIsSavingImage(true);
+
+    try {
+      await downloadWheelResultImage(cardRef.current);
+      onImageSaveResult(true);
+    } catch {
+      onImageSaveResult(false);
+    } finally {
+      setIsSavingImage(false);
+    }
+  };
+
   return (
-    <section className="wheel-panel wheel-results" aria-labelledby="wheel-results-title">
+    <section
+      className="wheel-panel wheel-results"
+      aria-labelledby="wheel-results-title"
+      ref={cardRef}
+    >
       <div className="wheel-section-heading">
         <div>
           <p className="wheel-eyebrow">RESULT HISTORY</p>
@@ -91,11 +120,12 @@ export function WheelResultHistory({
         </button>
         <button
           type="button"
-          className="wheel-button wheel-button--result-secondary"
-          disabled={outcomes.length === 0 || isSpinning}
-          onClick={onClear}
+          className="wheel-button wheel-button--image-save"
+          disabled={outcomes.length === 0 || isSpinning || isSavingImage}
+          aria-busy={isSavingImage}
+          onClick={() => void handleImageSave()}
         >
-          결과 비우기
+          {isSavingImage ? "이미지 만드는 중…" : "이미지 저장"}
         </button>
       </div>
       {actionMessage ? (

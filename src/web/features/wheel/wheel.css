@@ -583,15 +583,47 @@
   background: #18243b;
 }
 
-.wheel-button--result-secondary {
+.wheel-button--image-save {
   width: 100%;
   border: 1px solid var(--navy);
   background: #fff;
   color: var(--navy);
 }
 
-.wheel-button--result-secondary:not(:disabled):hover {
+.wheel-button--image-save:not(:disabled):hover {
   background: #f0f3f8;
+}
+
+.wheel-result-capture-host {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  pointer-events: none;
+}
+
+.wheel-results--capture {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: #fff;
+  box-shadow: none;
+}
+
+.wheel-results--capture .wheel-results__list {
+  overflow: visible;
+  max-height: none;
+  padding-right: 0;
+  flex: none;
+}
+
+.wheel-results--capture .wheel-results__item {
+  animation: none;
+}
+
+.wheel-results--capture .wheel-results__actions,
+.wheel-results--capture .wheel-action-message,
+.wheel-results--capture .sr-only {
+  display: none;
 }
 
 @keyframes wheel-control-pulse {

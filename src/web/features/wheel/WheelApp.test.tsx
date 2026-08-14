@@ -17,6 +17,12 @@ import {
   WHEEL_OPTIONS_STORAGE_KEY,
 } from "./services/wheelStorage";
 
+const { downloadWheelResultImage } = vi.hoisted(() => ({
+  downloadWheelResultImage: vi.fn(),
+}));
+
+vi.mock("./services/wheelResultImage", () => ({ downloadWheelResultImage }));
+
 function fixedRandom(value: number): RandomValuesSource {
   return (values) => {
     values[0] = value;
@@ -44,6 +50,8 @@ describe("WheelApp", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
+    downloadWheelResultImage.mockReset();
+    downloadWheelResultImage.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -110,8 +118,8 @@ describe("WheelApp", () => {
     });
     const redrawButton = screen.getByRole("button", { name: "재추첨" });
     const copyButton = screen.getByRole("button", { name: "결과 복사" });
-    const clearResultsButton = screen.getByRole("button", {
-      name: "결과 비우기",
+    const imageSaveButton = screen.getByRole("button", {
+      name: "이미지 저장",
     });
 
     expect(drawSoundToggle.closest(".wheel-draw__utility")).not.toBeNull();
@@ -123,8 +131,22 @@ describe("WheelApp", () => {
     expect(restartButton).toHaveClass("wheel-button--restart");
     expect(restartButton.closest(".wheel-controls")).not.toBeNull();
     expect(copyButton).toHaveClass("wheel-button--copy");
-    expect(clearResultsButton).toHaveClass("wheel-button--result-secondary");
-    expect(copyButton.parentElement).toBe(clearResultsButton.parentElement);
+    expect(imageSaveButton).toHaveClass("wheel-button--image-save");
+    expect(imageSaveButton).toBeDisabled();
+    expect(copyButton.parentElement).toBe(imageSaveButton.parentElement);
+  });
+
+  it("결과가 있어도 회전 중에는 이미지 저장을 비활성화한다", () => {
+    render(<WheelApp randomValues={fixedRandom(0)} />);
+    startWheel();
+    fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+    act(() => vi.advanceTimersByTime(MINIMUM_SPIN_DURATION_MS));
+
+    const imageSaveButton = screen.getByRole("button", { name: "이미지 저장" });
+    expect(imageSaveButton).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+    expect(imageSaveButton).toBeDisabled();
   });
 
   it("Space로 회전하고 R로 결과 이력만 비워 재추첨을 준비한다", () => {
@@ -270,11 +292,18 @@ describe("WheelApp", () => {
     expect(within(results).getByText("2회")).toBeInTheDocument();
   });
 
-  it("결과를 순서 텍스트로 복사하고 후보를 유지한 채 비운다", async () => {
+  it("결과를 순서 텍스트로 복사하고 결과 카드 이미지를 저장한다", async () => {
     const writeText = vi.fn(() => Promise.resolve());
+    let finishImageSave: (() => void) | undefined;
     const originalClipboard = Object.getOwnPropertyDescriptor(
       navigator,
       "clipboard",
+    );
+    downloadWheelResultImage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishImageSave = resolve;
+        }),
     );
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -294,11 +323,26 @@ describe("WheelApp", () => {
       expect(writeText).toHaveBeenCalledWith("1. 민지");
       expect(screen.getByText("결과를 복사했습니다.")).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole("button", { name: "결과 비우기" }));
-      expect(screen.getByText("0회")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "이미지 저장" }));
+      expect(screen.getByRole("button", { name: "이미지 만드는 중…" }))
+        .toBeDisabled();
+      expect(screen.getByRole("button", { name: "이미지 만드는 중…" }))
+        .toHaveAttribute("aria-busy", "true");
+
+      await act(async () => {
+        finishImageSave?.();
+        await Promise.resolve();
+      });
+      expect(downloadWheelResultImage).toHaveBeenCalledWith(
+        document.querySelector(".wheel-results"),
+      );
+      expect(screen.getByText("1회")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "전체 후보" }))
         .toBeInTheDocument();
-      expect(screen.getByText("결과를 비웠습니다.")).toBeInTheDocument();
+      expect(screen.getByText("추첨 결과 이미지를 저장했습니다."))
+        .toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "결과 비우기" }))
+        .not.toBeInTheDocument();
     } finally {
       if (originalClipboard) {
         Object.defineProperty(navigator, "clipboard", originalClipboard);
@@ -309,6 +353,23 @@ describe("WheelApp", () => {
         });
       }
     }
+  });
+
+  it("결과 이미지 생성 실패를 알리고 기존 결과를 유지한다", async () => {
+    downloadWheelResultImage.mockRejectedValueOnce(new Error("capture failed"));
+    render(<WheelApp randomValues={fixedRandom(0)} />);
+    startWheel();
+    fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+    act(() => vi.advanceTimersByTime(4_000));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "이미지 저장" }));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("결과 이미지를 저장하지 못했습니다."))
+      .toBeInTheDocument();
+    expect(screen.getByText("1회")).toBeInTheDocument();
   });
 
   it("처음부터 다시는 결과만 버리고 저장된 후보와 설정을 유지한다", () => {
