@@ -4,7 +4,7 @@
 
 - 문서 경로: `docs/feature/wheel-draw/SPEC.md`
 - 대상 브랜치: `feature/wheel-draw`
-- 상태: 구현 전 확정
+- 상태: 구현·통합 검증 완료
 - 요구사항 기준: `docs/feature/wheel-draw/PRD.md`
 - 구조 기준: `docs/feature/wheel-draw/DESIGN.md`
 - 로또 회귀 기준: `docs/SPEC.md`
@@ -78,9 +78,6 @@ flowchart TD
 
     LotteryEntry --> Core["core"]
     WheelEntry --> Core
-    LotteryEntry --> Shared["web/shared"]
-    WheelEntry --> Shared
-
     Mcp["mcp"] --> Core
 ```
 
@@ -88,7 +85,7 @@ flowchart TD
 
 - `web/App.tsx`는 추첨기 타입·표시 메타데이터와 공개 기능 컴포넌트만 참조한다.
 - `features/lottery`와 `features/wheel`은 서로 직접 import하지 않는다.
-- `core`와 `web/shared`는 `web/App`이나 특정 기능을 참조하지 않는다.
+- `core`는 `web/App`이나 특정 기능을 참조하지 않는다.
 - `mcp`, `mcp-apps`, `api`의 기존 의존성 방향을 유지한다.
 - `verify-boundaries.mjs`가 웹 하위 기능 경계를 자동 검사한다.
 
@@ -97,10 +94,11 @@ flowchart TD
 ```text
 src/web/
 ├── App.tsx
+├── ExperienceErrorBoundary.tsx
+├── experience.ts
+├── experienceStorage.ts
 ├── main.tsx
-├── shared/
-│   ├── components/
-│   └── services/
+├── shell.css
 └── features/
     ├── lottery/
     │   ├── domain/
@@ -108,11 +106,12 @@ src/web/
     │   ├── services/
     │   └── index.ts
     └── wheel/
+        ├── WheelApp.tsx
         ├── domain/
         │   ├── wheelSession.ts
-        │   └── wheelGeometry.ts
+        │   ├── wheelGeometry.ts
+        │   └── wheelSetup.ts
         ├── components/
-        │   ├── WheelApp.tsx
         │   ├── WheelSetup.tsx
         │   ├── WheelStage.tsx
         │   ├── WheelControls.tsx
@@ -479,6 +478,8 @@ wheel-draw:setup-options:v1
 - 키보드만으로 전체 핵심 흐름을 수행한다.
 - 로또 설정·수동·자동·완료 핵심 흐름이 기존과 동일하다.
 
+구현 완료 검수에서는 Chrome과 인앱 Chromium의 데스크톱·320px 화면에서 선택, 로또, 8개·45개 돌림판과 실제 4초 회전을 확인했다. 키보드 전체 흐름과 동작 감소 220ms 전환은 자동 테스트로 검증했다. 현재 실행 환경에서 제공되지 않는 Safari·Firefox·Edge 실기 검수는 잔여 환경 제한으로 기록한다.
+
 ### 14.3 검증 명령
 
 ```bash
@@ -528,4 +529,4 @@ npm run verify:boundaries
 
 ## 18. 오픈 이슈
 
-제품·기술 계약의 오픈 이슈는 없다. 회전 가속·감속의 세부 상수는 본 문서의 약 4초, 최소 6회 순방향 회전, 결과 선확정과 목표 구획 중심 정지 계약 안에서 실제 브라우저 테스트로 조정한다.
+제품·기술 계약의 오픈 이슈와 알려진 기능 결함은 없다. 회전 가속·감속은 약 4초, 최소 6회 순방향 회전, 결과 선확정과 목표 구획 중심 정지 계약으로 구현·검증했다. Safari·Firefox·Edge 실기 검수는 현재 실행 환경에서 수행하지 못한 검증 범위 제한이다.

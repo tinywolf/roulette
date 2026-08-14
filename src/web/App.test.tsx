@@ -1,606 +1,167 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it } from "vitest";
 import App from "./App";
-import { SoundController } from "./services/soundController";
+import { EXPERIENCE_STORAGE_KEY } from "./experienceStorage";
 
-describe("App setup", () => {
+describe("추첨기 선택 셸", () => {
   beforeEach(() => {
-    vi.useRealTimers();
+    window.history.replaceState(null, "", "#/");
   });
 
-  it("입력 검증 후 추첨을 시작한다", () => {
-    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
-    scrollIntoView.mockClear();
+  it("기본 주소에서 두 추첨기를 선택할 수 있다", () => {
     render(<App />);
-    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
-    const input = screen.getByLabelText("공 이름");
-    const hero = screen.getByRole("region", { name: /두근두근/ });
 
     expect(
-      screen.getByRole("heading", {
-        name: "두근두근, 추첨을 시작합니다",
-      }),
+      screen.getByRole("heading", { name: "어떤 추첨기를 사용할까요?" }),
     ).toBeInTheDocument();
-    expect(hero).toHaveTextContent(
-      "누가 뽑힐지는 마지막 순간까지 아무도 몰라요.",
-    );
-    expect(hero).toHaveTextContent("이름도 숫자도, 원하는 대로 넣어보세요.");
-    expect(hero).not.toHaveTextContent("같은 이름도 하나씩 따로 참여해요.");
-    expect(screen.getByRole("link", { name: "GitHub" }))
-      .toHaveAttribute("href", "https://github.com/tinywolf/roulette");
-    expect(startButton).toBeDisabled();
-    fireEvent.change(input, { target: { value: "민지, 민지" } });
-    expect(startButton).toBeEnabled();
-    fireEvent.click(startButton);
-
     expect(
-      screen.getByRole("heading", {
-        name: "두근두근, 추첨을 시작합니다",
-      }),
-    )
-      .toBeInTheDocument();
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-    expect(scrollIntoView).toHaveBeenCalledOnce();
-    expect(scrollIntoView).toHaveBeenCalledWith({
-      behavior: "auto",
-      block: "start",
-    });
-  });
-
-  it("입력 원문을 저장하고 입력만 비운다", () => {
-    render(<App />);
-    const input = screen.getByLabelText("공 이름");
-
-    fireEvent.change(input, { target: { value: "민지\n준호" } });
-    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
-    expect(localStorage.getItem("lottery-draw:names:v1")).toContain("민지");
-    expect(
-      localStorage.getItem("lottery-draw:setup-options:v1"),
-    ).toContain('"mode":"auto"');
-
-    fireEvent.click(screen.getByRole("button", { name: "입력 비우기" }));
-    expect(input).toHaveValue("");
-    expect(localStorage.getItem("lottery-draw:names:v1")).toBeNull();
-    expect(
-      localStorage.getItem("lottery-draw:setup-options:v1"),
-    ).toContain('"mode":"auto"');
-  });
-
-  it("새로 마운트하면 입력과 옵션만 복원하고 설정 화면에서 시작한다", () => {
-    const firstRender = render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호, 서연" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "2" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
-    fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
-    fireEvent.click(screen.getByRole("button", { name: "3D" }));
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-    expect(
-      localStorage.getItem("lottery-draw:setup-options:v1"),
-    ).toContain('"renderMode":"3d"');
-
-    firstRender.unmount();
-    render(<App />);
-
-    expect(screen.getByRole("heading", { name: "어떤 공을 넣어볼까요?" }))
-      .toBeInTheDocument();
-    expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호, 서연");
-    expect(screen.getByRole("radio", { name: /일부만 추첨/ })).toBeChecked();
-    expect(screen.getByLabelText("뽑을 공 개수")).toHaveValue(2);
-    expect(screen.getByRole("radio", { name: /자동 추첨/ })).toBeChecked();
-    expect(screen.getByRole("button", { name: "효과음 켜짐" }))
-      .toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "3D" }))
-      .toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByText("0 / 2")).not.toBeInTheDocument();
-  });
-
-  it("추첨 진행 상태를 유지하면서 2D와 3D 렌더링을 전환한다", () => {
-    const { container } = render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-
-    expect(screen.getByRole("button", { name: "3D" }))
-      .toHaveAttribute("aria-pressed", "true");
-    expect(container.querySelector(".lottery-canvas--3d"))
-      .toBeInTheDocument();
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "2D" }));
-
-    expect(screen.getByRole("button", { name: "2D" }))
-      .toHaveAttribute("aria-pressed", "true");
-    expect(container.querySelector(".lottery-canvas--2d"))
-      .toBeInTheDocument();
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "3D" }));
-
-    expect(screen.getByRole("button", { name: "3D" }))
-      .toHaveAttribute("aria-pressed", "true");
-    expect(container.querySelector(".lottery-canvas--3d"))
-      .toBeInTheDocument();
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "3D 연출을 사용할 수 없어 간단한 화면으로 표시합니다.",
-    );
-  });
-
-  it("잘못된 반복 표현식이면 추첨 시작을 차단한다", () => {
-    render(<App />);
-    const input = screen.getByLabelText("공 이름");
-    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
-
-    fireEvent.change(input, { target: { value: "민지*0, 준호" } });
-
-    expect(
-      screen.getByText(
-        "반복 입력은 민지*2처럼 값 뒤에 *와 1~45 사이 정수를 입력해 주세요.",
-      ),
+      screen.getByRole("button", { name: "로또 추첨기 선택" }),
     ).toBeInTheDocument();
-    expect(startButton).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "돌림판 추첨기 선택" }),
+    ).toBeInTheDocument();
   });
 
-  it("일부 추첨 개수를 검증하고 목표 개수로 세션을 시작한다", () => {
+  it("키보드로 추첨기를 선택할 수 있다", async () => {
+    const user = userEvent.setup();
     render(<App />);
-    const input = screen.getByLabelText("공 이름");
-    const startButton = screen.getByRole("button", { name: /추첨 시작/ });
-    const fortyFiveNames = Array.from(
-      { length: 45 },
-      (_, index) => `이름${index + 1}`,
-    ).join(",");
 
-    fireEvent.change(input, { target: { value: fortyFiveNames } });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
+    await user.tab();
+    expect(
+      screen.getByRole("button", { name: "로또 추첨기 선택" }),
+    ).toHaveFocus();
+    await user.tab();
+    expect(
+      screen.getByRole("button", { name: "돌림판 추첨기 선택" }),
+    ).toHaveFocus();
+    await user.keyboard("{Enter}");
 
-    const drawCountInput = screen.getByLabelText("뽑을 공 개수");
-    fireEvent.change(drawCountInput, { target: { value: "46" } });
-    expect(startButton).toBeDisabled();
-    expect(screen.getByText(/입력한 공 개수\(45개\)/)).toBeInTheDocument();
-
-    fireEvent.change(drawCountInput, { target: { value: "6" } });
-    expect(startButton).toBeEnabled();
-    fireEvent.click(startButton);
-
-    expect(screen.getByText("0 / 6")).toBeInTheDocument();
-    expect(screen.getAllByLabelText(/남은 공 45개/)).toHaveLength(2);
+    expect(window.location.hash).toBe("#/wheel");
+    expect(
+      screen.getByRole("heading", { name: "돌림판 추첨기" }),
+    ).toBeInTheDocument();
   });
 
-  it("서로 다른 시스템 경고를 쌓아 두고 개별적으로 닫는다", () => {
-    localStorage.setItem("lottery-draw:names:v1", "{bad json");
-    localStorage.setItem("lottery-draw:setup-options:v1", "{bad json");
+  it("로또를 공개 진입점으로 마운트하고 선택 화면으로 돌아온다", () => {
     render(<App />);
-
-    expect(screen.getAllByRole("status")).toHaveLength(2);
-    expect(screen.getByText("저장된 이름 목록을 불러오지 못했습니다."))
-      .toBeInTheDocument();
-    expect(screen.getByText("저장된 설정을 불러오지 못했습니다."))
-      .toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "저장된 이름 목록을 불러오지 못했습니다. 알림 닫기",
-      }),
+      screen.getByRole("button", { name: "로또 추첨기 선택" }),
     );
 
-    expect(screen.queryByText("저장된 이름 목록을 불러오지 못했습니다."))
-      .not.toBeInTheDocument();
-    expect(screen.getByText("저장된 설정을 불러오지 못했습니다."))
-      .toBeInTheDocument();
-  });
-});
-
-describe("manual draw flow", () => {
-  it("효과음 설정과 추첨 혼합·정착 상태에 맞춰 음향 수명을 전환한다", () => {
-    vi.useFakeTimers();
-    const startMixing = vi
-      .spyOn(SoundController.prototype, "startMixing")
-      .mockResolvedValue(undefined);
-    const finishMixing = vi
-      .spyOn(SoundController.prototype, "finishMixing")
-      .mockImplementation(() => undefined);
-    const stopMixing = vi
-      .spyOn(SoundController.prototype, "stopMixing")
-      .mockImplementation(() => undefined);
-
-    render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "가, 나" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-
-    expect(startMixing).toHaveBeenCalledWith(2);
-
-    fireEvent.click(screen.getByRole("button", { name: "효과음 켜짐" }));
-    expect(stopMixing).toHaveBeenCalled();
-
-    const startCountBeforeEnabling = startMixing.mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
-    expect(startMixing.mock.calls.length).toBeGreaterThan(
-      startCountBeforeEnabling,
-    );
-
-    const finishCountBeforeCompletion = finishMixing.mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
-    act(() => {
-      vi.advanceTimersByTime(2_400);
-    });
-
-    expect(screen.getByText("1 / 1")).toBeInTheDocument();
-    expect(finishMixing.mock.calls.length).toBeGreaterThan(
-      finishCountBeforeCompletion,
-    );
-    expect(finishMixing).toHaveBeenLastCalledWith(1);
-
-    startMixing.mockRestore();
-    finishMixing.mockRestore();
-    stopMixing.mockRestore();
-    vi.useRealTimers();
-  });
-
-  it("진행 중과 완료 후에도 설정 화면을 거치지 않고 재추첨한다", () => {
-    vi.useFakeTimers();
-    render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "가, 나, 다" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
-
-    const redrawButton = screen.getByRole("button", { name: "재추첨" });
-    expect(redrawButton).toHaveAttribute("aria-keyshortcuts", "R");
-
-    fireEvent.keyDown(window, {
-      code: "KeyR",
-      key: "r",
-      repeat: true,
-    });
-    fireEvent.keyDown(window, {
-      code: "KeyR",
-      key: "r",
-      ctrlKey: true,
-    });
-    expect(screen.getByRole("button", { name: /공을 섞는 중/ })).toBeDisabled();
-
-    fireEvent.click(redrawButton);
+    expect(window.location.hash).toBe("#/lottery");
     expect(
-      screen.getByRole("alertdialog", {
-        name: "추첨을 다시 시작할까요?",
-      }),
-    ).toHaveTextContent("진행 중인 추첨을 취소하고 처음부터 다시 시작해요.");
-    expect(screen.getByRole("button", { name: "계속 추첨" })).toHaveFocus();
-
-    fireEvent.click(screen.getByRole("button", { name: "계속 추첨" }));
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /공을 섞는 중/ })).toBeDisabled();
-
-    fireEvent.keyDown(window, { code: "KeyR", key: "r" });
-    expect(
-      screen.getByRole("alertdialog", {
-        name: "추첨을 다시 시작할까요?",
-      }),
+      screen.getByRole("heading", { name: "어떤 공을 넣어볼까요?" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "재추첨하기" }));
 
-    expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
-    expect(screen.getByText("0 / 1")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /다음 공 뽑기/ })).toBeEnabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: /다른 추첨기 선택/ }),
+    );
 
-    act(() => {
-      vi.advanceTimersByTime(2_400);
-    });
-    expect(screen.getByText("0 / 1")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
-    act(() => {
-      vi.advanceTimersByTime(2_400);
-    });
-    expect(screen.getByText("1 / 1")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "재추첨" }));
-
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByText("0 / 1")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /다음 공 뽑기/ })).toBeEnabled();
-    expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
-    expect(screen.getByLabelText("공 이름")).toHaveValue("가, 나, 다");
-    expect(screen.getByRole("radio", { name: /일부만 추첨/ })).toBeChecked();
-    expect(screen.getByLabelText("뽑을 공 개수")).toHaveValue(1);
-    vi.useRealTimers();
+    expect(window.location.hash).toBe("#/");
+    expect(
+      screen.getByRole("heading", { name: "어떤 추첨기를 사용할까요?" }),
+    ).toBeInTheDocument();
   });
 
-  it("준비 상태에서 Space로 다음 공을 한 번만 뽑는다", () => {
-    vi.useFakeTimers();
+  it("기능을 전환해도 로또와 돌림판의 입력·옵션을 서로 분리해 복원한다", () => {
     render(<App />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "로또 추첨기 선택" }),
+    );
     fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호" },
+      target: { value: "로또 민지, 로또 준호" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /다른 추첨기 선택/ }),
+    );
 
-    const drawButton = screen.getByRole("button", { name: /다음 공 뽑기/ });
-    expect(drawButton).toHaveAttribute("aria-keyshortcuts", "Space");
-
-    fireEvent.keyDown(window, {
-      code: "Space",
-      key: " ",
-      repeat: true,
-    });
-    expect(drawButton).toBeEnabled();
-
-    fireEvent.keyDown(screen.getByRole("button", { name: "처음부터 다시" }), {
-      code: "Space",
-      key: " ",
-    });
-    expect(drawButton).toBeEnabled();
-
-    fireEvent.keyDown(window, { code: "Space", key: " " });
-    expect(screen.getByRole("button", { name: /공을 섞는 중/ })).toBeDisabled();
-
-    fireEvent.keyDown(window, { code: "Space", key: " " });
-    act(() => {
-      vi.advanceTimersByTime(2_400);
-    });
-
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
-    vi.useRealTimers();
-  });
-
-  it("혼합 시간 후 공을 한 번만 결과에 반영하고 설정으로 돌아간다", () => {
-    vi.useFakeTimers();
-    render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호, 서연" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "2" },
+    fireEvent.click(
+      screen.getByRole("button", { name: "돌림판 추첨기 선택" }),
+    );
+    fireEvent.change(screen.getByLabelText("돌림판 후보"), {
+      target: { value: "돌림판 서연, 돌림판 지우" },
     });
     fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /다른 추첨기 선택/ }),
+    );
 
-    const drawButton = screen.getByRole("button", { name: /다음 공 뽑기/ });
-    fireEvent.click(drawButton);
-    fireEvent.click(drawButton);
-    expect(screen.getByRole("button", { name: /공을 섞는 중/ })).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "로또 추첨기 선택" }),
+    );
+    expect(screen.getByLabelText("공 이름")).toHaveValue(
+      "로또 민지, 로또 준호",
+    );
+    expect(screen.getByRole("radio", { name: /자동 추첨/ })).toBeChecked();
+    fireEvent.click(
+      screen.getByRole("button", { name: /다른 추첨기 선택/ }),
+    );
 
-    act(() => {
-      vi.advanceTimersByTime(2_400);
-    });
-
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "결과 복사" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "이미지 저장" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
-    expect(screen.getByRole("heading", { name: "어떤 공을 넣어볼까요?" }))
-      .toBeInTheDocument();
-    expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호, 서연");
-    expect(screen.getByRole("radio", { name: /일부만 추첨/ })).toBeChecked();
-    expect(screen.getByLabelText("뽑을 공 개수")).toHaveValue(2);
-    expect(screen.getByRole("radio", { name: /직접 뽑기/ })).toBeChecked();
+    fireEvent.click(
+      screen.getByRole("button", { name: "돌림판 추첨기 선택" }),
+    );
+    expect(screen.getByLabelText("돌림판 후보")).toHaveValue(
+      "돌림판 서연, 돌림판 지우",
+    );
     expect(screen.getByRole("button", { name: "효과음 켜짐" }))
       .toHaveAttribute("aria-pressed", "true");
-    vi.useRealTimers();
+    expect(localStorage.getItem("lottery-draw:names:v1")).toContain(
+      "로또 민지",
+    );
+    expect(localStorage.getItem("wheel-draw:candidates:v1")).toContain(
+      "돌림판 서연",
+    );
   });
 
-  it("복사 실패 시 오류 알림만 표시한다", async () => {
-    vi.useFakeTimers();
+  it("돌림판 직접 주소에서도 뒤로 가기로 선택 화면에 복귀한다", async () => {
+    window.history.replaceState(null, "", "#/wheel");
     render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
 
-    act(() => {
-      vi.advanceTimersByTime(2_400);
-    });
-    vi.useRealTimers();
+    expect(
+      screen.getByRole("heading", { name: "돌림판 추첨기" }),
+    ).toBeInTheDocument();
 
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: {
-        writeText: vi.fn().mockRejectedValue(new Error("거부")),
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "결과 복사" }));
+    act(() => window.history.back());
 
     await waitFor(() => {
-      const toast = screen.getByRole("alert");
-
-      expect(toast).toHaveTextContent("결과를 복사하지 못했습니다.");
-      expect(toast).toHaveClass("toast", "toast--error");
-    });
-    expect(screen.queryByRole("textbox", { name: /수동 복사/ })).not
-      .toBeInTheDocument();
-  });
-
-  it("일부 추첨은 목표 개수에서 완료하고 나머지 공을 결과에서 제외한다", () => {
-    vi.useFakeTimers();
-    render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "가, 나, 다" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
-
-    act(() => {
-      vi.advanceTimersByTime(2_400);
-    });
-
-    expect(screen.getByText("1 / 1")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "추첨이 완료됐어요" }))
-      .toBeInTheDocument();
-    expect(screen.getByText("선택한 1개의 공을 모두 뽑았어요."))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "결과 복사" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "이미지 저장" })).toBeEnabled();
-    expect(screen.getAllByLabelText(/남은 공 2개/)).toHaveLength(2);
-    vi.useRealTimers();
-  });
-
-  it("결과를 순서 텍스트로 복사하고 성공을 알린다", async () => {
-    vi.useFakeTimers();
-    render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /일부만 추첨/ }));
-    fireEvent.change(screen.getByLabelText("뽑을 공 개수"), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
-    fireEvent.click(screen.getByRole("button", { name: /다음 공 뽑기/ }));
-    act(() => {
-      vi.advanceTimersByTime(2_400);
-    });
-    vi.useRealTimers();
-
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "결과 복사" }));
-
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/^1\. /));
-      const toast = screen
-        .getByText("추첨 결과를 복사했습니다.")
-        .closest(".toast");
-
-      expect(toast).toHaveTextContent("추첨 결과를 복사했습니다.");
-      expect(toast).toHaveClass("toast", "toast--success");
+      expect(window.location.hash).toBe("#/");
+      expect(
+        screen.getByRole("heading", { name: "어떤 추첨기를 사용할까요?" }),
+      ).toBeInTheDocument();
     });
   });
-});
 
-describe("automatic draw flow", () => {
-  it("진행 중 재추첨하면 기존 일정을 버리고 새 일정으로 시작한다", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(1_000);
-    const randomValues = [0, 0, 0, 0, 4, 4];
-    const randomSpy = vi
-      .spyOn(globalThis.crypto, "getRandomValues")
-      .mockImplementation(((values: Uint32Array<ArrayBuffer>) => {
-        values[0] = randomValues.shift() ?? 0;
-        return values;
-      }) as typeof globalThis.crypto.getRandomValues);
+  it("마지막 선택은 자동 진입하지 않고 해당 카드만 강조한다", () => {
+    localStorage.setItem(
+      EXPERIENCE_STORAGE_KEY,
+      JSON.stringify({ version: 1, type: "wheel" }),
+    );
 
     render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
-    act(() => {
-      vi.advanceTimersByTime(3_000);
-    });
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "재추첨" }));
+    expect(window.location.hash).toBe("#/");
+    expect(screen.getByText("마지막 선택")).toBeInTheDocument();
     expect(
-      screen.getByRole("alertdialog", {
-        name: "추첨을 다시 시작할까요?",
-      }),
-    ).toHaveTextContent("지금까지 뽑은 1개의 결과가 모두 사라져요.");
-    fireEvent.click(screen.getByRole("button", { name: "재추첨하기" }));
-
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-    expect(screen.queryByLabelText("공 이름")).not.toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(3_000);
-    });
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(4_000);
-    });
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
-    expect(screen.getByRole("radio", { name: /자동 추첨/ })).toBeChecked();
-    expect(screen.getByLabelText("공 이름")).toHaveValue("민지, 준호");
-
-    randomSpy.mockRestore();
-    vi.useRealTimers();
+      screen.getByRole("button", { name: "돌림판 추첨기 선택" }),
+    ).toHaveClass("experience-card--last");
   });
 
-  it("카운트다운 없이 3초부터 순서대로 자동 추첨한다", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(1_000);
-    const randomSpy = vi
-      .spyOn(globalThis.crypto, "getRandomValues")
-      .mockImplementation(((values: Uint32Array<ArrayBuffer>) => {
-        values[0] = 0;
-        return values;
-      }) as typeof globalThis.crypto.getRandomValues);
+  it("알 수 없는 주소와 손상된 선택값을 선택 화면으로 복구한다", async () => {
+    window.history.replaceState(null, "", "#/unknown");
+    localStorage.setItem(EXPERIENCE_STORAGE_KEY, "{bad json");
 
     render(<App />);
-    fireEvent.change(screen.getByLabelText("공 이름"), {
-      target: { value: "민지, 준호" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: /자동 추첨/ }));
-    fireEvent.click(screen.getByRole("button", { name: /추첨 시작/ }));
 
-    expect(screen.queryByText(/초 남음|카운트다운/)).not.toBeInTheDocument();
+    await waitFor(() => expect(window.location.hash).toBe("#/"));
     expect(
-      screen.queryByText("공이 언제 나올지 집중해 보세요"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(2_999);
-    });
-    expect(screen.getByText("0 / 2")).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(3_000);
-    });
-    expect(screen.getByText("2 / 2")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "추첨이 완료됐어요" }))
-      .toBeInTheDocument();
-
-    randomSpy.mockRestore();
-    vi.useRealTimers();
+      screen.getByRole("heading", { name: "어떤 추첨기를 사용할까요?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "마지막 추첨기 선택을 불러오지 못했습니다.",
+    );
   });
-
 });

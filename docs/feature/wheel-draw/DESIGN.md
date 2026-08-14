@@ -1,6 +1,6 @@
 ---
 branch: feature/wheel-draw
-status: approved
+status: implemented
 updated_at: 2026-08-14
 ---
 
@@ -100,8 +100,6 @@ flowchart TD
     Shell["웹 셸·추첨기 선택"] --> Lottery["features/lottery"]
     Shell --> Wheel["features/wheel"]
 
-    Lottery --> Shared["web/shared"]
-    Wheel --> Shared
     Lottery --> Core["core"]
     Wheel --> Core
 
@@ -116,8 +114,8 @@ flowchart TD
 
 - 웹 셸은 추첨기 목록과 선택 상태만 알고 각 기능의 내부 세션을 알지 않는다.
 - `features/lottery`와 `features/wheel`은 서로 import하지 않는다.
-- 두 기능은 `core`와 검증된 `web/shared` 모듈만 참조할 수 있다.
-- `core`와 `web/shared`는 특정 추첨기 기능을 참조하지 않는다.
+- 두 기능은 `core`의 안정적인 프리미티브만 공유한다.
+- `core`는 특정 추첨기 기능을 참조하지 않는다.
 - MCP는 기존처럼 `core`만 참조하며 웹 셸과 웹 기능을 참조하지 않는다.
 - 새 추첨기는 독립적인 `features/<type>` 디렉터리와 셸 등록만으로 추가할 수 있어야 한다.
 
@@ -132,9 +130,10 @@ src/
 │   └── draw.ts                     # 선택적으로 사용하는 비복원 즉시 추첨
 ├── web/
 │   ├── App.tsx                     # 추첨기 선택과 공통 셸 조정
-│   ├── shared/
-│   │   ├── components/             # 실제로 공통인 작은 UI
-│   │   └── services/               # 표현 독립 브라우저 유틸리티
+│   ├── ExperienceErrorBoundary.tsx # 기능 렌더링 오류 격리
+│   ├── experience.ts               # 표시 메타데이터와 hash 계약
+│   ├── experienceStorage.ts        # 마지막 선택 저장
+│   ├── shell.css                   # 셸 전용 스타일
 │   └── features/
 │       ├── lottery/
 │       │   ├── domain/             # 비복원 세션·자동 일정
@@ -142,6 +141,7 @@ src/
 │       │   ├── services/           # 로또 옵션·음향·결과 이미지
 │       │   └── index.ts
 │       └── wheel/
+│           ├── WheelApp.tsx        # 돌림판 상태·수명주기 조정
 │           ├── domain/             # 복원 세션·회전 결과·각도 계산
 │           ├── components/         # 돌림판 설정·회전판·결과 이력
 │           ├── services/           # 돌림판 옵션·음향·저장
@@ -178,7 +178,7 @@ src/
 - 효과음 수명주기
 - 2D·3D·SVG·Canvas 렌더링 방식
 
-`ToastStack`, 공통 버튼과 같은 UI도 이름이 비슷하다는 이유만으로 이동하지 않는다. 두 기능에서 같은 계약으로 실제 사용되는 것이 확인된 후 `web/shared`로 승격한다.
+`ToastStack`, 공통 버튼과 같은 UI도 이름이 비슷하다는 이유만으로 이동하지 않는다. 이번 구현에서는 실제 동일 계약이 확인되지 않아 별도 `web/shared` 계층을 만들지 않았다. 이후 두 기능에서 같은 책임과 변경 이유가 확인될 때만 공통 계층 승격을 검토한다.
 
 ## 8. 웹 셸과 기능 진입점
 
@@ -335,7 +335,7 @@ wheel-draw:setup-options:v1          # 돌림판 옵션
 2. 공통 웹 셸과 기존 로또 기능의 책임을 식별한다.
 3. 기존 로또 도메인, 컴포넌트와 서비스를 `features/lottery`로 이동한다.
 4. 이동 전후 기존 로또 테스트와 빌드 결과가 동일한지 검증한다.
-5. 실제 두 번째 사용처가 확인된 작은 UI와 서비스만 `web/shared`로 이동한다.
+5. 실제 두 번째 사용처가 확인된 작은 UI와 서비스만 공통 계층으로 이동한다. 이번 구현에서는 해당 항목이 없어 기능 내부에 유지했다.
 
 ### 14.2 추첨기 선택
 
@@ -392,7 +392,7 @@ wheel-draw:setup-options:v1          # 돌림판 옵션
 ### 15.4 구조 경계
 
 - 로또와 돌림판 간 직접 import가 없음
-- `core`와 `web/shared`가 추첨기 기능을 import하지 않음
+- `core`가 추첨기 기능을 import하지 않음
 - 웹 번들에 MCP 서버 런타임이 포함되지 않음
 - MCP 빌드에 웹 기능 코드가 포함되지 않음
 

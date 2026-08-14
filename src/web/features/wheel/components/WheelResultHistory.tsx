@@ -1,0 +1,91 @@
+import type { WheelOutcome } from "../domain/wheelSession";
+
+type WheelResultHistoryProps = {
+  outcomes: WheelOutcome[];
+  isSpinning: boolean;
+  actionMessage: string | null;
+  onCopy: () => void;
+  onClear: () => void;
+};
+
+export function formatWheelOutcomes(outcomes: WheelOutcome[]): string {
+  return outcomes
+    .map((outcome) => `${outcome.spinNumber}. ${outcome.name}`)
+    .join("\n");
+}
+
+/** 반복 후보도 고유 outcome ID로 모두 보존하는 돌림판 결과 이력이다. */
+export function WheelResultHistory({
+  outcomes,
+  isSpinning,
+  actionMessage,
+  onCopy,
+  onClear,
+}: WheelResultHistoryProps) {
+  const latestOutcome = outcomes.at(-1);
+
+  return (
+    <section className="wheel-panel wheel-results" aria-labelledby="wheel-results-title">
+      <div className="wheel-section-heading">
+        <div>
+          <p className="wheel-eyebrow">RESULT HISTORY</p>
+          <h2 id="wheel-results-title">당첨 결과</h2>
+        </div>
+        <span>{outcomes.length}회</span>
+      </div>
+
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {latestOutcome
+          ? `${latestOutcome.spinNumber}번째 당첨 결과는 ${latestOutcome.name}입니다.`
+          : ""}
+      </p>
+
+      {outcomes.length === 0 ? (
+        <p className="wheel-results__empty">
+          돌림판을 돌리면 당첨 결과가 순서대로 쌓입니다.
+        </p>
+      ) : (
+        <ol className="wheel-results__list">
+          {outcomes.map((outcome, index) => (
+            <li
+              key={outcome.id}
+              className={
+                index === outcomes.length - 1
+                  ? "wheel-results__item wheel-results__item--latest"
+                  : "wheel-results__item"
+              }
+            >
+              <span>{outcome.spinNumber}</span>
+              <strong>{outcome.name}</strong>
+              {index === outcomes.length - 1 ? <em>최신</em> : null}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <div className="wheel-results__actions">
+        <button
+          type="button"
+          className="wheel-button wheel-button--ghost"
+          disabled={outcomes.length === 0}
+          onClick={onCopy}
+        >
+          결과 복사
+        </button>
+        <button
+          type="button"
+          className="wheel-button wheel-button--ghost"
+          disabled={outcomes.length === 0 || isSpinning}
+          onClick={onClear}
+        >
+          결과 비우기
+        </button>
+      </div>
+      {actionMessage ? (
+        <p className="wheel-action-message" role="status">
+          {actionMessage}
+        </p>
+      ) : null}
+    </section>
+  );
+}

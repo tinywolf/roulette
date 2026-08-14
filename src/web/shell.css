@@ -1,0 +1,226 @@
+:root {
+  color: #172033;
+  background: #f4f7fc;
+  font-family:
+    Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --ink: #172033;
+  --muted: #68748c;
+  --line: #dfe5f0;
+  --surface: rgb(255 255 255 / 90%);
+  --primary: #ff5c59;
+  --primary-dark: #e94947;
+  --navy: #26344f;
+  --success: #15845c;
+  --warning: #b26a00;
+  --danger: #c94145;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 7% 16%, rgb(255 207 103 / 20%), transparent 24rem),
+    radial-gradient(circle at 92% 26%, rgb(111 161 255 / 16%), transparent 28rem),
+    #f4f7fc;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgb(76 132 255 / 28%);
+  outline-offset: 2px;
+}
+
+.experience-selector {
+  display: grid;
+  width: min(100%, 1040px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(48px, 9vw, 112px) clamp(20px, 5vw, 64px);
+  align-content: center;
+  color: var(--ink);
+}
+
+.experience-selector__eyebrow,
+.experience-error__eyebrow {
+  margin: 0 0 12px;
+  color: var(--primary-dark);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.experience-selector h1,
+.experience-error h1 {
+  margin: 0;
+  font-family: ui-rounded, "Arial Rounded MT Bold", sans-serif;
+  font-size: clamp(2rem, 6vw, 4rem);
+  letter-spacing: -0.055em;
+}
+
+.experience-selector__lead {
+  max-width: 640px;
+  margin: 18px 0 36px;
+  color: var(--muted);
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.65;
+}
+
+.experience-selector__cards {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.experience-card {
+  position: relative;
+  min-height: 220px;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background: var(--surface);
+  box-shadow: 0 18px 45px rgb(46 62 91 / 10%);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.experience-card:hover {
+  border-color: rgb(255 92 89 / 45%);
+  box-shadow: 0 22px 54px rgb(46 62 91 / 15%);
+  transform: translateY(-3px);
+}
+
+.experience-card--last {
+  border-color: rgb(255 92 89 / 55%);
+}
+
+.experience-card__last {
+  display: inline-flex;
+  margin-bottom: 24px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgb(255 92 89 / 10%);
+  color: var(--primary-dark);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.experience-card strong {
+  display: block;
+  margin-bottom: 12px;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+}
+
+.experience-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.experience-selector__warning {
+  margin: 22px 0 0;
+  color: var(--warning);
+}
+
+.experience-view {
+  position: relative;
+  min-height: 100vh;
+}
+
+.experience-view__navigation {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  display: flex;
+  width: min(100%, 1440px);
+  height: 64px;
+  margin: 0 auto;
+  padding: 12px clamp(20px, 4vw, 64px);
+  align-items: center;
+  pointer-events: none;
+}
+
+.experience-view__back {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 8px 24px rgb(46 62 91 / 10%);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+  pointer-events: auto;
+}
+
+.experience-error {
+  display: grid;
+  min-height: 100vh;
+  padding: 100px 24px;
+  place-content: center;
+  text-align: center;
+}
+
+.experience-error > p:not(.experience-error__eyebrow) {
+  margin: 20px 0;
+  color: var(--muted);
+}
+
+.experience-error button {
+  justify-self: center;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--navy);
+  color: white;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+@media (max-width: 680px) {
+  .experience-selector__cards {
+    grid-template-columns: 1fr;
+  }
+
+  .experience-card {
+    min-height: 180px;
+  }
+
+  .experience-view__back {
+    padding: 9px 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .experience-card {
+    transition: none;
+  }
+}

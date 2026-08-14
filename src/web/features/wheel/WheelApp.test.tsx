@@ -1,0 +1,202 @@
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { RandomValuesSource } from "../../../core/random";
+import { WheelApp } from "./WheelApp";
+import {
+  WHEEL_CANDIDATES_STORAGE_KEY,
+  WHEEL_OPTIONS_STORAGE_KEY,
+} from "./services/wheelStorage";
+
+function fixedRandom(value: number): RandomValuesSource {
+  return (values) => {
+    values[0] = value;
+  };
+}
+
+function soundService() {
+  return {
+    setEnabled: vi.fn(),
+    startSpin: vi.fn(),
+    playWinner: vi.fn(),
+    stopSpin: vi.fn(),
+    dispose: vi.fn(),
+  };
+}
+
+function startWheel() {
+  fireEvent.change(screen.getByLabelText("돌림판 후보"), {
+    target: { value: "민지, 준호" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "돌림판 시작" }));
+}
+
+describe("WheelApp", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("유효한 후보만 저장해 돌림판 세션을 시작한다", () => {
+    render(<WheelApp randomValues={fixedRandom(0)} />);
+    const startButton = screen.getByRole("button", { name: "돌림판 시작" });
+
+    expect(startButton).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("돌림판 후보"), {
+      target: { value: "민지*0, 준호" },
+    });
+    expect(startButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("돌림판 후보"), {
+      target: { value: "민지, 민지, 준호" },
+    });
+    expect(startButton).toBeEnabled();
+    expect(localStorage.getItem(WHEEL_CANDIDATES_STORAGE_KEY)).toContain(
+      "민지, 민지, 준호",
+    );
+
+    fireEvent.click(startButton);
+    expect(
+      screen.getByRole("img", { name: /후보 3개의 돌림판/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "전체 후보" }))
+      .toBeInTheDocument();
+  });
+
+  it("같은 후보를 반복 당첨 결과로 한 번씩만 누적한다", () => {
+    render(<WheelApp randomValues={fixedRandom(0)} />);
+    startWheel();
+    const spinButton = screen.getByRole("button", { name: "돌림판 회전" });
+
+    fireEvent.click(spinButton);
+    expect(screen.getByRole("button", { name: "회전 중…" })).toBeDisabled();
+    expect(screen.getByText("0회")).toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(4_000));
+    const results = screen.getByRole("region", { name: "당첨 결과" });
+    expect(within(results).getByText("민지")).toBeInTheDocument();
+    expect(within(results).getByText("1회")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+    act(() => vi.advanceTimersByTime(4_000));
+
+    expect(within(results).getAllByText("민지")).toHaveLength(2);
+    expect(within(results).getByText("2회")).toBeInTheDocument();
+  });
+
+  it("결과를 순서 텍스트로 복사하고 후보를 유지한 채 비운다", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    const originalClipboard = Object.getOwnPropertyDescriptor(
+      navigator,
+      "clipboard",
+    );
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    try {
+      render(<WheelApp randomValues={fixedRandom(0)} />);
+      startWheel();
+      fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+      act(() => vi.advanceTimersByTime(4_000));
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "결과 복사" }));
+        await Promise.resolve();
+      });
+      expect(writeText).toHaveBeenCalledWith("1. 민지");
+      expect(screen.getByText("결과를 복사했습니다.")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "결과 비우기" }));
+      expect(screen.getByText("0회")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "전체 후보" }))
+        .toBeInTheDocument();
+      expect(screen.getByText("결과를 비웠습니다.")).toBeInTheDocument();
+    } finally {
+      if (originalClipboard) {
+        Object.defineProperty(navigator, "clipboard", originalClipboard);
+      } else {
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: undefined,
+        });
+      }
+    }
+  });
+
+  it("처음부터 다시는 결과만 버리고 저장된 후보와 설정을 유지한다", () => {
+    render(<WheelApp randomValues={fixedRandom(0)} />);
+    fireEvent.change(screen.getByLabelText("돌림판 후보"), {
+      target: { value: "민지, 준호" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "효과음 꺼짐" }));
+    fireEvent.click(screen.getByRole("button", { name: "돌림판 시작" }));
+    fireEvent.click(screen.getByRole("button", { name: "처음부터 다시" }));
+
+    expect(screen.getByLabelText("돌림판 후보")).toHaveValue("민지, 준호");
+    expect(screen.getByRole("button", { name: "효과음 켜짐" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem(WHEEL_OPTIONS_STORAGE_KEY)).toContain(
+      '"soundEnabled":true',
+    );
+  });
+
+  it("동작 감소 환경에서는 220ms 뒤 같은 결과를 공개한다", () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: "(prefers-reduced-motion: reduce)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
+    try {
+      render(<WheelApp randomValues={fixedRandom(1)} />);
+      startWheel();
+      fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+      act(() => vi.advanceTimersByTime(219));
+      expect(screen.getByText("0회")).toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(1));
+      const results = screen.getByRole("region", { name: "당첨 결과" });
+      expect(within(results).getByText("준호")).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
+  it("언마운트 시 진행 타이머와 돌림판 효과음을 정리한다", () => {
+    const sound = soundService();
+    const rendered = render(
+      <WheelApp randomValues={fixedRandom(0)} soundService={sound} />,
+    );
+    startWheel();
+    fireEvent.click(screen.getByRole("button", { name: "돌림판 회전" }));
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+    rendered.unmount();
+
+    expect(vi.getTimerCount()).toBe(0);
+    expect(sound.dispose).toHaveBeenCalledOnce();
+  });
+});
