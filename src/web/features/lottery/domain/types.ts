@@ -57,7 +57,7 @@ export type DrawSession = {
   error: string | null;
 };
 
-export type { ParseNamesResult } from "../../core/types";
+export type { ParseNamesResult } from "../../../../core/types";
 
 export function createBalls(names: string[]): Ball[] {
   return names.map((name, index) => ({

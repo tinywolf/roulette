@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { fileURLToPath } from "node:url";
+import { findWebFeatureImportFailures } from "./web-feature-boundaries.mjs";
 
 const toolsDirectory = nodePath.dirname(fileURLToPath(import.meta.url));
 const projectRoot = nodePath.resolve(toolsDirectory, "../..");
@@ -129,6 +130,16 @@ async function verifySources() {
             specifier.startsWith("@modelcontextprotocol/"))
         ) {
           failures.push(`${relativeFile}: 웹에서 MCP 의존성 ${specifier}`);
+        }
+
+        if (kind === "web") {
+          for (const failure of findWebFeatureImportFailures({
+            importer: file,
+            specifier,
+            webRoot,
+          })) {
+            failures.push(`${relativeFile}: ${failure}`);
+          }
         }
 
         if (

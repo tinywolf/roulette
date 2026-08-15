@@ -1,11 +1,11 @@
-# 로또 추첨기
+# 추첨기
 
-같은 추첨 규칙을 두 가지 방식으로 제공하는 프로젝트입니다.
+서로 다른 추첨 규칙을 독립적인 UI로 제공하고, 입력 문법과 안전한 난수 같은 핵심만 공유하는 프로젝트입니다.
 
-- 정적 웹앱: 브라우저에서 2D·3D 애니메이션과 함께 수동 또는 자동 추첨
+- 정적 웹앱: 비복원 로또 추첨기와 복원 돌림판 추첨기 중 선택
 - Remote MCP: 에이전트가 옵션을 모두 확인한 뒤 구조화 결과를 확정하고 MCP Apps UI에서 표시하는 공개·stateless 도구
 
-추첨 결과는 Web Crypto API와 거부 샘플링을 이용한 Fisher–Yates 순열로 결정합니다. 웹 애니메이션은 이미 결정된 결과의 표현만 담당합니다.
+모든 추첨 결과는 Web Crypto API 기반 난수로 애니메이션 전에 확정합니다. 로또와 Remote MCP는 Fisher–Yates 순열을 이용한 비복원 추첨을, 돌림판은 매 회전 독립 인덱스 선택을 이용한 복원 추첨을 수행합니다.
 
 ## 주요 기능
 
@@ -13,9 +13,10 @@
 - `민지*2`, `7*3` 반복 입력과 `1~45` 숫자 범위 입력
 - 2~45개 후보, 후보 이름당 최대 20자
 - 중복 이름을 서로 다른 후보로 취급
-- 전체 또는 지정 개수 비복원 추첨
-- 웹의 수동·자동 추첨, 2D Canvas·3D WebGL 연출, 효과음과 결과 복사
-- 웹 입력·설정을 브라우저 `localStorage`에 보존
+- 로또: 전체 또는 지정 개수 비복원 추첨, 수동·자동 모드, 2D Canvas·3D WebGL 연출, 결과 복사·이미지 저장
+- 돌림판: 같은 후보가 다시 나올 수 있는 수동 반복 추첨, 3.8~5.2초·6~10바퀴 SVG 회전, 결과 이력 복사·이미지 저장
+- 선택 화면과 `#/lottery`, `#/wheel` 직접 주소
+- 기능별 입력·설정을 서로 다른 브라우저 `localStorage` 키에 보존
 - MCP `draw_roulette` 도구의 구조화 결과, MCP Apps 룰렛 애니메이션과 현재 카드 재추첨
 - 웹·MCP 목적별 빌드와 테스트 격리
 
@@ -32,7 +33,7 @@
 1~5, 민지*2, 7
 ```
 
-웹에서는 전체/일부 추첨과 수동/자동 모드를 선택한 뒤 시작합니다. MCP에서는 에이전트가 후보 목록과 추첨 인원을 모두 확인한 경우에만 `draw_roulette`를 호출합니다. 전체 추첨은 `drawCount: "all"`, 일부 추첨은 양의 정수를 사용합니다.
+웹의 로또에서는 전체/일부 추첨과 수동/자동 모드를 선택합니다. 돌림판에서는 후보를 설정한 뒤 필요한 만큼 반복 회전하며, 당첨 후보를 제거하지 않습니다. MCP에서는 에이전트가 후보 목록과 추첨 인원을 모두 확인한 경우에만 `draw_roulette`를 호출합니다. 전체 추첨은 `drawCount: "all"`, 일부 추첨은 양의 정수를 사용합니다.
 
 ## 기술 구성
 
@@ -144,7 +145,7 @@ npm run build:mcp
 npm run verify:boundaries
 ```
 
-`verify:boundaries`는 공통 코어의 역방향 의존, 웹·MCP App·MCP의 교차 import, 안전하지 않은 난수, MCP 계층의 로그·외부 요청과 웹 번들의 MCP 코드 혼입을 검사합니다.
+`verify:boundaries`는 로또·돌림판 간 교차 import, 셸의 기능 내부 접근, 공통 코어의 역방향 의존, 웹·MCP App·MCP의 교차 import, 안전하지 않은 난수, MCP 계층의 로그·외부 요청과 웹 번들의 MCP 코드 혼입을 검사합니다.
 
 Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](docs/feature/remote-mcp/DEVELOPMENT.md)를 따릅니다. 실제 Vercel 배포 전 확인 사항과 단계별 명령은 [배포 가이드](docs/feature/remote-mcp/DEPLOYMENT.md)에 정리되어 있습니다.
 
@@ -157,10 +158,14 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 ├── docs/
 │   ├── architecture.md
 │   ├── development.md
-│   └── feature/remote-mcp/      # Remote MCP SPEC·TASK·가이드
+│   └── feature/                 # 기능별 SPEC·DESIGN·TASK·가이드
 ├── src/
-│   ├── core/                    # 양쪽에서 재사용하는 파싱·난수·즉시 추첨
-│   ├── web/                     # React·렌더링·저장·오디오 전용 코드
+│   ├── core/                    # 제품 간 재사용하는 파싱·난수·즉시 추첨
+│   ├── web/
+│   │   ├── App.tsx              # 추첨기 선택·hash 내비게이션 셸
+│   │   └── features/
+│   │       ├── lottery/         # 비복원 로또 도메인·UI·서비스
+│   │       └── wheel/           # 복원 돌림판 도메인·UI·서비스
 │   ├── mcp-apps/                # MCP Apps 전용 UI와 생성 리소스
 │   └── mcp/                     # 도구 계약·UI 리소스 등록·HTTP 정책·표현
 ├── tools/remote-mcp/            # 로컬 서버와 경계·Vercel 검증 도구
@@ -172,7 +177,7 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 └── vite.config.ts
 ```
 
-의존성 방향은 `web → core ← mcp ← api`이며 MCP App UI는 별도로 빌드됩니다. MCP 서버는 생성된 단일 HTML 리소스만 포함하고 UI 런타임 소스는 import하지 않습니다. `web`과 `mcp`는 서로 import하지 않으며 `core`는 React, DOM, MCP SDK 또는 Vercel API를 참조하지 않습니다.
+의존성 방향은 `web/features/* → core ← mcp ← api`이며 웹 셸은 각 기능의 `index.ts` 공개 진입점만 참조합니다. 로또와 돌림판은 서로 import하지 않습니다. MCP App UI는 별도로 빌드되고 MCP 서버에는 생성된 단일 HTML 리소스만 포함됩니다.
 
 ## 데이터와 개인정보
 
@@ -184,6 +189,10 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 ## 관련 문서
 
 - [기존 웹 제품 스펙](docs/SPEC.md)
+- [돌림판 요구사항](docs/feature/wheel-draw/PRD.md)
+- [돌림판 스펙](docs/feature/wheel-draw/SPEC.md)
+- [돌림판 설계](docs/feature/wheel-draw/DESIGN.md)
+- [돌림판 작업 기록](docs/feature/wheel-draw/TASK.md)
 - [아키텍처](docs/architecture.md)
 - [개발 가이드](docs/development.md)
 - [Remote MCP 스펙](docs/feature/remote-mcp/SPEC.md)

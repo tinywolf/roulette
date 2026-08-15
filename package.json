@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "inspect:mcp:list": "mcp-inspector --cli http://127.0.0.1:3000/mcp --transport http --method tools/list --format json",
     "inspect:mcp:call": "mcp-inspector --cli http://127.0.0.1:3000/mcp --transport http --method tools/call --tool-name draw_roulette --tool-args-json '{\"rawInput\":\"1~3, 민지*2\",\"drawCount\":3}' --format json",
-    "verify:boundaries": "node tools/remote-mcp/verify-boundaries.mjs",
+    "test:boundaries": "node --test tools/remote-mcp/web-feature-boundaries.test.mjs",
+    "verify:boundaries": "npm run test:boundaries && node tools/remote-mcp/verify-boundaries.mjs",
     "verify": "npm run test:core && npm run test:web && npm run test:mcp-app && npm run build:web && npm run build:mcp && npm run test:mcp && npm run verify:boundaries"
   },
   "dependencies": {

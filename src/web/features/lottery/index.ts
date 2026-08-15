@@ -1,0 +1,1 @@
+export { LotteryApp } from "./LotteryApp";

@@ -1,6 +1,6 @@
 ---
-revision: 15ebddc
-updated_at: 2026-08-05T12:23:14+09:00
+revision: 94d57b666972420f324eb51b0445223bb9564482
+updated_at: 2026-08-14T16:56:40+09:00
 ---
 
 # 개발 가이드
@@ -22,19 +22,22 @@ npm install
 ```text
 api/          Vercel Function과 HTTP 정책
 src/core/     웹·MCP 공통 순수 규칙
-src/web/      React·브라우저 전용 제품
+src/web/      선택 셸과 추첨기별 수직 기능
 src/mcp-apps/ MCP Apps UI와 생성 리소스
 src/mcp/      MCP 도구·리소스·표현 전용 제품
 tools/        로컬 실행과 빌드·경계 검증 도구
 ```
 
-허용 방향은 `web → core ← mcp ← api`다. `mcp-apps`는 독립 빌드하며 MCP 서버에는 생성된 HTML 리소스만 전달한다.
+허용 방향은 `web → core ← mcp ← api`다. 웹 내부에서는 `App → features/<type>/index.ts → 기능 내부·core` 방향만 허용한다. `mcp-apps`는 독립 빌드하며 MCP 서버에는 생성된 HTML 리소스만 전달한다.
 
 - `core`에서 React, DOM, MCP SDK, Vercel API를 import하지 않는다.
 - `web`과 `mcp`는 서로 import하지 않는다.
 - `mcp-apps`는 `core`, `web`, `mcp`, `api`를 import하지 않으며 서버 난수와 도구 호출을 수행하지 않는다.
-- 웹 수동·자동 일정과 렌더링 타입은 `src/web/domain`에 둔다.
-- 후보 파싱, 난수와 즉시 추첨처럼 두 제품에서 같은 의미인 규칙만 `src/core`에 둔다.
+- `src/web/App.tsx`는 기능별 `index.ts` 공개 진입점만 import하고 `domain`, `components`, `services`에 직접 접근하지 않는다.
+- `features/lottery`와 `features/wheel`은 서로 import하지 않으며 셸 모듈로 역방향 의존하지 않는다.
+- 로또 수동·자동 일정과 렌더링 타입은 `src/web/features/lottery` 내부에 둔다.
+- 돌림판 복원 세션, 각도, SVG UI, 저장과 음향은 `src/web/features/wheel` 내부에 둔다.
+- 후보 파싱, 난수와 즉시 추첨처럼 여러 제품에서 같은 의미인 규칙만 `src/core`에 둔다.
 - MCP 요청 변환과 보안 헤더는 `api`에 두고 코어로 밀어 넣지 않는다.
 - 독립 모듈·컴포넌트에는 역할과 책임을 설명하는 주석을 추가한다.
 
@@ -47,6 +50,14 @@ npm run dev
 ```
 
 기본 주소는 `http://localhost:5173`이다. 다른 포트는 `npm run dev -- --port 5174`처럼 지정한다.
+
+웹 주소는 hash 기반이다.
+
+- `#/`: 추첨기 선택
+- `#/lottery`: 로또 추첨기
+- `#/wheel`: 돌림판 추첨기
+
+기능별 입력과 옵션은 독립된 `localStorage` 키를 사용한다. 셸은 `roulette:selected-experience:v1`만, 로또는 `lottery-draw:*`, 돌림판은 `wheel-draw:*`만 읽고 쓴다.
 
 정적 빌드와 미리보기는 다음과 같다.
 
@@ -100,18 +111,29 @@ npm run verify:boundaries
 
 ```bash
 npm run test:core -- src/core/input.test.ts
+npm run test:web -- src/web/features/wheel/domain/wheelSession.test.ts
 ```
 
 입력 문법을 수정할 때는 일반 후보, 빈 항목, 중복, 반복, 범위, 길이와 최종 2~45개 경계를 함께 추가한다. 난수 코드는 결정론적 `RandomValuesSource`를 주입해 거부 샘플링과 오류 분기를 검증한다.
 
+웹 기능 경계만 빠르게 검사할 때는 `npm run test:boundaries`를 사용한다. 실제 저장소의 전체 소스·번들 경계까지 확인하려면 `npm run verify:boundaries`를 실행한다.
+
 ## 구현 작업 순서
 
-1. 변경 책임이 `core`, `web`, `mcp-apps`, `mcp`, `api` 중 어디에 속하는지 결정한다.
+1. 변경 책임이 `core`, 웹 셸, 특정 웹 기능, `mcp-apps`, `mcp`, `api` 중 어디에 속하는지 결정한다.
 2. 가장 작은 단위 테스트로 현재 계약과 실패 사례를 고정한다.
 3. 단순한 구현으로 테스트를 통과시킨다.
 4. 목적별 테스트와 타입 검사를 실행한다.
 5. `npm run verify`로 교차 제품 회귀와 번들 경계를 확인한다.
 6. MCP Function 변경은 로컬 Inspector와 Vercel 호환 검증을 추가로 수행한다.
+
+새 웹 추첨기를 추가할 때는 다음 순서를 따른다.
+
+1. `src/web/features/<type>` 안에 도메인·UI·서비스·테스트를 함께 둔다.
+2. 외부에 필요한 컴포넌트만 `index.ts`에서 공개한다.
+3. `experience.ts`에 표시용 타입·라벨·설명을 추가하고 `App.tsx`에 명시적 마운트 분기를 추가한다.
+4. 기능 전용 저장 키를 사용하고 기존 기능 키를 읽거나 마이그레이션하지 않는다.
+5. 범용 세션이나 capability를 먼저 만들지 않고, 두 구현의 동일한 계약이 확인된 작은 프리미티브만 공유한다.
 
 ## 디버깅
 
@@ -122,6 +144,14 @@ npm run test:core -- src/core/input.test.ts
 ### 무작위 테스트 실패
 
 테스트에서는 Web Crypto 전역을 바꾸기보다 `RandomValuesSource`를 주입한다. 운영 코드에서 난수 실패를 `Math.random()`으로 대체하면 안 된다.
+
+### 돌림판 회전·결과 불일치
+
+- 결과 후보는 `wheelSession`의 활성 회전에서 먼저 확정되는지 확인한다.
+- 포인터 정렬은 `wheelGeometry`의 상단 0도·시계 방향 좌표계와 후보 중심각을 확인한다.
+- 결과 공개는 transition 종료가 아니라 절대 `revealAt` 기준인지 확인한다.
+- 일반 회전은 같은 강도 값으로 3.8~5.2초와 6~10회 순방향 회전을 함께 늘리고, `prefers-reduced-motion`에서는 220ms 전환을 사용한다.
+- 화면 이동·언마운트 시 timer, animation과 `WheelSoundController`가 정리되는지 확인한다.
 
 ### MCP 연결 실패
 
@@ -145,7 +175,7 @@ npm run test:core -- src/core/input.test.ts
 
 ### 웹·MCP 코드 혼입
 
-`npm run verify:boundaries`를 실행한다. 정적 검사 외에 `dist/assets`에서 MCP SDK나 UI 리소스 식별자가 발견되면 웹 진입점의 import 경로를 추적한다. Function은 MCP App 실행 소스가 아니라 생성된 HTML 리소스만 포함해야 한다.
+`npm run verify:boundaries`를 실행한다. 웹 기능 위반은 보고된 importer와 target을 따라가며 셸은 공개 `index.ts`로, 기능 공통 규칙은 `core`로 의존 방향을 고친다. 정적 검사 외에 `dist/assets`에서 MCP SDK나 UI 리소스 식별자가 발견되면 웹 진입점의 import 경로를 추적한다. Function은 MCP App 실행 소스가 아니라 생성된 HTML 리소스만 포함해야 한다.
 
 ## 보안 점검
 

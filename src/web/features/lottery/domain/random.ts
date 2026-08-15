@@ -2,7 +2,7 @@ import {
   secureRandomInteger,
   webCryptoRandomValues,
   type RandomValuesSource,
-} from "../../core/random";
+} from "../../../../core/random";
 import type { ScheduledDraw } from "./types";
 
 export const AUTO_DRAW_MIN_SECONDS = 3;
@@ -15,7 +15,7 @@ export {
   SecureRandomError,
   webCryptoRandomValues as browserRandomValues,
   type RandomValuesSource,
-} from "../../core/random";
+} from "../../../../core/random";
 
 export function createAutoSchedule(
   orderedBallIds: string[],
