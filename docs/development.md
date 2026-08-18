@@ -23,8 +23,8 @@ npm install
 api/          Vercel Function과 HTTP 정책
 src/core/     웹·MCP 공통 순수 규칙
 src/web/      선택 셸과 추첨기별 수직 기능
-src/mcp-apps/ MCP Apps UI와 생성 리소스
-src/mcp/      MCP 도구·리소스·표현 전용 제품
+src/mcp-apps/ MCP Apps UI 소스
+src/mcp/      MCP 도구·생성 리소스·표현 전용 제품
 tools/        로컬 실행과 빌드·경계 검증 도구
 ```
 

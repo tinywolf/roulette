@@ -67,13 +67,15 @@ flowchart LR
 │   │   │   └── wheel/               # 복원 세션·SVG UI·저장·음향
 │   │   └── main.tsx                 # Vite 진입점
 │   ├── mcp-apps/
-│   │   └── roulette/                # 격리된 MCP Apps UI와 생성 리소스
+│   │   └── roulette/                # 격리된 MCP Apps UI 소스
 │   └── mcp/
 │       ├── server.ts                # 서버 정보·지침·도구 등록
 │       ├── errors.ts                # 안전한 공개 오류 매핑
 │       ├── http/requestPolicy.ts    # Origin·본문 크기·보안 헤더
 │       ├── integration/             # 실제 MCP 클라이언트 통합 테스트
-│       ├── resources/rouletteApp.ts # 생성 HTML 리소스 등록
+│       ├── resources/
+│       │   ├── generated/rouletteAppResource.ts # 생성된 단일 HTML 리소스
+│       │   └── rouletteApp.ts       # 생성 HTML 리소스 등록
 │       └── tools/drawRoulette.ts    # Zod 계약과 실행 조정
 ├── docs/feature/                     # 기능별 스펙·설계·작업·검증 문서
 ├── tools/
@@ -104,6 +106,7 @@ flowchart LR
 | `src/web/features/wheel/components/*` | SVG 돌림판, 설정·제어·전체 후보·결과 이력 | wheel 내부, 브라우저 API |
 | `src/web/features/wheel/services/*` | 돌림판 후보·옵션 저장과 회전·당첨 효과음 | wheel 내부, 브라우저 API |
 | `src/mcp-apps/roulette/*` | 최초 입력·결과 검증, app-only 재추첨 호출, 현재 카드의 룰렛 회전과 순차 공개 | MCP Apps 브리지, DOM |
+| `src/mcp/resources/generated/rouletteAppResource.ts` | MCP App 빌드 HTML과 UI 메타데이터를 서버 번들용 상수로 제공 | 생성 전용, 직접 수정 금지 |
 | `src/mcp/tools/drawRoulette.ts` | 엄격한 입력·출력 스키마, 코어 호출, 오류 변환 | `core`, `mcp`, MCP SDK, Zod |
 | `src/mcp/resources/rouletteApp.ts` | 생성된 단일 HTML을 현재 버전 `ui://` 리소스와 과거 버전 호환 템플릿으로 등록 | 생성 리소스, MCP SDK |
 | `src/mcp/server.ts` | 초기화 지침, 모델용 `draw_roulette`, app-only `redraw_roulette`, UI 메타데이터 등록 | `mcp`, MCP SDK |

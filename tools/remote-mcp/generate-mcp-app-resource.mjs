@@ -11,7 +11,7 @@ const htmlPath = path.join(
 );
 const generatedDirectory = path.join(
   projectRoot,
-  "src/mcp-apps/roulette/generated",
+  "src/mcp/resources/generated",
 );
 const generatedPath = path.join(
   generatedDirectory,

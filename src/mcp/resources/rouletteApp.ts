@@ -3,7 +3,7 @@ import {
   ResourceTemplate,
   type McpServer,
 } from "@modelcontextprotocol/server";
-import { ROULETTE_APP_RESOURCE } from "../../mcp-apps/roulette/generated/rouletteAppResource.js";
+import { ROULETTE_APP_RESOURCE } from "./generated/rouletteAppResource.js";
 
 export const ROULETTE_APP_RESOURCE_URI = ROULETTE_APP_RESOURCE.uri;
 export const ROULETTE_APP_LEGACY_RESOURCE_URI_TEMPLATE =

@@ -9,7 +9,7 @@ const coreRoot = nodePath.join(projectRoot, "src/core");
 const webRoot = nodePath.join(projectRoot, "src/web");
 const mcpRoot = nodePath.join(projectRoot, "src/mcp");
 const mcpAppRoot = nodePath.join(projectRoot, "src/mcp-apps");
-const generatedMcpAppRoot = nodePath.join(mcpAppRoot, "roulette/generated");
+const generatedMcpResourceRoot = nodePath.join(mcpRoot, "resources/generated");
 const apiRoot = nodePath.join(projectRoot, "api");
 const failures = [];
 
@@ -70,8 +70,8 @@ async function verifySources() {
         continue;
       }
 
-      // 생성 모듈에는 번들 문자열이 들어 있으므로 아래 소스 정적 검사의 대상이 아니다.
-      if (kind === "mcp-app" && file.startsWith(generatedMcpAppRoot)) {
+      // 생성 리소스에는 번들 문자열이 들어 있으므로 아래 소스 정적 검사의 대상이 아니다.
+      if (file.startsWith(generatedMcpResourceRoot)) {
         continue;
       }
 
@@ -154,8 +154,7 @@ async function verifySources() {
 
         if (
           (kind === "mcp" || kind === "api") &&
-          resolvesInside(file, specifier, mcpAppRoot) &&
-          !resolvesInside(file, specifier, generatedMcpAppRoot)
+          resolvesInside(file, specifier, mcpAppRoot)
         ) {
           failures.push(`${relativeFile}: MCP에서 MCP App 런타임 소스 의존성 ${specifier}`);
         }
@@ -190,7 +189,7 @@ async function verifySources() {
 
 async function verifyMcpAppResource() {
   const generatedSource = await readFile(
-    nodePath.join(generatedMcpAppRoot, "rouletteAppResource.ts"),
+    nodePath.join(generatedMcpResourceRoot, "rouletteAppResource.ts"),
     "utf8",
   );
   const requiredMarkers = [

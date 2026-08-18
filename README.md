@@ -166,8 +166,8 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 │   │   └── features/
 │   │       ├── lottery/         # 비복원 로또 도메인·UI·서비스
 │   │       └── wheel/           # 복원 돌림판 도메인·UI·서비스
-│   ├── mcp-apps/                # MCP Apps 전용 UI와 생성 리소스
-│   └── mcp/                     # 도구 계약·UI 리소스 등록·HTTP 정책·표현
+│   ├── mcp-apps/                # MCP Apps 전용 UI 소스
+│   └── mcp/                     # 도구 계약·생성 UI 리소스·HTTP 정책·표현
 ├── tools/
 │   ├── verify/                  # 소스·산출물 아키텍처 경계 검증 도구
 │   └── remote-mcp/              # MCP App 생성·로컬 서버·Vercel 검증 도구

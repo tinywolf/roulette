@@ -55,8 +55,7 @@ assert(
 
 const forbiddenFunctionPaths = [
   "src/web/",
-  "src/mcp-apps/roulette/app.js",
-  "src/mcp-apps/roulette/model.js",
+  "src/mcp-apps/",
   "node_modules/react/",
   "node_modules/react-dom/",
   "node_modules/html-to-image/",
@@ -72,7 +71,7 @@ assert(
   functionFiles.includes("src/core/draw.js") &&
     functionFiles.includes("src/mcp/server.js") &&
     functionFiles.includes(
-      "src/mcp-apps/roulette/generated/rouletteAppResource.js",
+      "src/mcp/resources/generated/rouletteAppResource.js",
     ),
   "MCP Function에 필요한 공통 코어, 서버 또는 생성 UI 리소스가 없습니다.",
 );
