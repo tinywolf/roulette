@@ -168,7 +168,9 @@ Remote MCP의 로컬 실행과 Inspector 검증은 [기능 개발 가이드](doc
 │   │       └── wheel/           # 복원 돌림판 도메인·UI·서비스
 │   ├── mcp-apps/                # MCP Apps 전용 UI와 생성 리소스
 │   └── mcp/                     # 도구 계약·UI 리소스 등록·HTTP 정책·표현
-├── tools/remote-mcp/            # 로컬 서버와 경계·Vercel 검증 도구
+├── tools/
+│   ├── verify/                  # 소스·산출물 아키텍처 경계 검증 도구
+│   └── remote-mcp/              # MCP App 생성·로컬 서버·Vercel 검증 도구
 ├── vercel-static/               # Vercel에 웹앱을 싣지 않는 빈 정적 출력
 ├── tsconfig.web.json
 ├── tsconfig.mcp.json

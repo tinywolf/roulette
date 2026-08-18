@@ -76,7 +76,9 @@ flowchart LR
 │       ├── resources/rouletteApp.ts # 생성 HTML 리소스 등록
 │       └── tools/drawRoulette.ts    # Zod 계약과 실행 조정
 ├── docs/feature/                     # 기능별 스펙·설계·작업·검증 문서
-├── tools/remote-mcp/                 # 로컬 실행·경계·Vercel 검증 도구
+├── tools/
+│   ├── verify/                       # 소스·산출물 아키텍처 경계 검증 도구
+│   └── remote-mcp/                   # MCP App 생성·로컬 실행·Vercel 검증 도구
 ├── tsconfig.base.json
 ├── tsconfig.web.json
 ├── tsconfig.mcp.json
@@ -107,6 +109,7 @@ flowchart LR
 | `src/mcp/server.ts` | 초기화 지침, 모델용 `draw_roulette`, app-only `redraw_roulette`, UI 메타데이터 등록 | `mcp`, MCP SDK |
 | `src/mcp/http/requestPolicy.ts` | same-origin 검사, 16 KiB 제한, `no-store`·`nosniff` | Web Request/Response |
 | `api/mcp.ts` | `mcp-handler`와 정책을 결합한 Vercel Function | `api`, `mcp` |
+| `tools/verify/verify-boundaries.mjs` | 소스 의존 방향과 웹·MCP 산출물 경계 검증 | Node.js, 경계 판정 모듈 |
 | `tools/remote-mcp/local-mcp-server.ts` | 개발 서버 이름 주입과 payload 비포함 HTTP 요청 로그 | Node HTTP, `api`, `mcp` |
 
 클래스와 모듈의 독립 책임은 코드 주석으로도 명시한다. 새 추상화는 이 경계를 유지하는 데 필요한 경우에만 추가한다.
