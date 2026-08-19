@@ -49,11 +49,11 @@ MCP 서버는 데이터베이스·캐시·분석 도구를 사용하지 않습�
 
 ## 실행 환경과 설치
 
-- Node.js 22 이상 권장
-- npm 10 이상 권장
+- Node.js 24
 - 웹 사용 시 최신 안정 버전 Chrome, Safari, Firefox 또는 Edge
 
 ```bash
+nvm use
 npm install
 ```
 

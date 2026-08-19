@@ -8,6 +8,6 @@
     "outputDirectory": null,
     "rootDirectory": null,
     "directoryListing": false,
-    "nodeVersion": "22.x"
+    "nodeVersion": "24.x"
   }
 }

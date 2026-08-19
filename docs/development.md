@@ -1,19 +1,19 @@
 ---
 revision: 94d57b666972420f324eb51b0445223bb9564482
-updated_at: 2026-08-14T16:56:40+09:00
+updated_at: 2026-08-19T10:01:11+09:00
 ---
 
 # 개발 가이드
 
 ## 개발 환경
 
-- Node.js 22 이상
-- npm 10 이상
+- Node.js 24
 - 웹 확인용 최신 Chromium, Safari, Firefox 또는 Edge
 
 저장소 루트에서 설치한다.
 
 ```bash
+nvm use
 npm install
 ```
 
